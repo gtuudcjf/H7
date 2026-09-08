@@ -24,6 +24,9 @@ emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V
 emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_mdma.h
 emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_exti.h
 emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_cortex.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_adc.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_ll_adc.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_adc_ex.h
 emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_flash.h
 emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_flash_ex.h
 emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_hsem.h
@@ -31,3 +34,12 @@ emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V
 emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_i2c_ex.h
 emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr.h
 emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pwr_ex.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_spi_ex.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_tim_ex.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_uart_ex.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pcd.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_ll_usb.h
+emptytest\system_stm32h7xx.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pcd_ex.h
