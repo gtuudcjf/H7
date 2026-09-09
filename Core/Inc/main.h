@@ -60,6 +60,17 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN Private defines */
 
+/* DRV8323：SPI2 使用软件片选，PC4 为驱动 nSLEEP/使能，PC5 为 CSA 校准。 */
+#define DRV_CS_Pin GPIO_PIN_1
+#define DRV_CS_GPIO_Port GPIOC
+#define DRV_ENA_Pin GPIO_PIN_4
+#define DRV_ENA_GPIO_Port GPIOC
+#define DRV_CAL_Pin GPIO_PIN_5
+#define DRV_CAL_GPIO_Port GPIOC
+/* PB5 由用户要求保持高电平，不属于 DRV8323 的使能链路。 */
+#define PB5_KEEP_HIGH_Pin GPIO_PIN_5
+#define PB5_KEEP_HIGH_GPIO_Port GPIOB
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

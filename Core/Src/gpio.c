@@ -54,7 +54,8 @@ void MX_GPIO_Init(void)
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+  /* 用户定义：PB5 在整个运行期间保持高电平。 */
+  HAL_GPIO_WritePin(PB5_KEEP_HIGH_GPIO_Port, PB5_KEEP_HIGH_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_6, GPIO_PIN_RESET);
