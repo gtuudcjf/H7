@@ -27,6 +27,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "motor_control.h"
 
 /* USER CODE END Includes */
 
@@ -48,6 +49,23 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+
+/*
+ * 快速控制周期必须与 TIM8 更新事件周期严格一致：
+ * 240 MHz / (2 * (11999 + 1)) = 10 kHz，因此 dt = 1 / 10 kHz = 100 us。
+ * 后续修改 TIM8 时钟或 ARR 时，必须同步更新此常量，否则电角度积分和
+ * 未来 PI 控制器的离散时间都会产生比例误差。
+ */
+#define MOTOR_FAST_TICK_S (0.0001f)
+
+/*
+ * 当前只启用开环模式。20 Hz/s 表示目标电角频率每秒最多变化20 Hz，
+ * 用于避免启动瞬间给定频率阶跃；mode 字段预留给后续闭环模式选择。
+ */
+static const MotorControlConfig motor_config = {
+  .mode = MOTOR_CONTROL_OPEN_LOOP,
+  .frequency_slew_hz_per_s = 20.0f
+};
 
 /* USER CODE END PV */
 
@@ -104,6 +122,43 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
+  /*
+   * MotorControl_Init() 只完成以下安全初始化，不向功率级输出 PWM：
+   *   1. 将通用 DRV8323 对象绑定到 SPI2、PC1(CS)、PC4(ENA)；
+   *   2. 清零开环角度和频率状态；
+   *   3. 将 TIM8 CCR1/2/3 预置为50%中性占空比。
+   */
+  if (MotorControl_Init(&motor_config) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /*
+   * 开环命令：Ud=0、Uq=0.08 pu、目标电角频率=1 Hz。
+   * 低 q 轴电压和低电角频率仅用于无负载确认相序与转向；带电前必须结合
+   * 母线电压、电机参数和负载重新评估。电角频率不是机械转速。
+   */
+  MotorControl_SetOpenLoopCommand(0.0f, 0.08f, 1.0f);
+
+  /*
+   * 启动顺序由控制层保证：拉高 PC4 -> 等待 DRV8323 就绪 -> 写三个配置
+   * 寄存器 -> 启动 TIM8 三路主 PWM 和三路互补 PWM。任一步失败均进入
+   * Error_Handler()，且 PWM 启动失败时会重新拉低驱动使能。
+   */
+  if (MotorControl_Start() != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /*
+   * PWM 通道启动后，再允许 TIM8 更新中断。控制计算固定在10 kHz更新
+   * 事件执行，保证电角度积分周期恒定。不能改到 while(1) 中调用，否则
+   * 主循环耗时变化会导致实际电角频率漂移。
+   */
+  if (HAL_TIM_Base_Start_IT(&htim8) != HAL_OK)
+  {
+    Error_Handler();
+  }
 
   /* USER CODE END 2 */
 
@@ -178,6 +233,19 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /*
+   * HAL 可能把其他基础定时器的更新事件也分派到此回调，因此必须检查
+   * Instance。只有 TIM8 更新事件属于电机10 kHz快速控制周期。
+   */
+  if (htim->Instance == TIM8)
+  {
+    /* 中断内仅执行确定时长的浮点运算和 CCR 写入，禁止阻塞外设访问。 */
+    MotorControl_FastTick(MOTOR_FAST_TICK_S);
+  }
+}
 
 /* USER CODE END 4 */
 

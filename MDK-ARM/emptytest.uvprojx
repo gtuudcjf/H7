@@ -336,7 +336,7 @@
               <MiscControls></MiscControls>
               <Define>USE_PWR_LDO_SUPPLY,USE_HAL_DRIVER,STM32H743xx</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Device/ST/STM32H7xx/Include;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Include;../USB_DEVICE/App;../USB_DEVICE/Target;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc</IncludePath>
+              <IncludePath>../Core/Inc;../Core/Inc/motor;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Device/ST/STM32H7xx/Include;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Include;../USB_DEVICE/App;../USB_DEVICE/Target;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -384,6 +384,41 @@
               <FileName>startup_stm32h743xx.s</FileName>
               <FileType>2</FileType>
               <FilePath>startup_stm32h743xx.s</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Application/User/Motor</GroupName>
+          <Files>
+            <File>
+              <FileName>svpwm.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/svpwm.c</FilePath>
+            </File>
+            <File>
+              <FileName>open_loop.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/open_loop.c</FilePath>
+            </File>
+            <File>
+              <FileName>pwm_3ph.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/pwm_3ph.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_control.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/motor_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>drv8323.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/drv8323.c</FilePath>
+            </File>
+            <File>
+              <FileName>drv8323_board.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/drv8323_board.c</FilePath>
             </File>
           </Files>
         </Group>
