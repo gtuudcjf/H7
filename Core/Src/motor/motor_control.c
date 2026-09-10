@@ -667,16 +667,14 @@ HAL_StatusTypeDef MotorControl_Start(void)
     status = HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
     if (status != HAL_OK)
     {
-        fault_code = MOTOR_FAULT_ADC_START;
-        MotorControl_UpdateDebugState();
+        MotorControl_EnterFault(MOTOR_FAULT_ADC_START);
         return status;
     }
 
     status = Drv8323Board_EnableForPwm();
     if (status != HAL_OK)
     {
-        fault_code = MOTOR_FAULT_DRIVER;
-        MotorControl_UpdateDebugState();
+        MotorControl_EnterFault(MOTOR_FAULT_DRIVER);
         return status;
     }
 

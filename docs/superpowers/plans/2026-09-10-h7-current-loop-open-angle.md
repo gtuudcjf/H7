@@ -154,4 +154,3 @@
 - [ ] **Step 5: Verify the default mode and command still match the proven voltage-open-loop setup.**
 - [ ] **Step 6: Perform a final code review against the approved design and resolve findings.**
 - [ ] **Step 7: Use the finishing-a-development-branch workflow to present integration choices.**
-
