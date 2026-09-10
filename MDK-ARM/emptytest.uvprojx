@@ -406,6 +406,21 @@
               <FilePath>../Core/Src/motor/pwm_3ph.c</FilePath>
             </File>
             <File>
+              <FileName>current_sense.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/current_sense.c</FilePath>
+            </File>
+            <File>
+              <FileName>foc_transform.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/foc_transform.c</FilePath>
+            </File>
+            <File>
+              <FileName>current_pi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/current_pi.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_control.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/motor/motor_control.c</FilePath>
