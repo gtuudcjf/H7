@@ -64,8 +64,12 @@
  * 用于避免启动瞬间给定频率阶跃；mode 字段预留给后续闭环模式选择。
  */
 static const MotorControlConfig motor_config = {
-  /* 默认保持已经通过实机验证的电压开环。需要电流闭环时调用模式请求接口。 */
-  .mode = MOTOR_CONTROL_OPEN_VOLTAGE,
+  /*
+   * 当前实机验证启动模式：角度开环、电流闭环。
+   * 需要回归电压开环时，只将下面的模式改为
+   * MOTOR_CONTROL_OPEN_VOLTAGE，其余开环控制代码无需修改。
+   */
+  .mode = MOTOR_CONTROL_OPEN_ANGLE_CURRENT,
   .frequency_slew_hz_per_s = 20.0f,
   .voltage_slew_pu_per_s = 5.0f
 };
@@ -144,14 +148,14 @@ int main(void)
   MotorControl_SetOpenLoopCommand(0.0f, 0.08f, 1.0f);
 
   /*
-   * 角度开环、电流闭环的保守初值：Id=0 A、Iq=0.3 A、电角频率=1 Hz。
-   * 上电仍进入电压开环；调试确认 ADC 偏置和电流方向后，可在主循环、通信
-   * 命令或调试器中调用：
+   * 角度开环、电流闭环实机验证值：Id=0 A、Iq=0.8 A、电角频率=1 Hz。
+   * 0.3 A 和 0.5 A 时转子只会摆动，0.8 A 已能在 24 V 母线下缓慢转动。
+   * 运行中仍可在主循环、通信命令或调试器中调用：
    *   MotorControl_RequestMode(MOTOR_CONTROL_OPEN_ANGLE_CURRENT);
    * 切回原开环则调用：
    *   MotorControl_RequestMode(MOTOR_CONTROL_OPEN_VOLTAGE);
    */
-  MotorControl_SetCurrentCommand(0.0f, 0.3f, 1.0f);
+  MotorControl_SetCurrentCommand(0.0f, 0.8f, 1.0f);
 
   /*
    * 启动顺序由控制层保证：拉高 PC4 -> 等待 DRV8323 就绪 -> 写三个配置

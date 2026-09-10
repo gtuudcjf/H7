@@ -34,7 +34,10 @@ Assert-Contains $params 'MOTOR_CURRENT_START_IQ_A\s+\(0\.3f\)' 'Initial current 
 Assert-Contains $params 'MOTOR_CURRENT_COMMAND_LIMIT_A\s+\(2\.0f\)' 'Current command must be limited to 2 A.'
 Assert-Contains $params 'MOTOR_CURRENT_TRIP_A\s+\(10\.0f\)' 'Software overcurrent threshold must be 10 A.'
 
-Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_OPEN_VOLTAGE' 'Default startup must preserve voltage open loop.'
+Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_OPEN_ANGLE_CURRENT' `
+    'The validated build must start in open-angle current-control mode.'
+Assert-Contains $main 'MotorControl_SetCurrentCommand\(0\.0f,\s*0\.8f,\s*1\.0f\)' `
+    'The validated 24 V startup command must remain Id=0 A, Iq=0.8 A, 1 electrical Hz.'
 Assert-Contains $main 'HAL_ADCEx_InjectedConvCpltCallback' 'ADC injected completion callback must be integrated.'
 Assert-Contains $main 'ADC_INJECTED_RANK_1[\s\S]*ADC_INJECTED_RANK_2' 'ADC callback must read I_A before I_B.'
 
