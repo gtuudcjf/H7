@@ -97,7 +97,8 @@ void MX_TIM8_Init(void)
     Error_Handler();
   }
   sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_RESET;
+  /* OC4REF rising edge is routed internally to the ADC injected trigger. */
+  sMasterConfig.MasterOutputTrigger2 = TIM_TRGO2_OC4REF;
   sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
   if (HAL_TIMEx_MasterConfigSynchronization(&htim8, &sMasterConfig) != HAL_OK)
   {
@@ -122,6 +123,12 @@ void MX_TIM8_Init(void)
   {
     Error_Handler();
   }
+  /*
+   * CH4 has no GPIO output. PWM2 makes OC4REF rise at 95% of the up-count
+   * half-cycle, after all three low-side shunts have had time to settle.
+   */
+  sConfigOC.OCMode = TIM_OCMODE_PWM2;
+  sConfigOC.Pulse = 11399;
   if (HAL_TIM_PWM_ConfigChannel(&htim8, &sConfigOC, TIM_CHANNEL_4) != HAL_OK)
   {
     Error_Handler();
