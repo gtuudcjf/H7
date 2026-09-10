@@ -9,6 +9,7 @@
 #include <stdio.h>
 
 #include "current_sense.h"
+#include "current_pi.h"
 #include "foc_transform.h"
 #include "motor_params.h"
 
@@ -121,6 +122,110 @@ static void Test_TransformsRejectNonFiniteInput(void)
     assert(!Foc_Park(&alpha_beta, NAN, &dq));
 }
 
+static CurrentPiConfig TestPiConfig(void)
+{
+    CurrentPiConfig config;
+
+    config.kp_v_per_a = 1.0f;
+    config.ki_v_per_a_s = 10.0f;
+    config.kaw_per_s = 20.0f;
+    config.output_limit_v = 5.0f;
+    return config;
+}
+
+static void Test_CurrentPiZeroAndProportionalResponse(void)
+{
+    CurrentPiController controller;
+    CurrentPiResult result;
+    const FocDq zero = {0.0f, 0.0f};
+    const FocDq reference = {1.0f, -2.0f};
+
+    assert(CurrentPi_Init(&controller, &(CurrentPiConfig){1.0f, 0.0f, 0.0f, 5.0f}));
+    assert(CurrentPi_StepDq(&controller, &zero, &zero, 0.01f, &result));
+    AssertNear(result.voltage_v.d, 0.0f, TEST_EPSILON);
+    AssertNear(result.voltage_v.q, 0.0f, TEST_EPSILON);
+
+    assert(CurrentPi_StepDq(&controller, &reference, &zero, 0.01f, &result));
+    AssertNear(result.voltage_v.d, 1.0f, TEST_EPSILON);
+    AssertNear(result.voltage_v.q, -2.0f, TEST_EPSILON);
+}
+
+static void Test_CurrentPiIntegratesAndResets(void)
+{
+    CurrentPiController controller;
+    CurrentPiResult result;
+    const FocDq reference = {1.0f, 0.0f};
+    const FocDq feedback = {0.0f, 0.0f};
+
+    assert(CurrentPi_Init(&controller, &(CurrentPiConfig){0.0f, 10.0f, 0.0f, 5.0f}));
+    assert(CurrentPi_StepDq(&controller, &reference, &feedback, 0.01f, &result));
+    assert(CurrentPi_StepDq(&controller, &reference, &feedback, 0.01f, &result));
+    AssertNear(result.voltage_v.d, 0.1f, TEST_EPSILON);
+    CurrentPi_Reset(&controller);
+    AssertNear(controller.integrator_d_v, 0.0f, TEST_EPSILON);
+    AssertNear(controller.integrator_q_v, 0.0f, TEST_EPSILON);
+}
+
+static void Test_CurrentPiUsesCircularVoltageLimit(void)
+{
+    CurrentPiController controller;
+    CurrentPiResult result;
+    const FocDq reference = {10.0f, 10.0f};
+    const FocDq feedback = {0.0f, 0.0f};
+
+    assert(CurrentPi_Init(&controller, &(CurrentPiConfig){1.0f, 0.0f, 0.0f, 5.0f}));
+    assert(CurrentPi_StepDq(&controller, &reference, &feedback, 0.01f, &result));
+    assert(result.saturated);
+    AssertNear(hypotf(result.voltage_v.d, result.voltage_v.q), 5.0f, TEST_EPSILON);
+    AssertNear(result.voltage_v.d, result.voltage_v.q, TEST_EPSILON);
+}
+
+static void Test_CurrentPiAntiWindupKeepsIntegratorBounded(void)
+{
+    CurrentPiController controller;
+    CurrentPiResult result;
+    const CurrentPiConfig config = TestPiConfig();
+    const FocDq reference = {10.0f, 0.0f};
+    const FocDq feedback = {0.0f, 0.0f};
+    unsigned int index;
+
+    assert(CurrentPi_Init(&controller, &config));
+    for (index = 0U; index < 1000U; ++index)
+    {
+        assert(CurrentPi_StepDq(&controller, &reference, &feedback, 0.001f, &result));
+    }
+    assert(fabsf(controller.integrator_d_v) < 10.0f);
+}
+
+static void Test_CurrentPiPreloadProducesBumplessOutput(void)
+{
+    CurrentPiController controller;
+    CurrentPiResult result;
+    const FocDq reference = {2.0f, -1.0f};
+    const FocDq feedback = {0.0f, 0.0f};
+    const FocDq requested_voltage = {0.5f, -0.25f};
+
+    assert(CurrentPi_Init(&controller, &(CurrentPiConfig){1.0f, 0.0f, 0.0f, 5.0f}));
+    assert(CurrentPi_PreloadOutput(&controller, &reference, &feedback, &requested_voltage));
+    assert(CurrentPi_StepDq(&controller, &reference, &feedback, 0.01f, &result));
+    AssertNear(result.voltage_v.d, requested_voltage.d, TEST_EPSILON);
+    AssertNear(result.voltage_v.q, requested_voltage.q, TEST_EPSILON);
+}
+
+static void Test_CurrentPiRejectsInvalidParameters(void)
+{
+    CurrentPiController controller;
+    CurrentPiResult result;
+    CurrentPiConfig config = TestPiConfig();
+    const CurrentPiConfig valid_config = TestPiConfig();
+    const FocDq zero = {0.0f, 0.0f};
+
+    config.kp_v_per_a = NAN;
+    assert(!CurrentPi_Init(&controller, &config));
+    assert(CurrentPi_Init(&controller, &valid_config));
+    assert(!CurrentPi_StepDq(&controller, &zero, &zero, 0.0f, &result));
+}
+
 int main(void)
 {
     Test_CurrentSenseZeroAtCalibratedOffset();
@@ -130,6 +235,12 @@ int main(void)
     Test_ClarkeAndParkAtZeroAngle();
     Test_ParkAtQuarterElectricalTurn();
     Test_TransformsRejectNonFiniteInput();
+    Test_CurrentPiZeroAndProportionalResponse();
+    Test_CurrentPiIntegratesAndResets();
+    Test_CurrentPiUsesCircularVoltageLimit();
+    Test_CurrentPiAntiWindupKeepsIntegratorBounded();
+    Test_CurrentPiPreloadProducesBumplessOutput();
+    Test_CurrentPiRejectsInvalidParameters();
 
     puts("current-control math tests passed");
     return 0;
