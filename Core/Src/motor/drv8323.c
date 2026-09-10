@@ -7,10 +7,8 @@
  * CPOL=0、CPHA=2EDGE；每次 nSCS 拉低期间必须恰好发送 16 个时钟。
  */
 #include "drv8323.h"
+#include "drv8323_registers.h"
 
-#define DRV8323_REG_DRIVER_CONTROL (0x02U) /**< Driver Control 寄存器。 */
-#define DRV8323_REG_OCP_CONTROL    (0x05U) /**< OCP Control 寄存器。 */
-#define DRV8323_REG_CSA_CONTROL    (0x06U) /**< CSA Control 寄存器。 */
 #define DRV8323_SPI_READ_BIT       (0x8000U) /**< B15：1=读，0=写。 */
 #define DRV8323_SPI_ADDRESS_SHIFT  (11U)     /**< 地址位位于 B14:B11。 */
 #define DRV8323_SPI_DATA_MASK      (0x07FFU) /**< B10:B0 的有效数据掩码。 */
@@ -23,10 +21,6 @@
  *           OCP_DEG=01（4 us），VDS_LVL=1111（1.88 V）。
  * 高、低侧栅极驱动电流寄存器沿用芯片复位默认值，与原工程初始化流程一致。
  */
-#define DRV8323_DRIVER_CONTROL_6X (0x0001U)
-#define DRV8323_CSA_CONTROL       (0x02C3U)
-#define DRV8323_OCP_CONTROL       (0x031FU)
-
 static HAL_StatusTypeDef Drv8323_TransferWord(Drv8323Device *device,
                                                uint16_t tx_word,
                                                uint16_t *rx_word)
@@ -154,15 +148,22 @@ HAL_StatusTypeDef Drv8323_EnableAndConfigure6Pwm(Drv8323Device *device)
         Drv8323_Disable(device);
         return status;
     }
-    /* 保持原工程的 VREF/2、40 V/V 电流采样放大器配置。 */
-    status = Drv8323_WriteRegister(device, DRV8323_REG_CSA_CONTROL, DRV8323_CSA_CONTROL);
+    /*
+     * 两个 20 mOhm 低侧采样电阻使用 VREF/2 双向基准和 5 V/V 增益。
+     * 5 V/V 为当前硬件提供最大的双向量程，满足 10 A 软件保护阈值。
+     */
+    status = Drv8323_WriteRegister(device,
+                                   DRV8323_REG_CSA_CONTROL,
+                                   DRV8323_CSA_CONTROL_DEFAULT);
     if (status != HAL_OK)
     {
         Drv8323_Disable(device);
         return status;
     }
     /* 最后设置驱动内部死区、VDS 过流模式、消隐时间和阈值。 */
-    status = Drv8323_WriteRegister(device, DRV8323_REG_OCP_CONTROL, DRV8323_OCP_CONTROL);
+    status = Drv8323_WriteRegister(device,
+                                   DRV8323_REG_OCP_CONTROL,
+                                   DRV8323_OCP_CONTROL_DEFAULT);
     if (status != HAL_OK)
     {
         Drv8323_Disable(device);

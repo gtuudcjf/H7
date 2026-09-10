@@ -19,6 +19,9 @@ static Drv8323Device drv8323;
 
 HAL_StatusTypeDef Drv8323Board_Init(void)
 {
+    /* 默认退出电流采样校准，避免正常运行时放大器输入仍被内部短接。 */
+    HAL_GPIO_WritePin(DRV_CAL_GPIO_Port, DRV_CAL_Pin, GPIO_PIN_RESET);
+
     /* SPI2 和 GPIO 已由 main.c 中的 CubeMX 初始化函数先行配置。 */
     Drv8323_Bind(&drv8323,
                  &hspi2,
@@ -39,4 +42,11 @@ void Drv8323Board_Disable(void)
 {
     /* 这里只控制驱动使能；PWM 的停止由 motor_control.c 负责排序。 */
     Drv8323_Disable(&drv8323);
+}
+
+void Drv8323Board_SetCurrentCalibration(bool enabled)
+{
+    HAL_GPIO_WritePin(DRV_CAL_GPIO_Port,
+                      DRV_CAL_Pin,
+                      enabled ? GPIO_PIN_SET : GPIO_PIN_RESET);
 }

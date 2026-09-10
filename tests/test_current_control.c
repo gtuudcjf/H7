@@ -10,6 +10,7 @@
 
 #include "current_sense.h"
 #include "current_pi.h"
+#include "drv8323_registers.h"
 #include "foc_transform.h"
 #include "motor_params.h"
 
@@ -43,6 +44,13 @@ static void Test_CurrentSenseZeroAtCalibratedOffset(void)
     AssertNear(current.ia_a, 0.0f, TEST_EPSILON);
     AssertNear(current.ib_a, 0.0f, TEST_EPSILON);
     AssertNear(current.ic_a, 0.0f, TEST_EPSILON);
+}
+
+static void Test_Drv8323CsaConfigurationUsesFiveVoltPerVoltGain(void)
+{
+    assert((DRV8323_CSA_CONTROL_DEFAULT & DRV8323_CSA_GAIN_MASK) ==
+           DRV8323_CSA_GAIN_5_V_PER_V);
+    assert((DRV8323_CSA_CONTROL_DEFAULT & DRV8323_CSA_VREF_DIV_2) != 0U);
 }
 
 static void Test_CurrentSenseConvertsAmperesAndReconstructsPhaseC(void)
@@ -229,6 +237,7 @@ static void Test_CurrentPiRejectsInvalidParameters(void)
 int main(void)
 {
     Test_CurrentSenseZeroAtCalibratedOffset();
+    Test_Drv8323CsaConfigurationUsesFiveVoltPerVoltGain();
     Test_CurrentSenseConvertsAmperesAndReconstructsPhaseC();
     Test_CurrentSenseHonorsConfiguredPolarity();
     Test_CurrentSenseRejectsInvalidConfiguration();
