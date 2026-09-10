@@ -28,6 +28,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "motor_control.h"
+#include "motor_params.h"
 
 /* USER CODE END Includes */
 
@@ -56,7 +57,7 @@
  * 后续修改 TIM8 时钟或 ARR 时，必须同步更新此常量，否则电角度积分和
  * 未来 PI 控制器的离散时间都会产生比例误差。
  */
-#define MOTOR_FAST_TICK_S (0.0001f)
+#define MOTOR_FAST_TICK_S (MOTOR_CONTROL_PERIOD_S)
 
 /*
  * 当前只启用开环模式。20 Hz/s 表示目标电角频率每秒最多变化20 Hz，

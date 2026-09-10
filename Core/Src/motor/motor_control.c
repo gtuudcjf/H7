@@ -827,6 +827,8 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
                                         uint32_t phase_b_raw,
                                         float dt_s)
 {
+    float open_voltage_magnitude;
+
     g_motor_control_debug.phase_a_raw = phase_a_raw;
     g_motor_control_debug.phase_b_raw = phase_b_raw;
 
@@ -846,6 +848,22 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
     if ((motor_mode == MOTOR_CONTROL_STOPPED) || (motor_mode == MOTOR_CONTROL_FAULT) ||
         !current_sense_ready)
     {
+        return;
+    }
+
+    /*
+     * 电压开环允许继续使用原来的完整 SVPWM 范围。当开环矢量超过两电阻
+     * 固定采样点能保证的 0.45 pu 范围时，本次低侧样本可能不代表相电流，
+     * 因而只暂停软件电流监视并拒绝切入电流环，绝不能误判后破坏开环运行。
+     */
+    open_voltage_magnitude = sqrtf((last_voltage_pu.ud_pu * last_voltage_pu.ud_pu) +
+                                   (last_voltage_pu.uq_pu * last_voltage_pu.uq_pu));
+    if ((motor_mode == MOTOR_CONTROL_OPEN_VOLTAGE) &&
+        (open_voltage_magnitude > MOTOR_POLE_VOLTAGE_LIMIT_MAX_PU))
+    {
+        current_feedback_valid = false;
+        overcurrent_count = 0U;
+        g_motor_control_debug.overcurrent_count = 0U;
         return;
     }
 

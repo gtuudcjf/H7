@@ -25,6 +25,8 @@ Assert-Contains $control 'CURRENT_CALIBRATION_SAMPLE_COUNT\s+\(256U\)' 'Calibrat
 Assert-Contains $control 'CURRENT_OVERCURRENT_CONFIRM_COUNT\s+\(2U\)' 'Overcurrent must require two consecutive samples.'
 Assert-Contains $control 'CurrentPi_PreloadOutput' 'Open-loop to current-loop switching must preload the PI.'
 Assert-Contains $control 'open_voltage_blend_active\s*=\s*true' 'Current-loop to open-loop switching must blend voltage.'
+Assert-Contains $control 'open_voltage_magnitude\s*>\s*MOTOR_POLE_VOLTAGE_LIMIT_MAX_PU' `
+    'High-modulation voltage open loop must not trust an invalid fixed low-side sample.'
 
 Assert-Contains $params 'MOTOR_CURRENT_PI_KP_V_PER_A\s+\(0\.05f\)' 'Conservative current Kp default is required.'
 Assert-Contains $params 'MOTOR_CURRENT_PI_KI_V_PER_A_S\s+\(20\.0f\)' 'Conservative current Ki default is required.'
