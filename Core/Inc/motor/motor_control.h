@@ -1,10 +1,9 @@
 /**
  * @file motor_control.h
- * @brief 电机控制统一入口。未来电流环和速度环只替换电压命令来源。
+ * @brief 电压开环与“角度开环、电流闭环”的统一控制入口。
  *
- * 调用顺序：MotorControl_Init() -> 设置命令 -> MotorControl_Start()，随后
- * 由固定周期中断调用 MotorControl_FastTick()。硬件驱动、开环轨迹、SVPWM
- * 和 TIM8 分属不同模块，上层应用不直接访问这些模块的内部状态。
+ * 上层只能通过本接口提交命令和模式请求，不能直接修改 TIM8 CCR。模式切换
+ * 在固定控制边界生效，确保开环与电流闭环不会同时写 PWM。
  */
 #ifndef MOTOR_CONTROL_H
 #define MOTOR_CONTROL_H
@@ -13,52 +12,125 @@
 
 typedef enum
 {
-    MOTOR_CONTROL_STOPPED = 0, /**< PWM 不参与控制，驱动应处于禁止状态。 */
-    MOTOR_CONTROL_OPEN_LOOP    /**< 使用给定 dq 电压和积分电角度生成 PWM。 */
+    MOTOR_CONTROL_STOPPED = 0,
+    MOTOR_CONTROL_OPEN_VOLTAGE,
+    MOTOR_CONTROL_OPEN_ANGLE_CURRENT,
+    MOTOR_CONTROL_ENCODER_CURRENT,
+    MOTOR_CONTROL_FAULT
 } MotorControlMode;
+
+/* 兼容旧代码中的模式名称。 */
+#define MOTOR_CONTROL_OPEN_LOOP MOTOR_CONTROL_OPEN_VOLTAGE
+
+typedef enum
+{
+    MOTOR_RUN_STATE_STOPPED = 0,
+    MOTOR_RUN_STATE_CURRENT_CALIBRATING,
+    MOTOR_RUN_STATE_READY,
+    MOTOR_RUN_STATE_ALIGNING,
+    MOTOR_RUN_STATE_RUNNING,
+    MOTOR_RUN_STATE_FAULT
+} MotorRunState;
+
+typedef enum
+{
+    MOTOR_FAULT_NONE = 0,
+    MOTOR_FAULT_INVALID_CONFIG,
+    MOTOR_FAULT_DRIVER,
+    MOTOR_FAULT_ADC_START,
+    MOTOR_FAULT_CURRENT_CALIBRATION,
+    MOTOR_FAULT_ADC_RANGE,
+    MOTOR_FAULT_ADC_TIMEOUT,
+    MOTOR_FAULT_OVERCURRENT,
+    MOTOR_FAULT_CONTROL_MATH
+} MotorFaultCode;
 
 typedef struct
 {
-    MotorControlMode mode;          /**< 预留的初始模式字段；当前初始化始终从 STOPPED 开始。 */
-    float frequency_slew_hz_per_s; /**< 开环电角频率变化率上限，单位 Hz/s。 */
+    MotorControlMode mode;             /**< 上电校准结束后进入的模式。 */
+    float frequency_slew_hz_per_s;    /**< 开环电角频率斜坡，Hz/s。 */
+    float voltage_slew_pu_per_s;      /**< 闭环切回开环时的电压过渡斜坡。 */
 } MotorControlConfig;
 
 /**
- * @brief 初始化驱动绑定、开环状态和三相 PWM 中性占空比。
- * @param config 控制配置；为 NULL 时频率斜坡默认使用 20 Hz/s。
- * @return HAL_OK 初始化完成，否则返回板级驱动或 PWM 初始化错误。
- * @note 本函数不使能 DRV8323，也不启动 TIM8 PWM 输出。
+ * @brief Keil/Ozone 可直接观察的稳定调试符号。
+ * @note 仅用于观察，应用代码不应直接写这些字段。
  */
+typedef struct
+{
+    volatile MotorControlMode mode;
+    volatile MotorControlMode requested_mode;
+    volatile MotorRunState run_state;
+    volatile MotorFaultCode fault;
+    volatile uint32_t phase_a_raw;
+    volatile uint32_t phase_b_raw;
+    volatile float phase_a_offset;
+    volatile float phase_b_offset;
+    volatile float ia_a;
+    volatile float ib_a;
+    volatile float ic_a;
+    volatile float i_alpha_a;
+    volatile float i_beta_a;
+    volatile float id_a;
+    volatile float iq_a;
+    volatile float id_ref_a;
+    volatile float iq_ref_a;
+    volatile float id_error_a;
+    volatile float iq_error_a;
+    volatile float ud_integrator_v;
+    volatile float uq_integrator_v;
+    volatile float ud_v;
+    volatile float uq_v;
+    volatile float ud_pu;
+    volatile float uq_pu;
+    volatile float electrical_angle_pu;
+    volatile float electrical_frequency_hz;
+    volatile float current_kp_v_per_a;
+    volatile float current_ki_v_per_a_s;
+    volatile float current_kaw_per_s;
+    volatile float current_voltage_limit_pu;
+    volatile uint32_t calibration_sample_count;
+    volatile uint32_t adc_age_ticks;
+    volatile uint32_t overcurrent_count;
+    volatile uint8_t current_sense_ready;
+    volatile uint8_t voltage_saturated;
+} MotorControlDebug;
+
+extern volatile MotorControlDebug g_motor_control_debug;
+
 HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config);
 
-/**
- * @brief 设置开环 dq 电压与目标电角频率。
- * @param ud_pu d轴标幺电压。
- * @param uq_pu q轴标幺电压，通常用于产生转矩方向的旋转磁场。
- * @param electrical_frequency_hz 目标电角频率，负值表示反向旋转。
- * @note 电角频率不是机械转速；两者还与电机极对数有关。
- */
+/** 设置电压开环 dq 标幺电压和目标电角频率。 */
 void MotorControl_SetOpenLoopCommand(float ud_pu,
                                      float uq_pu,
                                      float electrical_frequency_hz);
 
-/**
- * @brief 先唤醒并配置驱动芯片，再开启 TIM8 六路 PWM。
- * @return HAL 状态；PWM 启动失败时会重新禁止驱动芯片。
- */
+/** 设置电流闭环 d/q 电流和目标电角频率，电流会限幅到安全范围。 */
+void MotorControl_SetCurrentCommand(float id_a,
+                                    float iq_a,
+                                    float electrical_frequency_hz);
+
+/** 请求在下一个 10 kHz 控制边界切换模式。 */
+HAL_StatusTypeDef MotorControl_RequestMode(MotorControlMode mode);
+
+/** 设置电流 PI；异常值会被拒绝，参数组在关中断的短临界区内更新。 */
+HAL_StatusTypeDef MotorControl_SetCurrentPiGains(float kp_v_per_a,
+                                                 float ki_v_per_a_s,
+                                                 float kaw_per_s);
+
+/** 设置电流环电压矢量上限，范围为 0～0.45 pu。 */
+HAL_StatusTypeDef MotorControl_SetCurrentVoltageLimit(float limit_pu);
+
 HAL_StatusTypeDef MotorControl_Start(void);
-
-/**
- * @brief 停止控制，先关闭六路 PWM，再禁止驱动芯片。
- * @return PWM 停止过程返回的 HAL 状态。
- */
 HAL_StatusTypeDef MotorControl_Stop(void);
+HAL_StatusTypeDef MotorControl_ClearFault(void);
 
-/**
- * @brief 固定周期快速任务：开环更新 -> SVPWM -> 写入 TIM8 CCR。
- * @param dt_s 控制周期，单位秒；必须与实际中断频率一致。
- * @note 函数运行于高优先级中断上下文，禁止加入 HAL_Delay、阻塞 SPI/UART 等操作。
- */
+/** TIM8 更新中断入口：推进统一电角度，并在电压开环模式更新 PWM。 */
 void MotorControl_FastTick(float dt_s);
+
+/** ADC 注入序列完成入口：校准或执行电流闭环。 */
+void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
+                                        uint32_t phase_b_raw,
+                                        float dt_s);
 
 #endif /* MOTOR_CONTROL_H */

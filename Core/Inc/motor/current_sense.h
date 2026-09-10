@@ -31,6 +31,31 @@ typedef struct
     float ic_a;
 } CurrentPhaseCurrents;
 
+typedef struct
+{
+    uint32_t discard_remaining;
+    uint32_t target_sample_count;
+    uint32_t sample_count;
+    uint64_t phase_a_sum;
+    uint64_t phase_b_sum;
+    uint32_t phase_a_min;
+    uint32_t phase_a_max;
+    uint32_t phase_b_min;
+    uint32_t phase_b_max;
+} CurrentSenseCalibration;
+
+void CurrentSenseCalibration_Start(CurrentSenseCalibration *calibration,
+                                   uint32_t discard_count,
+                                   uint32_t sample_count);
+bool CurrentSenseCalibration_AddSample(CurrentSenseCalibration *calibration,
+                                       uint32_t phase_a_raw,
+                                       uint32_t phase_b_raw);
+bool CurrentSenseCalibration_GetOffsets(const CurrentSenseCalibration *calibration,
+                                        float adc_full_scale_count,
+                                        float rail_margin_count,
+                                        uint32_t maximum_span_count,
+                                        CurrentSenseOffsets *offsets);
+
 /**
  * @brief 将 PB1/PB0 的 ADC 原始值换算为三相电流。
  * @note C 相没有采样电阻，依据三相电流和为零进行重构。

@@ -63,8 +63,10 @@
  * 用于避免启动瞬间给定频率阶跃；mode 字段预留给后续闭环模式选择。
  */
 static const MotorControlConfig motor_config = {
-  .mode = MOTOR_CONTROL_OPEN_LOOP,
-  .frequency_slew_hz_per_s = 20.0f
+  /* 默认保持已经通过实机验证的电压开环。需要电流闭环时调用模式请求接口。 */
+  .mode = MOTOR_CONTROL_OPEN_VOLTAGE,
+  .frequency_slew_hz_per_s = 20.0f,
+  .voltage_slew_pu_per_s = 5.0f
 };
 
 /* USER CODE END PV */
@@ -141,6 +143,16 @@ int main(void)
   MotorControl_SetOpenLoopCommand(0.0f, 0.08f, 1.0f);
 
   /*
+   * 角度开环、电流闭环的保守初值：Id=0 A、Iq=0.3 A、电角频率=1 Hz。
+   * 上电仍进入电压开环；调试确认 ADC 偏置和电流方向后，可在主循环、通信
+   * 命令或调试器中调用：
+   *   MotorControl_RequestMode(MOTOR_CONTROL_OPEN_ANGLE_CURRENT);
+   * 切回原开环则调用：
+   *   MotorControl_RequestMode(MOTOR_CONTROL_OPEN_VOLTAGE);
+   */
+  MotorControl_SetCurrentCommand(0.0f, 0.3f, 1.0f);
+
+  /*
    * 启动顺序由控制层保证：拉高 PC4 -> 等待 DRV8323 就绪 -> 写三个配置
    * 寄存器 -> 启动 TIM8 三路主 PWM 和三路互补 PWM。任一步失败均进入
    * Error_Handler()，且 PWM 启动失败时会重新拉低驱动使能。
@@ -151,14 +163,9 @@ int main(void)
   }
 
   /*
-   * PWM 通道启动后，再允许 TIM8 更新中断。控制计算固定在10 kHz更新
-   * 事件执行，保证电角度积分周期恒定。不能改到 while(1) 中调用，否则
-   * 主循环耗时变化会导致实际电角频率漂移。
+   * MotorControl_Start() 已启动 ADC 注入中断、TIM8 基准和内部 CH4 采样触发。
+   * 禁止在此重复启动 TIM8，否则 HAL 状态机会返回错误或破坏采样时序。
    */
-  if (HAL_TIM_Base_Start_IT(&htim8) != HAL_OK)
-  {
-    Error_Handler();
-  }
 
   /* USER CODE END 2 */
 
@@ -245,6 +252,25 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     /* 中断内仅执行确定时长的浮点运算和 CCR 写入，禁止阻塞外设访问。 */
     MotorControl_FastTick(MOTOR_FAST_TICK_S);
   }
+}
+
+void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+  uint32_t phase_a_raw;
+  uint32_t phase_b_raw;
+
+  if (hadc->Instance != ADC1)
+  {
+    return;
+  }
+
+  /*
+   * 注入序列顺序由 adc.c 固定：rank1=PB1/I_A，rank2=PB0/I_B。
+   * 回调中只读取已经完成的 JDR，并把控制交给电机编排层；不执行阻塞操作。
+   */
+  phase_a_raw = HAL_ADCEx_InjectedGetValue(hadc, ADC_INJECTED_RANK_1);
+  phase_b_raw = HAL_ADCEx_InjectedGetValue(hadc, ADC_INJECTED_RANK_2);
+  MotorControl_CurrentSampleComplete(phase_a_raw, phase_b_raw, MOTOR_FAST_TICK_S);
 }
 
 /* USER CODE END 4 */

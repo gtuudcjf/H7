@@ -5,6 +5,107 @@
 #include "current_sense.h"
 
 #include <math.h>
+#include <limits.h>
+
+void CurrentSenseCalibration_Start(CurrentSenseCalibration *calibration,
+                                   uint32_t discard_count,
+                                   uint32_t sample_count)
+{
+    if (calibration == 0)
+    {
+        return;
+    }
+
+    calibration->discard_remaining = discard_count;
+    calibration->target_sample_count = sample_count;
+    calibration->sample_count = 0U;
+    calibration->phase_a_sum = 0U;
+    calibration->phase_b_sum = 0U;
+    calibration->phase_a_min = UINT_MAX;
+    calibration->phase_a_max = 0U;
+    calibration->phase_b_min = UINT_MAX;
+    calibration->phase_b_max = 0U;
+}
+
+bool CurrentSenseCalibration_AddSample(CurrentSenseCalibration *calibration,
+                                       uint32_t phase_a_raw,
+                                       uint32_t phase_b_raw)
+{
+    if ((calibration == 0) || (calibration->target_sample_count == 0U))
+    {
+        return false;
+    }
+
+    if (calibration->discard_remaining > 0U)
+    {
+        --calibration->discard_remaining;
+        return false;
+    }
+
+    if (calibration->sample_count >= calibration->target_sample_count)
+    {
+        return true;
+    }
+
+    calibration->phase_a_sum += phase_a_raw;
+    calibration->phase_b_sum += phase_b_raw;
+    if (phase_a_raw < calibration->phase_a_min)
+    {
+        calibration->phase_a_min = phase_a_raw;
+    }
+    if (phase_a_raw > calibration->phase_a_max)
+    {
+        calibration->phase_a_max = phase_a_raw;
+    }
+    if (phase_b_raw < calibration->phase_b_min)
+    {
+        calibration->phase_b_min = phase_b_raw;
+    }
+    if (phase_b_raw > calibration->phase_b_max)
+    {
+        calibration->phase_b_max = phase_b_raw;
+    }
+
+    ++calibration->sample_count;
+    return calibration->sample_count >= calibration->target_sample_count;
+}
+
+bool CurrentSenseCalibration_GetOffsets(const CurrentSenseCalibration *calibration,
+                                        float adc_full_scale_count,
+                                        float rail_margin_count,
+                                        uint32_t maximum_span_count,
+                                        CurrentSenseOffsets *offsets)
+{
+    float phase_a_average;
+    float phase_b_average;
+
+    if ((calibration == 0) || (offsets == 0) ||
+        !isfinite(adc_full_scale_count) || !isfinite(rail_margin_count) ||
+        (adc_full_scale_count <= 0.0f) || (rail_margin_count < 0.0f) ||
+        (calibration->target_sample_count == 0U) ||
+        (calibration->sample_count != calibration->target_sample_count) ||
+        ((calibration->phase_a_max - calibration->phase_a_min) > maximum_span_count) ||
+        ((calibration->phase_b_max - calibration->phase_b_min) > maximum_span_count))
+    {
+        return false;
+    }
+
+    phase_a_average = (float)calibration->phase_a_sum /
+                      (float)calibration->target_sample_count;
+    phase_b_average = (float)calibration->phase_b_sum /
+                      (float)calibration->target_sample_count;
+    if ((phase_a_average < rail_margin_count) ||
+        (phase_b_average < rail_margin_count) ||
+        (phase_a_average > (adc_full_scale_count - rail_margin_count)) ||
+        (phase_b_average > (adc_full_scale_count - rail_margin_count)))
+    {
+        return false;
+    }
+
+    offsets->phase_a_count = phase_a_average;
+    offsets->phase_b_count = phase_b_average;
+    return true;
+}
 
 static bool CurrentSense_IsConfigValid(const CurrentSenseConfig *config,
                                        const CurrentSenseOffsets *offsets)

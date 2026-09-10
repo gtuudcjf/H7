@@ -94,6 +94,39 @@ static void Test_CurrentSenseRejectsInvalidConfiguration(void)
     assert(!CurrentSense_Convert(&config, &offsets, 2048U, 2048U, &current));
 }
 
+static void Test_CurrentCalibrationDiscardsAndAveragesSamples(void)
+{
+    CurrentSenseCalibration calibration;
+    CurrentSenseOffsets offsets;
+
+    CurrentSenseCalibration_Start(&calibration, 2U, 4U);
+    assert(!CurrentSenseCalibration_AddSample(&calibration, 100U, 100U));
+    assert(!CurrentSenseCalibration_AddSample(&calibration, 4000U, 4000U));
+    assert(!CurrentSenseCalibration_AddSample(&calibration, 2046U, 2050U));
+    assert(!CurrentSenseCalibration_AddSample(&calibration, 2048U, 2052U));
+    assert(!CurrentSenseCalibration_AddSample(&calibration, 2050U, 2054U));
+    assert(CurrentSenseCalibration_AddSample(&calibration, 2052U, 2056U));
+    assert(CurrentSenseCalibration_GetOffsets(&calibration, 4095.0f, 512.0f, 16U, &offsets));
+    AssertNear(offsets.phase_a_count, 2049.0f, TEST_EPSILON);
+    AssertNear(offsets.phase_b_count, 2053.0f, TEST_EPSILON);
+}
+
+static void Test_CurrentCalibrationRejectsRailAndNoisyOffsets(void)
+{
+    CurrentSenseCalibration calibration;
+    CurrentSenseOffsets offsets;
+
+    CurrentSenseCalibration_Start(&calibration, 0U, 2U);
+    assert(!CurrentSenseCalibration_AddSample(&calibration, 10U, 2048U));
+    assert(CurrentSenseCalibration_AddSample(&calibration, 12U, 2048U));
+    assert(!CurrentSenseCalibration_GetOffsets(&calibration, 4095.0f, 512.0f, 16U, &offsets));
+
+    CurrentSenseCalibration_Start(&calibration, 0U, 2U);
+    assert(!CurrentSenseCalibration_AddSample(&calibration, 2000U, 2000U));
+    assert(CurrentSenseCalibration_AddSample(&calibration, 2100U, 2100U));
+    assert(!CurrentSenseCalibration_GetOffsets(&calibration, 4095.0f, 512.0f, 16U, &offsets));
+}
+
 static void Test_ClarkeAndParkAtZeroAngle(void)
 {
     const CurrentPhaseCurrents phase = {1.0f, -0.5f, -0.5f};
@@ -241,6 +274,8 @@ int main(void)
     Test_CurrentSenseConvertsAmperesAndReconstructsPhaseC();
     Test_CurrentSenseHonorsConfiguredPolarity();
     Test_CurrentSenseRejectsInvalidConfiguration();
+    Test_CurrentCalibrationDiscardsAndAveragesSamples();
+    Test_CurrentCalibrationRejectsRailAndNoisyOffsets();
     Test_ClarkeAndParkAtZeroAngle();
     Test_ParkAtQuarterElectricalTurn();
     Test_TransformsRejectNonFiniteInput();
