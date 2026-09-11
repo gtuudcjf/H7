@@ -219,6 +219,16 @@ void DMA1_Stream1_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles SPI4 end-of-transfer and error interrupts.
+  * @note  On STM32H7 the RX DMA completion only enables SPI_IT_EOT. The HAL
+  *        TxRx completion callback is dispatched after this IRQ closes SPI4.
+  */
+void SPI4_IRQHandler(void)
+{
+  HAL_SPI_IRQHandler(&hspi4);
+}
+
+/**
   * @brief This function handles ADC1 and ADC2 global interrupts.
   */
 void ADC_IRQHandler(void)

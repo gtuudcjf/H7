@@ -58,6 +58,13 @@ Assert-Contains $irqSource 'void\s+DMA1_Stream1_IRQHandler\(void\)' 'SPI4 TX DMA
 Assert-Contains $irqSource 'HAL_DMA_IRQHandler\(&hdma_spi4_tx\)' 'TX IRQ must dispatch to HAL DMA.'
 Assert-Contains $irqHeader 'DMA1_Stream0_IRQHandler' 'RX DMA IRQ prototype is missing.'
 Assert-Contains $irqHeader 'DMA1_Stream1_IRQHandler' 'TX DMA IRQ prototype is missing.'
+Assert-Contains $irqSource 'void\s+SPI4_IRQHandler\(void\)' `
+    'SPI4 EOT IRQ is required to finish an H7 full-duplex DMA transaction.'
+Assert-Contains $irqSource 'HAL_SPI_IRQHandler\(&hspi4\)' `
+    'SPI4 EOT IRQ must dispatch to the HAL SPI state machine.'
+Assert-Contains $irqHeader 'SPI4_IRQHandler' 'SPI4 IRQ prototype is missing.'
+Assert-Contains $spiSource 'HAL_NVIC_EnableIRQ\(SPI4_IRQn\)' `
+    'SPI4 global IRQ must be enabled for the HAL EOT completion callback.'
 
 Assert-Contains $gpioSource 'HAL_GPIO_WritePin\(ENC_TX_01_GPIO_Port,\s*ENC_TX_01_Pin,\s*GPIO_PIN_RESET\)' `
     'PE6 must be driven low before any SPI4 transaction.'
@@ -76,6 +83,7 @@ Assert-Contains $ioc 'SPI4\.BaudRatePrescaler=SPI_BAUDRATEPRESCALER_128' `
     'CubeMX metadata must preserve the conservative SPI4 rate.'
 Assert-Contains $ioc 'SPI4\.CLKPolarity=SPI_POLARITY_HIGH' 'CubeMX metadata must preserve CPOL high.'
 Assert-Contains $ioc 'SPI4\.CLKPhase=SPI_PHASE_1EDGE' 'CubeMX metadata must preserve first-edge sampling.'
+Assert-Contains $ioc 'NVIC\.SPI4_IRQn=true' 'CubeMX metadata must preserve the SPI4 EOT IRQ.'
 
 Assert-Contains $project '<FileName>biss_frame\.c</FileName>' 'Keil project is missing biss_frame.c.'
 Assert-Contains $project '<FileName>biss_encoder\.c</FileName>' 'Keil project is missing biss_encoder.c.'

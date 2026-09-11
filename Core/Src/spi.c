@@ -312,6 +312,9 @@ void HAL_SPI_MspInit(SPI_HandleTypeDef* spiHandle)
     HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
     HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 1, 0);
     HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
+    /* H7 DMA RX结束后由SPI EOT中断关闭传输并调用TxRxCpltCallback。 */
+    HAL_NVIC_SetPriority(SPI4_IRQn, 1, 0);
+    HAL_NVIC_EnableIRQ(SPI4_IRQn);
 
   /* USER CODE BEGIN SPI4_MspInit 1 */
 
@@ -380,6 +383,7 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* spiHandle)
     HAL_DMA_DeInit(spiHandle->hdmatx);
     HAL_NVIC_DisableIRQ(DMA1_Stream0_IRQn);
     HAL_NVIC_DisableIRQ(DMA1_Stream1_IRQn);
+    HAL_NVIC_DisableIRQ(SPI4_IRQn);
 
   /* USER CODE BEGIN SPI4_MspDeInit 1 */
 
