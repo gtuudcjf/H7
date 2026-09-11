@@ -41,4 +41,20 @@
 #define MOTOR_CURRENT_PI_KI_V_PER_A_S     (20.0f)
 #define MOTOR_CURRENT_PI_KAW_PER_S        (100.0f)
 
+/*
+ * 编码器电角度校准参数。校准只使用 d 轴小电流，绝不施加 q 轴转矩命令；
+ * 方向探测的 0.1 pu 电角度对应 10 对极电机约 1% 机械转角。
+ */
+#define MOTOR_ENCODER_ALIGN_CURRENT_A          (0.2f)
+#define MOTOR_ENCODER_ALIGN_CURRENT_MAX_A      (0.5f)
+#define MOTOR_ENCODER_ALIGN_RAMP_S             (0.2f)
+#define MOTOR_ENCODER_ALIGN_SETTLE_S           (0.5f)
+#define MOTOR_ENCODER_ALIGN_SAMPLE_COUNT       (128U)
+#define MOTOR_ENCODER_ALIGN_STABILITY_COUNT    (128U)
+#define MOTOR_ENCODER_DIRECTION_STEP_PU        (0.1f)
+#define MOTOR_ENCODER_DIRECTION_MIN_COUNT      (256)
+#define MOTOR_ENCODER_DIRECTION_MAX_COUNT      (4096)
+#define MOTOR_ENCODER_CAL_INVALID_LIMIT_TICKS  (100U)
+#define MOTOR_ENCODER_CAL_STATE_TIMEOUT_S      (2.0f)
+
 #endif /* MOTOR_PARAMS_H */
