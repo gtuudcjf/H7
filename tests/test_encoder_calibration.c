@@ -91,7 +91,7 @@ static void Test_PositiveAndNegativeMovementDetermineDirection(void)
 
     EncoderCalibration_Init(&calibration);
     AdvanceToDirectionMove(&calibration, 10000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 11311U, 4U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 11311U, 2500U);
     AdvanceUntilState(&calibration, ENCODER_CAL_COMPLETE, 11311U, 6000U);
     assert(EncoderCalibration_GetResult(&calibration, &result));
     assert(result.electrical_zero_raw == 10000U);
@@ -99,11 +99,31 @@ static void Test_PositiveAndNegativeMovementDetermineDirection(void)
 
     EncoderCalibration_Init(&calibration);
     AdvanceToDirectionMove(&calibration, 10000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 8689U, 4U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 8689U, 2500U);
     AdvanceUntilState(&calibration, ENCODER_CAL_COMPLETE, 8689U, 6000U);
     assert(EncoderCalibration_GetResult(&calibration, &result));
     assert(result.electrical_zero_raw == 10000U);
     assert(result.encoder_direction == -1);
+}
+
+static void Test_DirectionAngleRampsBeforeFinalSettling(void)
+{
+    EncoderCalibration calibration;
+    EncoderCalibrationCommand command = {0};
+    uint32_t index;
+
+    EncoderCalibration_Init(&calibration);
+    AdvanceToDirectionMove(&calibration, 10000U);
+    for (index = 0U; index < 1000U; ++index)
+    {
+        command = Step(&calibration, 10655U);
+    }
+
+    assert(calibration.state == ENCODER_CAL_DIRECTION_MOVE);
+    assert(command.active);
+    assert(fabsf(command.forced_electrical_angle_pu - 0.05f) < TEST_EPSILON);
+    assert(fabsf(command.id_ref_a - MOTOR_ENCODER_ALIGN_CURRENT_A) < TEST_EPSILON);
+    assert(command.iq_ref_a == 0.0f);
 }
 
 static void Test_CircularAverageHandlesPositionWrap(void)
@@ -127,7 +147,7 @@ static void Test_CircularAverageHandlesPositionWrap(void)
     }
     assert(calibration.state == ENCODER_CAL_DIRECTION_MOVE);
 
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 1310U, 4U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 1310U, 2500U);
     AdvanceUntilState(&calibration, ENCODER_CAL_COMPLETE, 1310U, 6000U);
     assert(EncoderCalibration_GetResult(&calibration, &result));
     assert((result.electrical_zero_raw <= 1U) ||
@@ -140,13 +160,13 @@ static void Test_MovementOutsideAllowedRangeFails(void)
 
     EncoderCalibration_Init(&calibration);
     AdvanceToDirectionMove(&calibration, 10000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 10100U, 4U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 10100U, 2500U);
     AdvanceUntilState(&calibration, ENCODER_CAL_FAILED, 10100U, 6000U);
     assert(calibration.failure == ENCODER_CAL_FAILURE_MOVEMENT_RANGE);
 
     EncoderCalibration_Init(&calibration);
     AdvanceToDirectionMove(&calibration, 10000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 15000U, 4U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 15000U, 2500U);
     AdvanceUntilState(&calibration, ENCODER_CAL_FAILED, 15000U, 6000U);
     assert(calibration.failure == ENCODER_CAL_FAILURE_MOVEMENT_RANGE);
 }
@@ -210,6 +230,7 @@ int main(void)
 {
     Test_AlignmentCurrentRampsAndIqRemainsZero();
     Test_PositiveAndNegativeMovementDetermineDirection();
+    Test_DirectionAngleRampsBeforeFinalSettling();
     Test_CircularAverageHandlesPositionWrap();
     Test_MovementOutsideAllowedRangeFails();
     Test_UnstableAndMissingSamplesFailSafely();

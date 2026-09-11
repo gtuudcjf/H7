@@ -239,11 +239,28 @@ EncoderCalibrationCommand EncoderCalibration_Step(
             break;
 
         case ENCODER_CAL_DIRECTION_MOVE:
+        {
+            float ramp = calibration->state_elapsed_s /
+                         MOTOR_ENCODER_DIRECTION_RAMP_S;
+
+            if (ramp > 1.0f)
+            {
+                ramp = 1.0f;
+            }
+            /*
+             * 保持 d 轴对齐电流不变，用 200 ms 缓慢推进定子电角度，避免
+             * 直接跳变 0.1 pu（36 电角度）造成机械冲击或电流瞬态。
+             */
             command = EncoderCalibration_AlignmentCommand(
-                MOTOR_ENCODER_ALIGN_CURRENT_A, MOTOR_ENCODER_DIRECTION_STEP_PU);
-            EncoderCalibration_BeginSamples(calibration);
-            EncoderCalibration_SetState(calibration, ENCODER_CAL_SETTLE_FINAL);
+                MOTOR_ENCODER_ALIGN_CURRENT_A,
+                MOTOR_ENCODER_DIRECTION_STEP_PU * ramp);
+            if (calibration->state_elapsed_s >= MOTOR_ENCODER_DIRECTION_RAMP_S)
+            {
+                EncoderCalibration_BeginSamples(calibration);
+                EncoderCalibration_SetState(calibration, ENCODER_CAL_SETTLE_FINAL);
+            }
             break;
+        }
 
         case ENCODER_CAL_SETTLE_FINAL:
             command = EncoderCalibration_AlignmentCommand(
