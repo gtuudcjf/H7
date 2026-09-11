@@ -70,6 +70,9 @@ void Error_Handler(void);
 /* PB5 由用户要求保持高电平，不属于 DRV8323 的使能链路。 */
 #define PB5_KEEP_HIGH_Pin GPIO_PIN_5
 #define PB5_KEEP_HIGH_GPIO_Port GPIOB
+/* SPI4/BiSS-C 只使用 SCK+MISO；PE6 经隔离器接到禁用的 U18 DI，固定拉低。 */
+#define ENC_TX_01_Pin GPIO_PIN_6
+#define ENC_TX_01_GPIO_Port GPIOE
 
 /* USER CODE END Private defines */
 

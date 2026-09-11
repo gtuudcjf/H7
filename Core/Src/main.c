@@ -27,6 +27,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "biss_encoder.h"
 #include "motor_control.h"
 #include "motor_params.h"
 
@@ -129,6 +130,15 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
+  /*
+   * 只绑定 SPI4/DMA，不会立即产生编码器时钟。PE6 已在 MX_GPIO_Init()
+   * 中先配置为低电平，因此编码器接口上电期间不会出现无意义发送。
+   */
+  if (BissEncoder_Init(&hspi4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
   /*
    * MotorControl_Init() 只完成以下安全初始化，不向功率级输出 PWM：
    *   1. 将通用 DRV8323 对象绑定到 SPI2、PC1(CS)、PC4(ENA)；
@@ -276,6 +286,30 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
   phase_a_raw = HAL_ADCEx_InjectedGetValue(hadc, ADC_INJECTED_RANK_1);
   phase_b_raw = HAL_ADCEx_InjectedGetValue(hadc, ADC_INJECTED_RANK_2);
   MotorControl_CurrentSampleComplete(phase_a_raw, phase_b_raw, MOTOR_FAST_TICK_S);
+}
+
+void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
+{
+  if (hspi->Instance == SPI4)
+  {
+    BissEncoder_OnTransferComplete();
+  }
+}
+
+void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
+{
+  if (hspi->Instance == SPI4)
+  {
+    BissEncoder_OnTransferError(hspi->ErrorCode);
+  }
+}
+
+void HAL_SPI_AbortCpltCallback(SPI_HandleTypeDef *hspi)
+{
+  if (hspi->Instance == SPI4)
+  {
+    BissEncoder_OnAbortComplete();
+  }
 }
 
 /* USER CODE END 4 */

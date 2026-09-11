@@ -22,6 +22,7 @@
 #include "stm32h7xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "spi.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -200,6 +201,22 @@ void SysTick_Handler(void)
 /* For the available peripheral interrupt handler names,                      */
 /* please refer to the startup file (startup_stm32h7xx.s).                    */
 /******************************************************************************/
+
+/**
+  * @brief This function handles DMA1 stream0 global interrupt (SPI4 RX).
+  */
+void DMA1_Stream0_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_spi4_rx);
+}
+
+/**
+  * @brief This function handles DMA1 stream1 global interrupt (SPI4 TX).
+  */
+void DMA1_Stream1_IRQHandler(void)
+{
+  HAL_DMA_IRQHandler(&hdma_spi4_tx);
+}
 
 /**
   * @brief This function handles ADC1 and ADC2 global interrupts.

@@ -38,6 +38,10 @@ extern SPI_HandleTypeDef hspi3;
 
 extern SPI_HandleTypeDef hspi4;
 
+extern DMA_HandleTypeDef hdma_spi4_rx;
+
+extern DMA_HandleTypeDef hdma_spi4_tx;
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

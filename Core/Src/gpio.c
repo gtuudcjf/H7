@@ -57,6 +57,9 @@ void MX_GPIO_Init(void)
   /* 用户定义：PB5 在整个运行期间保持高电平。 */
   HAL_GPIO_WritePin(PB5_KEEP_HIGH_GPIO_Port, PB5_KEEP_HIGH_Pin, GPIO_PIN_SET);
 
+  /* BiSS-C 数据收发器 U18 的 DE 已硬件拉低；PE6 保持低电平，禁止无意义翻转。 */
+  HAL_GPIO_WritePin(ENC_TX_01_GPIO_Port, ENC_TX_01_Pin, GPIO_PIN_RESET);
+
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOF, GPIO_PIN_6, GPIO_PIN_RESET);
 
@@ -72,6 +75,13 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PE6 (unused SPI4 MOSI / ENC_TX_01) */
+  GPIO_InitStruct.Pin = ENC_TX_01_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(ENC_TX_01_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PF6 */
   GPIO_InitStruct.Pin = GPIO_PIN_6;
