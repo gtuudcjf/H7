@@ -80,5 +80,15 @@ Assert-Contains $ioc 'SPI4\.CLKPhase=SPI_PHASE_1EDGE' 'CubeMX metadata must pres
 Assert-Contains $project '<FileName>biss_frame\.c</FileName>' 'Keil project is missing biss_frame.c.'
 Assert-Contains $project '<FileName>biss_encoder\.c</FileName>' 'Keil project is missing biss_encoder.c.'
 Assert-Contains $project '<FileName>encoder_angle\.c</FileName>' 'Keil project is missing encoder_angle.c.'
+Assert-Contains $project '<FileName>crc32\.c</FileName>' 'Keil project is missing crc32.c.'
+Assert-Contains $project '<FileName>motor_config_store\.c</FileName>' `
+    'Keil project is missing motor_config_store.c.'
+Assert-Contains $project '<IROM>[\s\S]*<Size>0x1E0000</Size>' `
+    'Keil IROM must exclude Bank2 Sector7 reserved for calibration.'
+
+$configHeader = Get-Content -LiteralPath `
+    (Join-Path $projectRoot 'Core\Inc\motor\motor_config_store.h') -Raw
+Assert-Contains $configHeader 'MOTOR_CONFIG_FLASH_ADDR\s+\(0x081E0000UL\)' `
+    'Calibration address must be the start of H743 Bank2 Sector7.'
 
 Write-Output 'BiSS-C SPI4/DMA configuration checks passed'
