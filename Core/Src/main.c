@@ -191,6 +191,11 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    /*
+     * 处理编码器标定请求和停机后的 Flash 保存。该服务无忙等，但可能执行
+     * Flash 擦写，所以只能放在主循环，禁止移动到 TIM8/ADC/SPI 中断。
+     */
+    MotorControl_Service();
   }
   /* USER CODE END 3 */
 }

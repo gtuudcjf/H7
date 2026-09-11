@@ -8,10 +8,14 @@
 #include "motor_control.h"
 
 #include "adc.h"
+#include "biss_encoder.h"
 #include "current_pi.h"
 #include "current_sense.h"
 #include "drv8323_board.h"
+#include "encoder_angle.h"
+#include "encoder_calibration.h"
 #include "foc_transform.h"
+#include "motor_config_store.h"
 #include "motor_params.h"
 #include "open_loop.h"
 #include "pwm_3ph.h"
@@ -33,6 +37,7 @@
 #define CURRENT_PI_KP_MAX_V_PER_A         (2.0f)
 #define CURRENT_PI_KI_MAX_V_PER_A_S       (2000.0f)
 #define CURRENT_PI_KAW_MAX_PER_S          (2000.0f)
+#define ENCODER_STALE_LIMIT_TICKS         (10U)
 
 volatile MotorControlDebug g_motor_control_debug;
 
@@ -62,9 +67,24 @@ static CurrentPiController current_pi;
 static CurrentPiResult current_pi_result;
 static FocDq current_reference_target;
 static FocDq current_reference_active;
+static FocDq encoder_current_reference_target;
 static float current_target_frequency_hz;
 static float current_voltage_limit_pu = MOTOR_POLE_VOLTAGE_LIMIT_START_PU;
 static float alignment_elapsed_s;
+
+static BissEncoderSnapshot encoder_snapshot;
+static EncoderAngleConfig encoder_angle_config;
+static EncoderAngleSample encoder_angle_sample;
+static MotorCalibrationConfig encoder_saved_config;
+static EncoderCalibration encoder_calibration;
+static EncoderCalibrationCommand encoder_calibration_command;
+static volatile bool encoder_calibration_requested;
+static volatile bool encoder_calibration_active;
+static volatile bool encoder_calibration_save_pending;
+static volatile bool encoder_calibration_failure_pending;
+static bool encoder_calibration_valid;
+static float active_electrical_angle_pu;
+static uint32_t encoder_calibration_last_sequence;
 
 static uint32_t adc_age_ticks;
 static uint32_t overcurrent_count;
@@ -102,11 +122,14 @@ static float MotorControl_MoveToward(float current, float target, float maximum_
 static bool MotorControl_ModeIsImplemented(MotorControlMode mode)
 {
     return (mode == MOTOR_CONTROL_OPEN_VOLTAGE) ||
-           (mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT);
+           (mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
+           (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT);
 }
 
 static void MotorControl_UpdateDebugState(void)
 {
+    uint8_t index;
+
     g_motor_control_debug.mode = motor_mode;
     g_motor_control_debug.requested_mode = requested_mode;
     g_motor_control_debug.run_state = run_state;
@@ -114,8 +137,38 @@ static void MotorControl_UpdateDebugState(void)
     g_motor_control_debug.current_sense_ready = current_sense_ready ? 1U : 0U;
     g_motor_control_debug.adc_age_ticks = adc_age_ticks;
     g_motor_control_debug.overcurrent_count = overcurrent_count;
-    g_motor_control_debug.electrical_angle_pu = open_loop_state.electrical_angle_pu;
-    g_motor_control_debug.electrical_frequency_hz = open_loop_state.electrical_frequency_hz;
+    g_motor_control_debug.electrical_angle_pu = active_electrical_angle_pu;
+    g_motor_control_debug.electrical_frequency_hz =
+        (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ?
+            0.0f : open_loop_state.electrical_frequency_hz;
+    g_motor_control_debug.encoder_ready = encoder_snapshot.ready ? 1U : 0U;
+    g_motor_control_debug.encoder_warning = encoder_snapshot.warning ? 1U : 0U;
+    g_motor_control_debug.encoder_calibrated = encoder_calibration_valid ? 1U : 0U;
+    for (index = 0U; index < BISS_FRAME_RAW_BYTES; ++index)
+    {
+        g_motor_control_debug.encoder_raw[index] = encoder_snapshot.raw[index];
+    }
+    g_motor_control_debug.encoder_received_crc = encoder_snapshot.received_crc;
+    g_motor_control_debug.encoder_calculated_crc = encoder_snapshot.calculated_crc;
+    g_motor_control_debug.encoder_direction = encoder_calibration_valid ?
+        encoder_angle_config.direction : 0;
+    g_motor_control_debug.encoder_frame_status = encoder_snapshot.frame_status;
+    g_motor_control_debug.encoder_calibration_state = encoder_calibration.state;
+    g_motor_control_debug.encoder_calibration_failure = encoder_calibration.failure;
+    g_motor_control_debug.encoder_position_raw = encoder_snapshot.position_raw;
+    g_motor_control_debug.encoder_sequence = encoder_snapshot.sequence;
+    g_motor_control_debug.encoder_age_ticks = encoder_snapshot.valid_age_ticks;
+    g_motor_control_debug.encoder_valid_count = encoder_snapshot.valid_count;
+    g_motor_control_debug.encoder_crc_error_count = encoder_snapshot.crc_error_count;
+    g_motor_control_debug.encoder_frame_error_count = encoder_snapshot.frame_error_count;
+    g_motor_control_debug.encoder_spi_error_count = encoder_snapshot.spi_error_count;
+    g_motor_control_debug.encoder_timeout_count = encoder_snapshot.timeout_count;
+    g_motor_control_debug.encoder_electrical_zero_raw = encoder_calibration_valid ?
+        encoder_angle_config.zero_raw : 0U;
+    g_motor_control_debug.encoder_mechanical_angle_pu =
+        encoder_angle_sample.mechanical_angle_pu;
+    g_motor_control_debug.encoder_electrical_angle_pu =
+        encoder_angle_sample.electrical_angle_pu;
 }
 
 static void MotorControl_DisablePowerStage(void)
@@ -135,6 +188,12 @@ static void MotorControl_EnterFault(MotorFaultCode fault)
     motor_mode = MOTOR_CONTROL_FAULT;
     run_state = MOTOR_RUN_STATE_FAULT;
     requested_mode = MOTOR_CONTROL_FAULT;
+    /* 任意控制故障都立即取消标定写 PWM 的资格，保留状态机失败信息供调试。 */
+    encoder_calibration_requested = false;
+    encoder_calibration_active = false;
+    encoder_calibration_save_pending = false;
+    encoder_calibration_failure_pending = false;
+    memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
     CurrentPi_Reset(&current_pi);
     MotorControl_DisablePowerStage();
     MotorControl_UpdateDebugState();
@@ -157,7 +216,8 @@ static HAL_StatusTypeDef MotorControl_EnablePwm(void)
     return status;
 }
 
-static bool MotorControl_WriteVoltage(const MotorVoltageDq *voltage)
+static bool MotorControl_WriteVoltage(const MotorVoltageDq *voltage,
+                                      float electrical_angle_pu)
 {
     MotorPwmDuty duty;
 
@@ -167,9 +227,10 @@ static bool MotorControl_WriteVoltage(const MotorVoltageDq *voltage)
         return false;
     }
 
-    Svpwm_Compute(voltage, open_loop_state.electrical_angle_pu, &duty);
+    Svpwm_Compute(voltage, electrical_angle_pu, &duty);
     Pwm3ph_ApplyDuty(&duty);
     last_voltage_pu = *voltage;
+    active_electrical_angle_pu = electrical_angle_pu;
     g_motor_control_debug.ud_pu = voltage->ud_pu;
     g_motor_control_debug.uq_pu = voltage->uq_pu;
     return true;
@@ -207,13 +268,38 @@ static void MotorControl_UpdateOpenVoltageBlend(float dt_s)
 
 static void MotorControl_StartSelectedMode(void)
 {
+    if (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+    {
+        if (!current_sense_ready)
+        {
+            MotorControl_EnterFault(MOTOR_FAULT_CURRENT_CALIBRATION);
+            return;
+        }
+        if (!encoder_calibration_valid)
+        {
+            MotorControl_EnterFault(MOTOR_FAULT_ENCODER_NOT_CALIBRATED);
+            return;
+        }
+        if (!BissEncoder_GetSnapshot(&encoder_snapshot) ||
+            !encoder_snapshot.ready ||
+            (encoder_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS) ||
+            !EncoderAngle_Update(&encoder_angle_config,
+                                 encoder_snapshot.position_raw,
+                                 &encoder_angle_sample))
+        {
+            MotorControl_EnterFault(MOTOR_FAULT_ENCODER_NOT_READY);
+            return;
+        }
+    }
+
     if (MotorControl_EnablePwm() != HAL_OK)
     {
         MotorControl_EnterFault(MOTOR_FAULT_DRIVER);
         return;
     }
 
-    if (requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT)
+    if ((requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
+        (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
     {
         if (!current_sense_ready)
         {
@@ -221,14 +307,18 @@ static void MotorControl_StartSelectedMode(void)
             return;
         }
 
-        motor_mode = MOTOR_CONTROL_OPEN_ANGLE_CURRENT;
-        run_state = MOTOR_RUN_STATE_ALIGNING;
+        motor_mode = requested_mode;
+        run_state = (requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ?
+            MOTOR_RUN_STATE_ALIGNING : MOTOR_RUN_STATE_RUNNING;
         alignment_elapsed_s = 0.0f;
         current_reference_active.d = 0.0f;
         current_reference_active.q = 0.0f;
         open_loop_state.electrical_angle_pu = 0.0f;
         open_loop_state.electrical_frequency_hz = 0.0f;
         open_loop_state.target_frequency_hz = 0.0f;
+        active_electrical_angle_pu =
+            (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ?
+                encoder_angle_sample.electrical_angle_pu : 0.0f;
         CurrentPi_Reset(&current_pi);
     }
     else
@@ -262,7 +352,8 @@ static void MotorControl_FinishCalibration(void)
     {
         /* 保留已验证的电压开环，但明确禁止进入依赖电流反馈的模式。 */
         fault_code = MOTOR_FAULT_CURRENT_CALIBRATION;
-        if (requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT)
+        if ((requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
+            (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
         {
             MotorControl_EnterFault(MOTOR_FAULT_CURRENT_CALIBRATION);
             return;
@@ -274,7 +365,8 @@ static void MotorControl_FinishCalibration(void)
 }
 
 static bool MotorControl_UpdateCurrentMeasurement(uint32_t phase_a_raw,
-                                                  uint32_t phase_b_raw)
+                                                   uint32_t phase_b_raw,
+                                                   float electrical_angle_pu)
 {
     const uint32_t upper_rail = (uint32_t)MOTOR_ADC_FULL_SCALE_COUNT -
                                 CURRENT_ADC_RUNTIME_RAIL_MARGIN;
@@ -296,7 +388,7 @@ static bool MotorControl_UpdateCurrentMeasurement(uint32_t phase_a_raw,
                               &phase_current) ||
         !Foc_Clarke(&phase_current, &alpha_beta_current) ||
         !Foc_Park(&alpha_beta_current,
-                  open_loop_state.electrical_angle_pu,
+                  electrical_angle_pu,
                   &current_feedback_dq))
     {
         MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
@@ -331,21 +423,67 @@ static bool MotorControl_UpdateCurrentMeasurement(uint32_t phase_a_raw,
     return true;
 }
 
+static bool MotorControl_UpdateEncoderAngle(bool require_ready)
+{
+    if (!BissEncoder_GetSnapshot(&encoder_snapshot) ||
+        (require_ready && !encoder_snapshot.ready) ||
+        (encoder_snapshot.sequence == 0U) ||
+        (encoder_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS) ||
+        !encoder_calibration_valid ||
+        !EncoderAngle_Update(&encoder_angle_config,
+                             encoder_snapshot.position_raw,
+                             &encoder_angle_sample))
+    {
+        return false;
+    }
+    return true;
+}
+
 static void MotorControl_ApplyModeRequest(void)
 {
     FocDq requested_voltage_v;
+    float requested_angle_pu;
 
     if ((requested_mode == motor_mode) || !MotorControl_ModeIsImplemented(requested_mode))
     {
         return;
     }
 
-    if (requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT)
+    if ((requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
+        (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
     {
         if (!current_sense_ready || !current_feedback_valid)
         {
             requested_mode = motor_mode;
             MotorControl_UpdateDebugState();
+            return;
+        }
+
+        if (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+        {
+            if (!MotorControl_UpdateEncoderAngle(true))
+            {
+                requested_mode = motor_mode;
+                MotorControl_UpdateDebugState();
+                return;
+            }
+            requested_angle_pu = encoder_angle_sample.electrical_angle_pu;
+        }
+        else
+        {
+            /* 从编码器模式退出时，让虚拟角度从当前转子角度继续，避免相位阶跃。 */
+            if (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+            {
+                open_loop_state.electrical_angle_pu = active_electrical_angle_pu;
+            }
+            requested_angle_pu = open_loop_state.electrical_angle_pu;
+        }
+
+        if (!Foc_Park(&alpha_beta_current,
+                      requested_angle_pu,
+                      &current_feedback_dq))
+        {
+            MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
             return;
         }
 
@@ -368,13 +506,18 @@ static void MotorControl_ApplyModeRequest(void)
             return;
         }
 
-        motor_mode = MOTOR_CONTROL_OPEN_ANGLE_CURRENT;
+        motor_mode = requested_mode;
         run_state = MOTOR_RUN_STATE_RUNNING;
         alignment_elapsed_s = CURRENT_ALIGNMENT_TIME_S;
+        active_electrical_angle_pu = requested_angle_pu;
     }
     else
     {
         /* 从 PI 最后输出开始，再缓慢回到保存的开环命令。 */
+        if (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+        {
+            open_loop_state.electrical_angle_pu = active_electrical_angle_pu;
+        }
         open_loop_state.ud_pu = last_voltage_pu.ud_pu;
         open_loop_state.uq_pu = last_voltage_pu.uq_pu;
         open_voltage_blend_active = true;
@@ -384,13 +527,20 @@ static void MotorControl_ApplyModeRequest(void)
     MotorControl_UpdateDebugState();
 }
 
-static void MotorControl_RunCurrentLoop(float dt_s)
+static bool MotorControl_RunCurrentLoop(float dt_s,
+                                        float electrical_angle_pu)
 {
     FocDq step_target;
     MotorVoltageDq voltage_pu;
     float maximum_current_step;
 
-    if (run_state == MOTOR_RUN_STATE_ALIGNING)
+    if (encoder_calibration_active)
+    {
+        step_target.d = encoder_calibration_command.id_ref_a;
+        step_target.q = encoder_calibration_command.iq_ref_a;
+        current_reference_active = step_target;
+    }
+    else if (run_state == MOTOR_RUN_STATE_ALIGNING)
     {
         step_target.d = MOTOR_CURRENT_ALIGN_A;
         step_target.q = 0.0f;
@@ -402,14 +552,18 @@ static void MotorControl_RunCurrentLoop(float dt_s)
     }
     else
     {
-        step_target = current_reference_target;
+        step_target = (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ?
+            encoder_current_reference_target : current_reference_target;
     }
 
-    maximum_current_step = MOTOR_CURRENT_COMMAND_SLEW_A_PER_S * dt_s;
-    current_reference_active.d = MotorControl_MoveToward(
-        current_reference_active.d, step_target.d, maximum_current_step);
-    current_reference_active.q = MotorControl_MoveToward(
-        current_reference_active.q, step_target.q, maximum_current_step);
+    if (!encoder_calibration_active)
+    {
+        maximum_current_step = MOTOR_CURRENT_COMMAND_SLEW_A_PER_S * dt_s;
+        current_reference_active.d = MotorControl_MoveToward(
+            current_reference_active.d, step_target.d, maximum_current_step);
+        current_reference_active.q = MotorControl_MoveToward(
+            current_reference_active.q, step_target.q, maximum_current_step);
+    }
 
     if (!CurrentPi_StepDq(&current_pi,
                           &current_reference_active,
@@ -418,14 +572,14 @@ static void MotorControl_RunCurrentLoop(float dt_s)
                           &current_pi_result))
     {
         MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
-        return;
+        return false;
     }
 
     voltage_pu.ud_pu = current_pi_result.voltage_v.d / MOTOR_NOMINAL_VBUS_V;
     voltage_pu.uq_pu = current_pi_result.voltage_v.q / MOTOR_NOMINAL_VBUS_V;
-    if (!MotorControl_WriteVoltage(&voltage_pu))
+    if (!MotorControl_WriteVoltage(&voltage_pu, electrical_angle_pu))
     {
-        return;
+        return false;
     }
 
     g_motor_control_debug.id_ref_a = current_reference_active.d;
@@ -438,6 +592,7 @@ static void MotorControl_RunCurrentLoop(float dt_s)
     g_motor_control_debug.uq_v = current_pi_result.voltage_v.q;
     g_motor_control_debug.voltage_saturated = current_pi_result.saturated ? 1U : 0U;
     MotorControl_UpdateDebugState();
+    return true;
 }
 
 HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
@@ -494,6 +649,8 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
 
     current_reference_target.d = 0.0f;
     current_reference_target.q = MOTOR_CURRENT_START_IQ_A;
+    encoder_current_reference_target.d = 0.0f;
+    encoder_current_reference_target.q = 0.0f;
     current_reference_active.d = 0.0f;
     current_reference_active.q = 0.0f;
     current_target_frequency_hz = 1.0f;
@@ -503,6 +660,31 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     overcurrent_count = 0U;
     pwm_enabled = false;
     sampling_started = false;
+
+    memset(&encoder_snapshot, 0, sizeof(encoder_snapshot));
+    memset(&encoder_angle_config, 0, sizeof(encoder_angle_config));
+    memset(&encoder_angle_sample, 0, sizeof(encoder_angle_sample));
+    memset(&encoder_saved_config, 0, sizeof(encoder_saved_config));
+    memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
+    EncoderCalibration_Init(&encoder_calibration);
+    encoder_calibration_requested = false;
+    encoder_calibration_active = false;
+    encoder_calibration_save_pending = false;
+    encoder_calibration_failure_pending = false;
+    encoder_calibration_last_sequence = 0U;
+    active_electrical_angle_pu = 0.0f;
+
+    /*
+     * Flash 中没有有效记录并不是启动故障：电压开环和虚拟角度电流环
+     * 仍可照常运行。只有请求编码器角度模式时才要求该记录有效。
+     */
+    encoder_calibration_valid =
+        (MotorConfigStore_Load(&encoder_saved_config) == HAL_OK) &&
+        EncoderAngle_Init(&encoder_angle_config,
+                          encoder_saved_config.electrical_zero_raw,
+                          encoder_saved_config.encoder_direction,
+                          encoder_saved_config.pole_pairs);
+    (void)BissEncoder_GetSnapshot(&encoder_snapshot);
 
     if (Drv8323Board_Init() != HAL_OK)
     {
@@ -577,12 +759,157 @@ void MotorControl_SetCurrentCommand(float id_a,
     }
 }
 
+void MotorControl_SetEncoderCurrentCommand(float id_a, float iq_a)
+{
+    uint32_t interrupt_state;
+
+    if (!isfinite(id_a) || !isfinite(iq_a))
+    {
+        return;
+    }
+
+    interrupt_state = __get_PRIMASK();
+    __disable_irq();
+    encoder_current_reference_target.d = MotorControl_Clamp(
+        id_a, -MOTOR_CURRENT_COMMAND_LIMIT_A, MOTOR_CURRENT_COMMAND_LIMIT_A);
+    encoder_current_reference_target.q = MotorControl_Clamp(
+        iq_a, -MOTOR_CURRENT_COMMAND_LIMIT_A, MOTOR_CURRENT_COMMAND_LIMIT_A);
+    if (interrupt_state == 0U)
+    {
+        __enable_irq();
+    }
+}
+
+HAL_StatusTypeDef MotorControl_RequestEncoderCalibration(void)
+{
+    uint32_t interrupt_state;
+
+    if ((motor_mode == MOTOR_CONTROL_FAULT) || !sampling_started ||
+        !pwm_enabled || !current_sense_ready || encoder_calibration_active ||
+        encoder_calibration_requested || encoder_calibration_save_pending ||
+        encoder_calibration_failure_pending ||
+        !BissEncoder_GetSnapshot(&encoder_snapshot) ||
+        !encoder_snapshot.ready ||
+        (encoder_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS))
+    {
+        return HAL_ERROR;
+    }
+
+    interrupt_state = __get_PRIMASK();
+    __disable_irq();
+    encoder_calibration_requested = true;
+    if (interrupt_state == 0U)
+    {
+        __enable_irq();
+    }
+    return HAL_OK;
+}
+
+void MotorControl_Service(void)
+{
+    HAL_StatusTypeDef status;
+    uint32_t interrupt_state;
+    bool safe_to_write;
+
+    /*
+     * ADC 中断只负责先关断功率级并置位完成标志。停止定时器、擦除和写入
+     * Flash 全部在主循环执行，避免在任何实时中断中出现不可预测的延时。
+     */
+    if (encoder_calibration_failure_pending)
+    {
+        interrupt_state = __get_PRIMASK();
+        __disable_irq();
+        encoder_calibration_failure_pending = false;
+        if (interrupt_state == 0U)
+        {
+            __enable_irq();
+        }
+        (void)MotorControl_Stop();
+        MotorControl_EnterFault(MOTOR_FAULT_ENCODER_ALIGNMENT);
+        return;
+    }
+
+    if (encoder_calibration_save_pending)
+    {
+        interrupt_state = __get_PRIMASK();
+        __disable_irq();
+        encoder_calibration_save_pending = false;
+        if (interrupt_state == 0U)
+        {
+            __enable_irq();
+        }
+
+        status = MotorControl_Stop();
+        safe_to_write = (status == HAL_OK) && !pwm_enabled && !sampling_started;
+        status = MotorConfigStore_Save(&encoder_saved_config, safe_to_write);
+        if ((status != HAL_OK) ||
+            !EncoderAngle_Init(&encoder_angle_config,
+                               encoder_saved_config.electrical_zero_raw,
+                               encoder_saved_config.encoder_direction,
+                               encoder_saved_config.pole_pairs))
+        {
+            encoder_calibration_valid = false;
+            MotorControl_EnterFault(MOTOR_FAULT_CONFIG_STORAGE);
+            return;
+        }
+
+        encoder_calibration_valid = true;
+        MotorControl_UpdateDebugState();
+        return;
+    }
+
+    if (!encoder_calibration_requested)
+    {
+        return;
+    }
+
+    if ((motor_mode == MOTOR_CONTROL_FAULT) || !sampling_started ||
+        !pwm_enabled || !current_sense_ready ||
+        !BissEncoder_GetSnapshot(&encoder_snapshot) ||
+        !encoder_snapshot.ready ||
+        (encoder_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS))
+    {
+        encoder_calibration_requested = false;
+        MotorControl_UpdateDebugState();
+        return;
+    }
+
+    interrupt_state = __get_PRIMASK();
+    __disable_irq();
+    encoder_calibration_requested = false;
+    if (EncoderCalibration_Start(&encoder_calibration))
+    {
+        memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
+        encoder_calibration_last_sequence = encoder_snapshot.sequence;
+        encoder_calibration_active = true;
+        run_state = MOTOR_RUN_STATE_ENCODER_CALIBRATING;
+        current_reference_active.d = 0.0f;
+        current_reference_active.q = 0.0f;
+        CurrentPi_Reset(&current_pi);
+    }
+    if (interrupt_state == 0U)
+    {
+        __enable_irq();
+    }
+    MotorControl_UpdateDebugState();
+}
+
 HAL_StatusTypeDef MotorControl_RequestMode(MotorControlMode mode)
 {
     uint32_t interrupt_state;
 
     if (!MotorControl_ModeIsImplemented(mode) || (motor_mode == MOTOR_CONTROL_FAULT) ||
-        ((mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) && current_calibration_failed))
+        (((mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
+          (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)) && current_calibration_failed) ||
+        encoder_calibration_active || encoder_calibration_requested ||
+        encoder_calibration_save_pending || encoder_calibration_failure_pending)
+    {
+        return HAL_ERROR;
+    }
+
+    if ((mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) &&
+        (!current_sense_ready || !encoder_calibration_valid ||
+         !MotorControl_UpdateEncoderAngle(true)))
     {
         return HAL_ERROR;
     }
@@ -749,6 +1076,9 @@ HAL_StatusTypeDef MotorControl_Stop(void)
     }
 
     CurrentPi_Reset(&current_pi);
+    encoder_calibration_requested = false;
+    encoder_calibration_active = false;
+    memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
     adc_age_ticks = 0U;
     overcurrent_count = 0U;
     MotorControl_UpdateDebugState();
@@ -775,19 +1105,28 @@ void MotorControl_FastTick(float dt_s)
 {
     MotorVoltageDq open_voltage;
 
+    /* 每个 TIM8 周期只发起一次非阻塞 DMA 帧；返回 HAL_BUSY 属于正常状态。 */
+    BissEncoder_ControlTick();
+    (void)BissEncoder_StartRead();
+    (void)BissEncoder_GetSnapshot(&encoder_snapshot);
+
     if (!isfinite(dt_s) || (dt_s <= 0.0f))
     {
         if ((motor_mode == MOTOR_CONTROL_OPEN_VOLTAGE) ||
-            (motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT))
+            (motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
+            (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ||
+            encoder_calibration_active)
         {
             MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
         }
         return;
     }
 
-    if ((motor_mode != MOTOR_CONTROL_OPEN_VOLTAGE) &&
-        (motor_mode != MOTOR_CONTROL_OPEN_ANGLE_CURRENT))
+    /* 标定期间 PWM 只能由 ADC 电流快环写入，TIM8 不再推进原模式。 */
+    if (encoder_calibration_active || encoder_calibration_save_pending ||
+        encoder_calibration_failure_pending)
     {
+        MotorControl_UpdateDebugState();
         return;
     }
 
@@ -797,7 +1136,16 @@ void MotorControl_FastTick(float dt_s)
         return;
     }
 
-    if (motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT)
+    if ((motor_mode != MOTOR_CONTROL_OPEN_VOLTAGE) &&
+        (motor_mode != MOTOR_CONTROL_OPEN_ANGLE_CURRENT) &&
+        (motor_mode != MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+    {
+        MotorControl_UpdateDebugState();
+        return;
+    }
+
+    if ((motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
+        (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
     {
         ++adc_age_ticks;
         if (adc_age_ticks > CURRENT_ADC_TIMEOUT_TICKS)
@@ -805,20 +1153,32 @@ void MotorControl_FastTick(float dt_s)
             MotorControl_EnterFault(MOTOR_FAULT_ADC_TIMEOUT);
             return;
         }
-        open_loop_state.target_frequency_hz =
-            (run_state == MOTOR_RUN_STATE_ALIGNING) ? 0.0f : current_target_frequency_hz;
+
+        if (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+        {
+            if (!MotorControl_UpdateEncoderAngle(false))
+            {
+                MotorControl_EnterFault(MOTOR_FAULT_ENCODER_STALE);
+                return;
+            }
+            active_electrical_angle_pu = encoder_angle_sample.electrical_angle_pu;
+        }
+        else
+        {
+            open_loop_state.target_frequency_hz =
+                (run_state == MOTOR_RUN_STATE_ALIGNING) ?
+                    0.0f : current_target_frequency_hz;
+            OpenLoop_Step(&open_loop_state, dt_s, &open_voltage);
+            active_electrical_angle_pu = open_loop_state.electrical_angle_pu;
+        }
     }
     else
     {
         open_loop_state.target_frequency_hz = open_target_frequency_hz;
         MotorControl_UpdateOpenVoltageBlend(dt_s);
-    }
-
-    /* 两种模式共用这一角度积分点，切换时不会清零或重复推进电角度。 */
-    OpenLoop_Step(&open_loop_state, dt_s, &open_voltage);
-    if (motor_mode == MOTOR_CONTROL_OPEN_VOLTAGE)
-    {
-        (void)MotorControl_WriteVoltage(&open_voltage);
+        OpenLoop_Step(&open_loop_state, dt_s, &open_voltage);
+        (void)MotorControl_WriteVoltage(
+            &open_voltage, open_loop_state.electrical_angle_pu);
     }
     MotorControl_UpdateDebugState();
 }
@@ -827,6 +1187,10 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
                                         uint32_t phase_b_raw,
                                         float dt_s)
 {
+    EncoderCalibrationInput calibration_input;
+    EncoderCalibrationResult calibration_result;
+    MotorVoltageDq zero_voltage = {0.0f, 0.0f};
+    float electrical_angle_pu;
     float open_voltage_magnitude;
 
     g_motor_control_debug.phase_a_raw = phase_a_raw;
@@ -841,6 +1205,77 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
             MotorControl_FinishCalibration();
         }
         g_motor_control_debug.calibration_sample_count = current_calibration.sample_count;
+        MotorControl_UpdateDebugState();
+        return;
+    }
+
+    if (encoder_calibration_save_pending || encoder_calibration_failure_pending)
+    {
+        return;
+    }
+
+    if (encoder_calibration_active)
+    {
+        (void)BissEncoder_GetSnapshot(&encoder_snapshot);
+        calibration_input.current_sense_ready = current_sense_ready;
+        calibration_input.encoder_valid =
+            (encoder_snapshot.sequence != 0U) &&
+            (encoder_snapshot.sequence != encoder_calibration_last_sequence) &&
+            (encoder_snapshot.valid_age_ticks <= ENCODER_STALE_LIMIT_TICKS);
+        calibration_input.position_raw = encoder_snapshot.position_raw;
+        if (calibration_input.encoder_valid)
+        {
+            encoder_calibration_last_sequence = encoder_snapshot.sequence;
+        }
+
+        encoder_calibration_command = EncoderCalibration_Step(
+            &encoder_calibration, &calibration_input, dt_s);
+        if (encoder_calibration.state == ENCODER_CAL_COMPLETE)
+        {
+            if (EncoderCalibration_GetResult(&encoder_calibration,
+                                             &calibration_result) &&
+                MotorCalibrationConfig_Build(
+                    &encoder_saved_config,
+                    calibration_result.electrical_zero_raw,
+                    calibration_result.encoder_direction,
+                    MOTOR_POLE_PAIRS))
+            {
+                encoder_calibration_save_pending = true;
+            }
+            else
+            {
+                encoder_calibration_failure_pending = true;
+            }
+            encoder_calibration_active = false;
+            MotorControl_DisablePowerStage();
+            MotorControl_UpdateDebugState();
+            return;
+        }
+        if (encoder_calibration.state == ENCODER_CAL_FAILED)
+        {
+            encoder_calibration_failure_pending = true;
+            encoder_calibration_active = false;
+            MotorControl_DisablePowerStage();
+            MotorControl_UpdateDebugState();
+            return;
+        }
+
+        adc_age_ticks = 0U;
+        electrical_angle_pu = encoder_calibration_command.forced_electrical_angle_pu;
+        if (!MotorControl_UpdateCurrentMeasurement(
+                phase_a_raw, phase_b_raw, electrical_angle_pu))
+        {
+            return;
+        }
+        if (encoder_calibration_command.active)
+        {
+            (void)MotorControl_RunCurrentLoop(dt_s, electrical_angle_pu);
+        }
+        else
+        {
+            /* WAIT_VALID 的短暂阶段明确输出零矢量，绝不保留原模式电压。 */
+            (void)MotorControl_WriteVoltage(&zero_voltage, electrical_angle_pu);
+        }
         MotorControl_UpdateDebugState();
         return;
     }
@@ -868,19 +1303,36 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
     }
 
     adc_age_ticks = 0U;
-    if (!isfinite(dt_s) || (dt_s <= 0.0f) ||
-        !MotorControl_UpdateCurrentMeasurement(phase_a_raw, phase_b_raw))
+    if (!isfinite(dt_s) || (dt_s <= 0.0f))
     {
-        if ((motor_mode != MOTOR_CONTROL_FAULT) && (!isfinite(dt_s) || (dt_s <= 0.0f)))
-        {
-            MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
-        }
+        MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
         return;
     }
 
-    if (motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT)
+    if (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
     {
-        MotorControl_RunCurrentLoop(dt_s);
+        if (!MotorControl_UpdateEncoderAngle(false))
+        {
+            MotorControl_EnterFault(MOTOR_FAULT_ENCODER_STALE);
+            return;
+        }
+        electrical_angle_pu = encoder_angle_sample.electrical_angle_pu;
+    }
+    else
+    {
+        electrical_angle_pu = open_loop_state.electrical_angle_pu;
+    }
+
+    if (!MotorControl_UpdateCurrentMeasurement(
+            phase_a_raw, phase_b_raw, electrical_angle_pu))
+    {
+        return;
+    }
+
+    if ((motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
+        (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+    {
+        (void)MotorControl_RunCurrentLoop(dt_s, electrical_angle_pu);
     }
     MotorControl_UpdateDebugState();
 }

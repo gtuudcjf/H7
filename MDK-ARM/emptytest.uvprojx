@@ -436,6 +436,11 @@
               <FilePath>../Core/Src/motor/encoder_angle.c</FilePath>
             </File>
             <File>
+              <FileName>encoder_calibration.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/encoder_calibration.c</FilePath>
+            </File>
+            <File>
               <FileName>crc32.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/motor/crc32.c</FilePath>

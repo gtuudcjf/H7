@@ -1,6 +1,6 @@
 /**
  * @file motor_control.h
- * @brief 电压开环与“角度开环、电流闭环”的统一控制入口。
+ * @brief 电压开环、虚拟角度电流环和编码器角度电流环的统一控制入口。
  *
  * 上层只能通过本接口提交命令和模式请求，不能直接修改 TIM8 CCR。模式切换
  * 在固定控制边界生效，确保开环与电流闭环不会同时写 PWM。
@@ -10,17 +10,21 @@
 
 #include "stm32h7xx_hal.h"
 
+#include "biss_frame.h"
+#include "encoder_calibration.h"
+
 typedef enum
 {
     MOTOR_CONTROL_STOPPED = 0,
     MOTOR_CONTROL_OPEN_VOLTAGE,
     MOTOR_CONTROL_OPEN_ANGLE_CURRENT,
-    MOTOR_CONTROL_ENCODER_CURRENT,
+    MOTOR_CONTROL_ENCODER_ANGLE_CURRENT,
     MOTOR_CONTROL_FAULT
 } MotorControlMode;
 
 /* 兼容旧代码中的模式名称。 */
 #define MOTOR_CONTROL_OPEN_LOOP MOTOR_CONTROL_OPEN_VOLTAGE
+#define MOTOR_CONTROL_ENCODER_CURRENT MOTOR_CONTROL_ENCODER_ANGLE_CURRENT
 
 typedef enum
 {
@@ -28,6 +32,7 @@ typedef enum
     MOTOR_RUN_STATE_CURRENT_CALIBRATING,
     MOTOR_RUN_STATE_READY,
     MOTOR_RUN_STATE_ALIGNING,
+    MOTOR_RUN_STATE_ENCODER_CALIBRATING,
     MOTOR_RUN_STATE_RUNNING,
     MOTOR_RUN_STATE_FAULT
 } MotorRunState;
@@ -42,7 +47,15 @@ typedef enum
     MOTOR_FAULT_ADC_RANGE,
     MOTOR_FAULT_ADC_TIMEOUT,
     MOTOR_FAULT_OVERCURRENT,
-    MOTOR_FAULT_CONTROL_MATH
+    MOTOR_FAULT_CONTROL_MATH,
+    MOTOR_FAULT_ENCODER_NOT_READY,
+    MOTOR_FAULT_ENCODER_STALE,
+    MOTOR_FAULT_ENCODER_FRAME,
+    MOTOR_FAULT_ENCODER_CRC,
+    MOTOR_FAULT_ENCODER_STATUS,
+    MOTOR_FAULT_ENCODER_NOT_CALIBRATED,
+    MOTOR_FAULT_ENCODER_ALIGNMENT,
+    MOTOR_FAULT_CONFIG_STORAGE
 } MotorFaultCode;
 
 typedef struct
@@ -94,6 +107,27 @@ typedef struct
     volatile uint32_t overcurrent_count;
     volatile uint8_t current_sense_ready;
     volatile uint8_t voltage_saturated;
+    volatile uint8_t encoder_ready;
+    volatile uint8_t encoder_warning;
+    volatile uint8_t encoder_calibrated;
+    volatile uint8_t encoder_raw[6];
+    volatile uint8_t encoder_received_crc;
+    volatile uint8_t encoder_calculated_crc;
+    volatile int8_t encoder_direction;
+    volatile BissFrameStatus encoder_frame_status;
+    volatile EncoderCalibrationState encoder_calibration_state;
+    volatile EncoderCalibrationFailure encoder_calibration_failure;
+    volatile uint32_t encoder_position_raw;
+    volatile uint32_t encoder_sequence;
+    volatile uint32_t encoder_age_ticks;
+    volatile uint32_t encoder_valid_count;
+    volatile uint32_t encoder_crc_error_count;
+    volatile uint32_t encoder_frame_error_count;
+    volatile uint32_t encoder_spi_error_count;
+    volatile uint32_t encoder_timeout_count;
+    volatile uint32_t encoder_electrical_zero_raw;
+    volatile float encoder_mechanical_angle_pu;
+    volatile float encoder_electrical_angle_pu;
 } MotorControlDebug;
 
 extern volatile MotorControlDebug g_motor_control_debug;
@@ -109,6 +143,15 @@ void MotorControl_SetOpenLoopCommand(float ud_pu,
 void MotorControl_SetCurrentCommand(float id_a,
                                     float iq_a,
                                     float electrical_frequency_hz);
+
+/** 设置编码器角度电流闭环的 d/q 电流，不包含虚拟角频率。 */
+void MotorControl_SetEncoderCurrentCommand(float id_a, float iq_a);
+
+/** 请求执行一次低电流编码器方向/电角度零点校准。 */
+HAL_StatusTypeDef MotorControl_RequestEncoderCalibration(void);
+
+/** 主循环前台服务：启动校准请求并在停机后保存 Flash，禁止放入中断。 */
+void MotorControl_Service(void);
 
 /** 请求在下一个 10 kHz 控制边界切换模式。 */
 HAL_StatusTypeDef MotorControl_RequestMode(MotorControlMode mode);
