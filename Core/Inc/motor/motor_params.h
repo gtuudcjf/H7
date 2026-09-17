@@ -25,7 +25,7 @@
 
 /* 10 kHz 电流环与标称母线参数。 */
 #define MOTOR_CONTROL_PERIOD_S           (0.0001f)
-#define MOTOR_NOMINAL_VBUS_V             (48.0f)
+#define MOTOR_NOMINAL_VBUS_V             (24.0f)
 #define MOTOR_POLE_VOLTAGE_LIMIT_START_PU (0.15f)
 #define MOTOR_POLE_VOLTAGE_LIMIT_MAX_PU   (0.45f)
 
@@ -45,16 +45,34 @@
  * 编码器电角度校准参数。校准只使用 d 轴小电流，绝不施加 q 轴转矩命令；
  * 方向探测的 0.1 pu 电角度对应 10 对极电机约 1% 机械转角。
  */
-#define MOTOR_ENCODER_ALIGN_CURRENT_A          (0.2f)
-#define MOTOR_ENCODER_ALIGN_CURRENT_MAX_A      (0.5f)
-#define MOTOR_ENCODER_ALIGN_RAMP_S             (0.2f)
+/* 0.8 A 已在角度开环/电流闭环实机测试中验证可使转子缓慢移动。 */
+#define MOTOR_ENCODER_ALIGN_CURRENT_A          (0.8f)
+#define MOTOR_ENCODER_ALIGN_CURRENT_MAX_A      (0.8f)
+#define MOTOR_ENCODER_ALIGN_RAMP_S             (0.4f)
 #define MOTOR_ENCODER_ALIGN_SETTLE_S           (0.5f)
 #define MOTOR_ENCODER_ALIGN_SAMPLE_COUNT       (128U)
 #define MOTOR_ENCODER_ALIGN_STABILITY_COUNT    (128U)
-#define MOTOR_ENCODER_DIRECTION_STEP_PU        (0.1f)
-#define MOTOR_ENCODER_DIRECTION_RAMP_S         (0.2f)
+/*
+ * 先把强制电角度缓慢推到 0.2 pu，再从同一方向回到 0 pu。
+ * 这个预扫动用来克服减速器/负载静摩擦，避免直接在 0 pu 处取样
+ * 时转子其实仍停在上一次的位置。
+ */
+#define MOTOR_ENCODER_PREALIGN_STEP_PU          (0.2f)
+#define MOTOR_ENCODER_PREALIGN_RAMP_S           (0.4f)
+/*
+ * 0.1 pu 在减速器静摩擦下只能产生 40..418 counts 且重复性不足。
+ * 保持 0.8 A 上限不变，改用 0.2 pu/400 ms 缓慢探测；10对极时
+ * 理论电机轴位移约 2621 counts（7.2度机械角）。
+ */
+#define MOTOR_ENCODER_DIRECTION_STEP_PU        (0.2f)
+#define MOTOR_ENCODER_DIRECTION_RAMP_S         (0.4f)
 #define MOTOR_ENCODER_DIRECTION_MIN_COUNT      (256)
 #define MOTOR_ENCODER_DIRECTION_MAX_COUNT      (4096)
+/* 方向探测后回到 0 pu，两次零点平均值必须在该范围内。 */
+#define MOTOR_ENCODER_RETURN_RAMP_S             (0.4f)
+#define MOTOR_ENCODER_RETURN_MAX_ERROR_COUNT    (256)
+/* 回零验证后保持 0 pu 电角度，缓慢撤掉 Id，减小减速器回弹。 */
+#define MOTOR_ENCODER_RELEASE_RAMP_S            (0.4f)
 #define MOTOR_ENCODER_CAL_INVALID_LIMIT_TICKS  (100U)
 #define MOTOR_ENCODER_CAL_STATE_TIMEOUT_S      (2.0f)
 

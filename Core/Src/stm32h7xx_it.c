@@ -43,6 +43,22 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
 
+/*
+ * Cortex-M7异常现场，供调试器在故障死循环中直接查看。
+ * code: 1=NMI, 2=HardFault, 3=MemManage, 4=BusFault, 5=UsageFault。
+ */
+volatile uint32_t g_exception_code;
+volatile uint32_t g_exception_cfsr;
+volatile uint32_t g_exception_hfsr;
+volatile uint32_t g_exception_dfsr;
+volatile uint32_t g_exception_afsr;
+volatile uint32_t g_exception_mmfar;
+volatile uint32_t g_exception_bfar;
+volatile uint32_t g_exception_icsr;
+volatile uint32_t g_exception_shcsr;
+volatile uint32_t g_exception_msp;
+volatile uint32_t g_exception_psp;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -52,6 +68,22 @@
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+static void ExceptionTrace_Capture(uint32_t code)
+{
+  g_exception_code = code;
+  g_exception_cfsr = SCB->CFSR;
+  g_exception_hfsr = SCB->HFSR;
+  g_exception_dfsr = SCB->DFSR;
+  g_exception_afsr = SCB->AFSR;
+  g_exception_mmfar = SCB->MMFAR;
+  g_exception_bfar = SCB->BFAR;
+  g_exception_icsr = SCB->ICSR;
+  g_exception_shcsr = SCB->SHCSR;
+  g_exception_msp = __get_MSP();
+  g_exception_psp = __get_PSP();
+  __DSB();
+}
 
 /* USER CODE END 0 */
 
@@ -73,7 +105,7 @@ extern TIM_HandleTypeDef htim8;
 void NMI_Handler(void)
 {
   /* USER CODE BEGIN NonMaskableInt_IRQn 0 */
-
+  ExceptionTrace_Capture(1U);
   /* USER CODE END NonMaskableInt_IRQn 0 */
   /* USER CODE BEGIN NonMaskableInt_IRQn 1 */
    while (1)
@@ -88,7 +120,7 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
-
+  ExceptionTrace_Capture(2U);
   /* USER CODE END HardFault_IRQn 0 */
   while (1)
   {
@@ -103,7 +135,7 @@ void HardFault_Handler(void)
 void MemManage_Handler(void)
 {
   /* USER CODE BEGIN MemoryManagement_IRQn 0 */
-
+  ExceptionTrace_Capture(3U);
   /* USER CODE END MemoryManagement_IRQn 0 */
   while (1)
   {
@@ -118,7 +150,7 @@ void MemManage_Handler(void)
 void BusFault_Handler(void)
 {
   /* USER CODE BEGIN BusFault_IRQn 0 */
-
+  ExceptionTrace_Capture(4U);
   /* USER CODE END BusFault_IRQn 0 */
   while (1)
   {
@@ -133,7 +165,7 @@ void BusFault_Handler(void)
 void UsageFault_Handler(void)
 {
   /* USER CODE BEGIN UsageFault_IRQn 0 */
-
+  ExceptionTrace_Capture(5U);
   /* USER CODE END UsageFault_IRQn 0 */
   while (1)
   {

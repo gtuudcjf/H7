@@ -51,7 +51,6 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
 /*
  * 快速控制周期必须与 TIM8 更新事件周期严格一致：
  * 240 MHz / (2 * (11999 + 1)) = 10 kHz，因此 dt = 1 / 10 kHz = 100 us。
@@ -61,16 +60,14 @@
 #define MOTOR_FAST_TICK_S (MOTOR_CONTROL_PERIOD_S)
 
 /*
- * 当前只启用开环模式。20 Hz/s 表示目标电角频率每秒最多变化20 Hz，
- * 用于避免启动瞬间给定频率阶跃；mode 字段预留给后续闭环模式选择。
+ * 三种控制模式共用同一套启动、采样、保护和PWM输出框架。mode只决定
+ * 电角度来源以及dq电压是直接给定还是由电流PI计算。20 Hz/s表示虚拟
+ * 电角频率每秒最多变化20 Hz，用于避免模式1/2启动时产生频率阶跃；
+ * 模式3使用编码器角度，不依赖该频率斜坡。三套命令在初始化阶段均已
+ * 预置，编译前只需要修改下面的 .mode 即可选择一种启动模式。
  */
 static const MotorControlConfig motor_config = {
-  /*
-   * 当前实机验证启动模式：角度开环、电流闭环。
-   * 需要回归电压开环时，只将下面的模式改为
-   * MOTOR_CONTROL_OPEN_VOLTAGE，其余开环控制代码无需修改。
-   */
-  .mode = MOTOR_CONTROL_OPEN_ANGLE_CURRENT,
+  .mode = MOTOR_CONTROL_ENCODER_ANGLE_CURRENT,
   .frequency_slew_hz_per_s = 20.0f,
   .voltage_slew_pu_per_s = 5.0f
 };
@@ -131,6 +128,12 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
   /*
+   * 建议阅读本工程时把以下三个调用看成三个不同层次：
+   *   BissEncoder_Init()：只建立SPI4/DMA编码器采集对象；
+   *   MotorControl_Init()：只初始化控制状态和软件模块，不启动功率级；
+   *   MotorControl_Start()：按安全顺序启动ADC校准、驱动和实时中断。
+   */
+  /*
    * 只绑定 SPI4/DMA，不会立即产生编码器时钟。PE6 已在 MX_GPIO_Init()
    * 中先配置为低电平，因此编码器接口上电期间不会出现无意义发送。
    */
@@ -151,21 +154,14 @@ int main(void)
   }
 
   /*
-   * 开环命令：Ud=0、Uq=0.08 pu、目标电角频率=1 Hz。
-   * 低 q 轴电压和低电角频率仅用于无负载确认相序与转向；带电前必须结合
-   * 母线电压、电机参数和负载重新评估。电角频率不是机械转速。
+   * 三种启动模式的命令全部预置，motor_config.mode决定实际使用哪一套：
+   *   模式1：电压开环，Ud=0、Uq=0.08 pu、电角频率=1 Hz；
+   *   模式2：虚拟角度+电流闭环，Id=0、Iq=0.8 A、电角频率=1 Hz；
+   *   模式3：编码器角度+电流闭环，Id=0、Iq=0.6 A。
    */
   MotorControl_SetOpenLoopCommand(0.0f, 0.08f, 1.0f);
-
-  /*
-   * 角度开环、电流闭环实机验证值：Id=0 A、Iq=0.8 A、电角频率=1 Hz。
-   * 0.3 A 和 0.5 A 时转子只会摆动，0.8 A 已能在 24 V 母线下缓慢转动。
-   * 运行中仍可在主循环、通信命令或调试器中调用：
-   *   MotorControl_RequestMode(MOTOR_CONTROL_OPEN_ANGLE_CURRENT);
-   * 切回原开环则调用：
-   *   MotorControl_RequestMode(MOTOR_CONTROL_OPEN_VOLTAGE);
-   */
   MotorControl_SetCurrentCommand(0.0f, 0.8f, 1.0f);
+  MotorControl_SetEncoderCurrentCommand(0.0f, 0.6f);
 
   /*
    * 启动顺序由控制层保证：拉高 PC4 -> 等待 DRV8323 就绪 -> 写三个配置
@@ -194,6 +190,8 @@ int main(void)
     /*
      * 处理编码器标定请求和停机后的 Flash 保存。该服务无忙等，但可能执行
      * Flash 擦写，所以只能放在主循环，禁止移动到 TIM8/ADC/SPI 中断。
+     * 编码器校准由调试/通信命令显式调用 MotorControl_RequestEncoderCalibration()，
+     * 上电不会自动校准或自动转动。
      */
     MotorControl_Service();
   }
@@ -297,6 +295,10 @@ void HAL_SPI_TxRxCpltCallback(SPI_HandleTypeDef *hspi)
 {
   if (hspi->Instance == SPI4)
   {
+    /*
+     * DMA已收满6字节；这里只解析、校验并发布编码器快照。
+     * FOC不会直接读取DMA缓冲区，而是在控制边界获取一致的快照副本。
+     */
     BissEncoder_OnTransferComplete();
   }
 }

@@ -17,7 +17,13 @@ typedef enum
     ENCODER_CAL_DIRECTION_MOVE,
     ENCODER_CAL_SETTLE_FINAL,
     ENCODER_CAL_COMPLETE,
-    ENCODER_CAL_FAILED
+    ENCODER_CAL_FAILED,
+    /* 保留上面已用于调试的 0..7 数值，新阶段从 8 开始追加。 */
+    ENCODER_CAL_PREALIGN_MOVE,
+    ENCODER_CAL_PREALIGN_RETURN,
+    ENCODER_CAL_RETURN_ZERO,
+    ENCODER_CAL_SETTLE_RETURN,
+    ENCODER_CAL_RELEASE_CURRENT
 } EncoderCalibrationState;
 
 typedef enum
@@ -28,7 +34,8 @@ typedef enum
     ENCODER_CAL_FAILURE_ENCODER_MISSING,
     ENCODER_CAL_FAILURE_UNSTABLE,
     ENCODER_CAL_FAILURE_MOVEMENT_RANGE,
-    ENCODER_CAL_FAILURE_TIMEOUT
+    ENCODER_CAL_FAILURE_TIMEOUT,
+    ENCODER_CAL_FAILURE_RETURN_MISMATCH
 } EncoderCalibrationFailure;
 
 typedef struct
@@ -64,6 +71,12 @@ typedef struct
     int32_t sample_delta_min;
     int32_t sample_delta_max;
     uint32_t zero_average_raw;
+    uint32_t final_average_raw;
+    uint32_t return_average_raw;
+    int32_t direction_movement_count;
+    int32_t return_error_count;
+    float release_electrical_angle_pu;
+    bool release_success;
     EncoderCalibrationResult result;
     bool result_valid;
 } EncoderCalibration;

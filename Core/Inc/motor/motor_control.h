@@ -12,30 +12,12 @@
 
 #include "biss_frame.h"
 #include "encoder_calibration.h"
-
-typedef enum
-{
-    MOTOR_CONTROL_STOPPED = 0,
-    MOTOR_CONTROL_OPEN_VOLTAGE,
-    MOTOR_CONTROL_OPEN_ANGLE_CURRENT,
-    MOTOR_CONTROL_ENCODER_ANGLE_CURRENT,
-    MOTOR_CONTROL_FAULT
-} MotorControlMode;
+#include "motor_runtime_policy.h"
+#include "motor_startup_trace.h"
 
 /* 兼容旧代码中的模式名称。 */
 #define MOTOR_CONTROL_OPEN_LOOP MOTOR_CONTROL_OPEN_VOLTAGE
 #define MOTOR_CONTROL_ENCODER_CURRENT MOTOR_CONTROL_ENCODER_ANGLE_CURRENT
-
-typedef enum
-{
-    MOTOR_RUN_STATE_STOPPED = 0,
-    MOTOR_RUN_STATE_CURRENT_CALIBRATING,
-    MOTOR_RUN_STATE_READY,
-    MOTOR_RUN_STATE_ALIGNING,
-    MOTOR_RUN_STATE_ENCODER_CALIBRATING,
-    MOTOR_RUN_STATE_RUNNING,
-    MOTOR_RUN_STATE_FAULT
-} MotorRunState;
 
 typedef enum
 {
@@ -125,9 +107,40 @@ typedef struct
     volatile uint32_t encoder_frame_error_count;
     volatile uint32_t encoder_spi_error_count;
     volatile uint32_t encoder_timeout_count;
+    volatile uint32_t encoder_dma_guard_error_count;
     volatile uint32_t encoder_electrical_zero_raw;
     volatile float encoder_mechanical_angle_pu;
     volatile float encoder_electrical_angle_pu;
+    volatile uint8_t startup_trace_count;
+    volatile uint8_t startup_trace_stage[MOTOR_STARTUP_TRACE_CAPACITY];
+    volatile uint8_t startup_trace_mode[MOTOR_STARTUP_TRACE_CAPACITY];
+    volatile uint8_t startup_invalid_detected;
+    volatile uint8_t first_invalid_requested_mode;
+    volatile uint8_t first_invalid_startup_stage;
+    volatile uint32_t first_invalid_calibration_sample;
+    volatile uint32_t mode_integrity_error_count;
+    /*
+     * Flash保存前台轨迹：0=空闲，1=中断已请求，2=Service已进入，
+     * 3=外设已停，4=正在写Flash，5=成功，6=停机失败，7=写入/校验失败。
+     */
+    volatile uint8_t encoder_save_stage;
+    volatile uint8_t encoder_save_hal_status;
+    volatile uint32_t foreground_service_count;
+    volatile uint32_t service_count_at_save_request;
+    /*
+     * 校准终止路径轨迹：kind 0=无、1=完成待保存、2=校准失败。
+     * stage 1=中断检测到终止，2=功率级已关，3=实时中断已静默，
+     * 4=即将退出ADC回调，10=Service已进入失败分支，
+     * 11=Stop已返回，12=已进入编码器对齐故障。
+     */
+    volatile uint8_t encoder_terminal_kind;
+    volatile uint8_t encoder_terminal_stage;
+    volatile uint8_t encoder_terminal_hal_status;
+    volatile uint32_t service_count_at_terminal;
+    /* Stop轨迹：1=进入，2=功率级已关，3/4=CH4停止前/后，
+     * 5=TIM8基准已停，6/7=ADC停止前/后，8=全部完成。 */
+    volatile uint8_t motor_stop_stage;
+    volatile uint8_t motor_stop_hal_status;
 } MotorControlDebug;
 
 extern volatile MotorControlDebug g_motor_control_debug;
@@ -146,6 +159,31 @@ void MotorControl_SetCurrentCommand(float id_a,
 
 /** 设置编码器角度电流闭环的 d/q 电流，不包含虚拟角频率。 */
 void MotorControl_SetEncoderCurrentCommand(float id_a, float iq_a);
+
+/**
+ * 设置命令并请求切换到电压开环模式。
+ * 模式切换在下一个 10 kHz 控制边界生效。
+ */
+HAL_StatusTypeDef MotorControl_SwitchToOpenVoltage(
+    float ud_pu,
+    float uq_pu,
+    float electrical_frequency_hz);
+
+/**
+ * 设置命令并请求切换到虚拟电角度、电流闭环模式。
+ * Id/Iq 会被限制在 MOTOR_CURRENT_COMMAND_LIMIT_A 范围内。
+ */
+HAL_StatusTypeDef MotorControl_SwitchToOpenAngleCurrent(
+    float id_a,
+    float iq_a,
+    float electrical_frequency_hz);
+
+/**
+ * 设置命令并请求切换到编码器电角度、电流闭环模式。
+ * 编码器未校准、数据未就绪或已过期时返回 HAL_ERROR。
+ */
+HAL_StatusTypeDef MotorControl_SwitchToEncoderAngleCurrent(float id_a,
+                                                           float iq_a);
 
 /** 请求执行一次低电流编码器方向/电角度零点校准。 */
 HAL_StatusTypeDef MotorControl_RequestEncoderCalibration(void);

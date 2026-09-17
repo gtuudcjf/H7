@@ -27,6 +27,14 @@ static EncoderCalibrationCommand EncoderCalibration_AlignmentCommand(
 {
     EncoderCalibrationCommand command;
 
+    if (id_ref_a < 0.0f)
+    {
+        id_ref_a = 0.0f;
+    }
+    else if (id_ref_a > MOTOR_ENCODER_ALIGN_CURRENT_MAX_A)
+    {
+        id_ref_a = MOTOR_ENCODER_ALIGN_CURRENT_MAX_A;
+    }
     command.id_ref_a = id_ref_a;
     command.iq_ref_a = 0.0f;
     command.forced_electrical_angle_pu = electrical_angle_pu;
@@ -220,6 +228,44 @@ EncoderCalibrationCommand EncoderCalibration_Step(
                 MOTOR_ENCODER_ALIGN_CURRENT_A * ramp, 0.0f);
             if (calibration->state_elapsed_s >= MOTOR_ENCODER_ALIGN_RAMP_S)
             {
+                EncoderCalibration_SetState(calibration, ENCODER_CAL_PREALIGN_MOVE);
+            }
+            break;
+        }
+
+        case ENCODER_CAL_PREALIGN_MOVE:
+        {
+            float ramp = calibration->state_elapsed_s /
+                         MOTOR_ENCODER_PREALIGN_RAMP_S;
+
+            if (ramp > 1.0f)
+            {
+                ramp = 1.0f;
+            }
+            command = EncoderCalibration_AlignmentCommand(
+                MOTOR_ENCODER_ALIGN_CURRENT_A,
+                MOTOR_ENCODER_PREALIGN_STEP_PU * ramp);
+            if (calibration->state_elapsed_s >= MOTOR_ENCODER_PREALIGN_RAMP_S)
+            {
+                EncoderCalibration_SetState(calibration, ENCODER_CAL_PREALIGN_RETURN);
+            }
+            break;
+        }
+
+        case ENCODER_CAL_PREALIGN_RETURN:
+        {
+            float ramp = calibration->state_elapsed_s /
+                         MOTOR_ENCODER_PREALIGN_RAMP_S;
+
+            if (ramp > 1.0f)
+            {
+                ramp = 1.0f;
+            }
+            command = EncoderCalibration_AlignmentCommand(
+                MOTOR_ENCODER_ALIGN_CURRENT_A,
+                MOTOR_ENCODER_PREALIGN_STEP_PU * (1.0f - ramp));
+            if (calibration->state_elapsed_s >= MOTOR_ENCODER_PREALIGN_RAMP_S)
+            {
                 EncoderCalibration_BeginSamples(calibration);
                 EncoderCalibration_SetState(calibration, ENCODER_CAL_SETTLE_ZERO);
             }
@@ -273,22 +319,119 @@ EncoderCalibrationCommand EncoderCalibration_Step(
                     average_raw, calibration->zero_average_raw);
                 const int32_t magnitude = (movement < 0) ? -movement : movement;
 
+                /* 先保留失败现场，使 Keil Watch 也能直接看到实际位移。 */
+                calibration->final_average_raw = average_raw;
+                calibration->direction_movement_count = movement;
                 if ((magnitude < MOTOR_ENCODER_DIRECTION_MIN_COUNT) ||
                     (magnitude > MOTOR_ENCODER_DIRECTION_MAX_COUNT))
                 {
-                    return EncoderCalibration_Fail(
-                        calibration, ENCODER_CAL_FAILURE_MOVEMENT_RANGE);
+                    /*
+                     * 位移范围不合格不是电气危险故障：先保持当前
+                     * 强制角并缓降 Id，再进入 FAILED，避免减速器突然回弹。
+                     */
+                    calibration->failure = ENCODER_CAL_FAILURE_MOVEMENT_RANGE;
+                    calibration->result_valid = false;
+                    calibration->release_electrical_angle_pu =
+                        MOTOR_ENCODER_DIRECTION_STEP_PU;
+                    calibration->release_success = false;
+                    EncoderCalibration_SetState(
+                        calibration, ENCODER_CAL_RELEASE_CURRENT);
+                    command = EncoderCalibration_AlignmentCommand(
+                        MOTOR_ENCODER_ALIGN_CURRENT_A,
+                        calibration->release_electrical_angle_pu);
+                    break;
+                }
+
+                calibration->result.encoder_direction = (movement > 0) ? 1 : -1;
+                EncoderCalibration_SetState(calibration, ENCODER_CAL_RETURN_ZERO);
+            }
+            break;
+
+        case ENCODER_CAL_RETURN_ZERO:
+        {
+            float ramp = calibration->state_elapsed_s /
+                         MOTOR_ENCODER_RETURN_RAMP_S;
+
+            if (ramp > 1.0f)
+            {
+                ramp = 1.0f;
+            }
+            command = EncoderCalibration_AlignmentCommand(
+                MOTOR_ENCODER_ALIGN_CURRENT_A,
+                MOTOR_ENCODER_DIRECTION_STEP_PU * (1.0f - ramp));
+            if (calibration->state_elapsed_s >= MOTOR_ENCODER_RETURN_RAMP_S)
+            {
+                EncoderCalibration_BeginSamples(calibration);
+                EncoderCalibration_SetState(calibration, ENCODER_CAL_SETTLE_RETURN);
+            }
+            break;
+        }
+
+        case ENCODER_CAL_SETTLE_RETURN:
+            command = EncoderCalibration_AlignmentCommand(
+                MOTOR_ENCODER_ALIGN_CURRENT_A, 0.0f);
+            if ((calibration->state_elapsed_s >= MOTOR_ENCODER_ALIGN_SETTLE_S) &&
+                input->encoder_valid &&
+                EncoderCalibration_AddSample(calibration, input->position_raw, &average_raw))
+            {
+                const int32_t return_error = EncoderCalibration_CircularDelta(
+                    average_raw, calibration->zero_average_raw);
+                const int32_t magnitude =
+                    (return_error < 0) ? -return_error : return_error;
+
+                calibration->return_average_raw = average_raw;
+                calibration->return_error_count = return_error;
+                if (magnitude > MOTOR_ENCODER_RETURN_MAX_ERROR_COUNT)
+                {
+                    calibration->failure = ENCODER_CAL_FAILURE_RETURN_MISMATCH;
+                    calibration->result_valid = false;
+                    calibration->release_electrical_angle_pu = 0.0f;
+                    calibration->release_success = false;
+                    EncoderCalibration_SetState(
+                        calibration, ENCODER_CAL_RELEASE_CURRENT);
+                    command = EncoderCalibration_AlignmentCommand(
+                        MOTOR_ENCODER_ALIGN_CURRENT_A, 0.0f);
+                    break;
                 }
 
                 calibration->result.electrical_zero_raw =
                     calibration->zero_average_raw;
-                calibration->result.encoder_direction = (movement > 0) ? 1 : -1;
-                calibration->result_valid = true;
-                calibration->failure = ENCODER_CAL_FAILURE_NONE;
-                EncoderCalibration_SetState(calibration, ENCODER_CAL_COMPLETE);
+                calibration->release_electrical_angle_pu = 0.0f;
+                calibration->release_success = true;
+                EncoderCalibration_SetState(calibration, ENCODER_CAL_RELEASE_CURRENT);
+            }
+            break;
+
+        case ENCODER_CAL_RELEASE_CURRENT:
+        {
+            float ramp = calibration->state_elapsed_s /
+                         MOTOR_ENCODER_RELEASE_RAMP_S;
+
+            if (ramp > 1.0f)
+            {
+                ramp = 1.0f;
+            }
+            /* 保持已校准的 0 pu 磁场方向，只缓降电流幅值。 */
+            command = EncoderCalibration_AlignmentCommand(
+                MOTOR_ENCODER_ALIGN_CURRENT_A * (1.0f - ramp),
+                calibration->release_electrical_angle_pu);
+            if (calibration->state_elapsed_s >= MOTOR_ENCODER_RELEASE_RAMP_S)
+            {
+                if (calibration->release_success)
+                {
+                    calibration->result_valid = true;
+                    calibration->failure = ENCODER_CAL_FAILURE_NONE;
+                    EncoderCalibration_SetState(calibration, ENCODER_CAL_COMPLETE);
+                }
+                else
+                {
+                    calibration->result_valid = false;
+                    EncoderCalibration_SetState(calibration, ENCODER_CAL_FAILED);
+                }
                 command = EncoderCalibration_ZeroCommand();
             }
             break;
+        }
 
         default:
             return EncoderCalibration_Fail(

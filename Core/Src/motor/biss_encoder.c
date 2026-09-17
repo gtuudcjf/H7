@@ -10,14 +10,20 @@
 #include <limits.h>
 #include <string.h>
 
+#include "biss_dma_buffer.h"
+
+/* 编译期保证解析器帧长与DMA有效区一致，防止以后只修改其中一处。 */
+typedef char BissDmaFrameSizeMustMatchParser[
+    (BISS_DMA_FRAME_BYTES == BISS_FRAME_RAW_BYTES) ? 1 : -1];
+
 static SPI_HandleTypeDef *encoder_spi;
 
 /*
  * 当前工程未启用 D-Cache；32 字节对齐同时为以后启用 Cache 后执行显式
  * clean/invalidate 留出正确的缓存行边界。两个缓冲区必须位于 DMA 可访问 SRAM。
  */
-static uint8_t encoder_tx[BISS_FRAME_RAW_BYTES] __attribute__((aligned(32)));
-static uint8_t encoder_rx[BISS_FRAME_RAW_BYTES] __attribute__((aligned(32)));
+static BissDmaBuffer encoder_tx __attribute__((aligned(32)));
+static BissDmaBuffer encoder_rx __attribute__((aligned(32)));
 
 static volatile BissEncoderSnapshot encoder_snapshot;
 static volatile uint32_t consecutive_valid_count;
@@ -57,8 +63,8 @@ HAL_StatusTypeDef BissEncoder_Init(SPI_HandleTypeDef *spi)
 
     primask = BissEncoder_EnterCritical();
     encoder_spi = spi;
-    memset(encoder_tx, 0, sizeof(encoder_tx));
-    memset(encoder_rx, 0xFF, sizeof(encoder_rx));
+    BissDmaBuffer_Init(&encoder_tx, 0x00U);
+    BissDmaBuffer_Init(&encoder_rx, 0xFFU);
     memset((void *)&encoder_snapshot, 0, sizeof(encoder_snapshot));
     encoder_snapshot.valid_age_ticks = UINT32_MAX;
     encoder_snapshot.frame_status = BISS_FRAME_SYNC_ERROR;
@@ -82,15 +88,29 @@ HAL_StatusTypeDef BissEncoder_StartRead(void)
     {
         return HAL_BUSY;
     }
+    if (!BissDmaBuffer_GuardIntact(&encoder_tx) ||
+        !BissDmaBuffer_GuardIntact(&encoder_rx))
+    {
+        encoder_snapshot.dma_guard_error_count = BissEncoder_IncrementSaturated(
+            encoder_snapshot.dma_guard_error_count);
+        encoder_snapshot.ready = false;
+        BissDmaBuffer_Init(&encoder_tx, 0x00U);
+        BissDmaBuffer_Init(&encoder_rx, 0xFFU);
+        return HAL_ERROR;
+    }
 
+    /*
+     * SPI没有独立的“只接收并自动出时钟”模式，因此使用TxRx DMA：
+     * TX发送0仅为了产生48个MA时钟，编码器SLO数据同时由RX DMA采集。
+     */
     dma_busy = true;
     dma_busy_ticks = 0U;
     abort_requested = false;
     encoder_snapshot.busy = true;
     status = HAL_SPI_TransmitReceive_DMA(
         encoder_spi,
-        encoder_tx,
-        encoder_rx,
+        encoder_tx.storage,
+        encoder_rx.storage,
         BISS_FRAME_RAW_BYTES);
     if (status != HAL_OK)
     {
@@ -110,6 +130,7 @@ HAL_StatusTypeDef BissEncoder_StartRead(void)
 
 void BissEncoder_ControlTick(void)
 {
+    /* sequence为0表示尚未发布过有效帧，此时年龄保持UINT32_MAX。 */
     if (encoder_snapshot.sequence != 0U)
     {
         encoder_snapshot.valid_age_ticks = BissEncoder_IncrementSaturated(
@@ -151,7 +172,26 @@ void BissEncoder_OnTransferComplete(void)
     abort_requested = false;
     encoder_snapshot.busy = false;
 
-    if (!BissFrame_Parse17(encoder_rx, &frame))
+    if (!BissDmaBuffer_GuardIntact(&encoder_tx) ||
+        !BissDmaBuffer_GuardIntact(&encoder_rx))
+    {
+        encoder_snapshot.dma_guard_error_count = BissEncoder_IncrementSaturated(
+            encoder_snapshot.dma_guard_error_count);
+        encoder_snapshot.frame_error_count = BissEncoder_IncrementSaturated(
+            encoder_snapshot.frame_error_count);
+        encoder_snapshot.frame_status = BISS_FRAME_SYNC_ERROR;
+        consecutive_valid_count = 0U;
+        encoder_snapshot.ready = false;
+        BissDmaBuffer_Init(&encoder_tx, 0x00U);
+        BissDmaBuffer_Init(&encoder_rx, 0xFFU);
+        return;
+    }
+
+    /*
+     * 解析失败时保留原始帧和CRC诊断，但绝不覆盖上一次有效位置；
+     * 因此控制层可通过valid_age_ticks识别“旧值”，而不会使用坏帧位置。
+     */
+    if (!BissFrame_Parse17(encoder_rx.storage, &frame))
     {
         memcpy((void *)encoder_snapshot.raw, frame.raw, BISS_FRAME_RAW_BYTES);
         encoder_snapshot.received_crc = frame.received_crc;
@@ -173,6 +213,7 @@ void BissEncoder_OnTransferComplete(void)
     }
 
     memcpy((void *)encoder_snapshot.raw, frame.raw, BISS_FRAME_RAW_BYTES);
+    /* 只有整帧有效才原子化地更新位置、序号、年龄和ready状态。 */
     encoder_snapshot.position_raw = frame.position_raw;
     encoder_snapshot.received_crc = frame.received_crc;
     encoder_snapshot.calculated_crc = frame.calculated_crc;
@@ -216,6 +257,7 @@ bool BissEncoder_GetSnapshot(BissEncoderSnapshot *snapshot)
         return false;
     }
 
+    /* 拷贝期间短暂关中断，防止SPI4回调修改结构体的一半。 */
     primask = BissEncoder_EnterCritical();
     memcpy(snapshot, (const void *)&encoder_snapshot, sizeof(*snapshot));
     BissEncoder_ExitCritical(primask);

@@ -249,7 +249,7 @@
               <IROM>
                 <Type>1</Type>
                 <StartAddress>0x8000000</StartAddress>
-                <Size>0x1E0000</Size>
+                <Size>0x1e0000</Size>
               </IROM>
               <XRAM>
                 <Type>0</Type>
@@ -431,6 +431,11 @@
               <FilePath>../Core/Src/motor/biss_encoder.c</FilePath>
             </File>
             <File>
+              <FileName>biss_dma_buffer.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/biss_dma_buffer.c</FilePath>
+            </File>
+            <File>
               <FileName>encoder_angle.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/motor/encoder_angle.c</FilePath>
@@ -454,6 +459,16 @@
               <FileName>motor_control.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/motor/motor_control.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_runtime_policy.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/motor_runtime_policy.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_startup_trace.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/motor_startup_trace.c</FilePath>
             </File>
             <File>
               <FileName>drv8323.c</FileName>

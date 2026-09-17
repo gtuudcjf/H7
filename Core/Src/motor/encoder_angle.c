@@ -77,11 +77,20 @@ bool EncoderAngle_Update(const EncoderAngleConfig *config,
         return false;
     }
 
+    /*
+     * 这里的zero_raw不是编码器出厂零点，而是转子d轴与定子电角度零轴
+     * 对齐时记录的机械位置。direction用于统一编码器正方向与电机正方向。
+     */
     relative_count = (int32_t)position_raw - (int32_t)config->zero_raw;
     mechanical_angle_pu =
         (float)(relative_count * (int32_t)config->direction) *
         ENCODER_POSITION_SCALE_PU;
 
+    /*
+     * mechanical_angle_pu每机械转一圈变化1；乘极对数后得到FOC使用的
+     * electrical_angle_pu。本工程MOTOR_POLE_PAIRS=10，即机械一圈包含
+     * 10个电角周期。两个结果都环绕到[0,1)。
+     */
     sample->position_raw = position_raw;
     sample->mechanical_angle_pu = EncoderAngle_WrapPu(mechanical_angle_pu);
     sample->electrical_angle_pu = EncoderAngle_WrapPu(

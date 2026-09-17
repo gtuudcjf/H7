@@ -17,6 +17,7 @@
 #include "foc_transform.h"
 #include "motor_config_store.h"
 #include "motor_params.h"
+#include "motor_runtime_policy.h"
 #include "open_loop.h"
 #include "pwm_3ph.h"
 #include "svpwm.h"
@@ -90,6 +91,7 @@ static uint32_t adc_age_ticks;
 static uint32_t overcurrent_count;
 static bool pwm_enabled;
 static bool sampling_started;
+static MotorStartupTrace startup_trace;
 
 static float MotorControl_Clamp(float value, float low, float high)
 {
@@ -121,9 +123,7 @@ static float MotorControl_MoveToward(float current, float target, float maximum_
 
 static bool MotorControl_ModeIsImplemented(MotorControlMode mode)
 {
-    return (mode == MOTOR_CONTROL_OPEN_VOLTAGE) ||
-           (mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
-           (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT);
+    return MotorRuntimePolicy_ClassifyStartMode(mode) != MOTOR_START_ACTION_INVALID;
 }
 
 static void MotorControl_UpdateDebugState(void)
@@ -163,12 +163,32 @@ static void MotorControl_UpdateDebugState(void)
     g_motor_control_debug.encoder_frame_error_count = encoder_snapshot.frame_error_count;
     g_motor_control_debug.encoder_spi_error_count = encoder_snapshot.spi_error_count;
     g_motor_control_debug.encoder_timeout_count = encoder_snapshot.timeout_count;
+    g_motor_control_debug.encoder_dma_guard_error_count =
+        encoder_snapshot.dma_guard_error_count;
     g_motor_control_debug.encoder_electrical_zero_raw = encoder_calibration_valid ?
         encoder_angle_config.zero_raw : 0U;
     g_motor_control_debug.encoder_mechanical_angle_pu =
         encoder_angle_sample.mechanical_angle_pu;
     g_motor_control_debug.encoder_electrical_angle_pu =
         encoder_angle_sample.electrical_angle_pu;
+    g_motor_control_debug.startup_trace_count = startup_trace.checkpoint_count;
+    for (index = 0U; index < MOTOR_STARTUP_TRACE_CAPACITY; ++index)
+    {
+        g_motor_control_debug.startup_trace_stage[index] =
+            startup_trace.checkpoint_stage[index];
+        g_motor_control_debug.startup_trace_mode[index] =
+            startup_trace.checkpoint_mode[index];
+    }
+    g_motor_control_debug.startup_invalid_detected =
+        startup_trace.invalid_detected ? 1U : 0U;
+    g_motor_control_debug.first_invalid_requested_mode =
+        startup_trace.first_invalid_mode;
+    g_motor_control_debug.first_invalid_startup_stage =
+        startup_trace.first_invalid_stage;
+    g_motor_control_debug.first_invalid_calibration_sample =
+        startup_trace.first_invalid_sample;
+    g_motor_control_debug.mode_integrity_error_count =
+        startup_trace.integrity_error_count;
 }
 
 static void MotorControl_DisablePowerStage(void)
@@ -180,6 +200,17 @@ static void MotorControl_DisablePowerStage(void)
     }
     Drv8323Board_SetCurrentCalibration(false);
     Drv8323Board_Disable();
+}
+
+static void MotorControl_QuiesceRealtimeInterrupts(void)
+{
+    /*
+     * 校准完成后功率级已关断，但 TIM8 更新与 ADC 注入完成中断
+     * 仍以 10 kHz 运行。在这里只禁止实时中断源，不调用 HAL 停机、
+     * 不写 Flash；完整的外设停止和 Flash 保存仍由前台 Service 完成。
+     */
+    __HAL_TIM_DISABLE_IT(&htim8, TIM_IT_UPDATE);
+    __HAL_ADC_DISABLE_IT(&hadc1, ADC_IT_JEOC | ADC_IT_JEOS);
 }
 
 static void MotorControl_EnterFault(MotorFaultCode fault)
@@ -268,6 +299,19 @@ static void MotorControl_UpdateOpenVoltageBlend(float dt_s)
 
 static void MotorControl_StartSelectedMode(void)
 {
+    const MotorStartAction start_action =
+        MotorRuntimePolicy_ClassifyStartMode(requested_mode);
+
+    /*
+     * requested_mode若被破坏，必须在使能PWM前停机并报告配置故障。
+     * 禁止自动退回电压开环，否则会把内存/DMA问题伪装成正常运行。
+     */
+    if (start_action == MOTOR_START_ACTION_INVALID)
+    {
+        MotorControl_EnterFault(MOTOR_FAULT_INVALID_CONFIG);
+        return;
+    }
+
     if (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
     {
         if (!current_sense_ready)
@@ -298,8 +342,7 @@ static void MotorControl_StartSelectedMode(void)
         return;
     }
 
-    if ((requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
-        (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+    if (start_action == MOTOR_START_ACTION_CURRENT_CONTROL)
     {
         if (!current_sense_ready)
         {
@@ -323,7 +366,6 @@ static void MotorControl_StartSelectedMode(void)
     }
     else
     {
-        requested_mode = MOTOR_CONTROL_OPEN_VOLTAGE;
         motor_mode = MOTOR_CONTROL_OPEN_VOLTAGE;
         run_state = MOTOR_RUN_STATE_RUNNING;
     }
@@ -361,6 +403,22 @@ static void MotorControl_FinishCalibration(void)
     }
 
     run_state = MOTOR_RUN_STATE_READY;
+    MotorStartupTrace_RecordCheckpoint(
+        &startup_trace,
+        MOTOR_STARTUP_STAGE_BEFORE_MODE_SELECT,
+        (uint8_t)requested_mode);
+
+    /*
+     * 编码器采集在电流零偏校准完成后才启动，因此模式3此时还没有首帧
+     * 有效位置。先保持功率级PWM关闭并停在READY，FastTick取得首帧后
+     * 再进入编码器角度电流闭环。缺少校准参数则立即报告明确故障。
+     */
+    if ((requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) &&
+        encoder_calibration_valid)
+    {
+        MotorControl_UpdateDebugState();
+        return;
+    }
     MotorControl_StartSelectedMode();
 }
 
@@ -425,6 +483,10 @@ static bool MotorControl_UpdateCurrentMeasurement(uint32_t phase_a_raw,
 
 static bool MotorControl_UpdateEncoderAngle(bool require_ready)
 {
+    /*
+     * 编码器角度进入FOC前必须同时满足：已有有效帧、数据未过期、校准
+     * 参数有效。仅“能读到encoder_position_raw”还不满足模式3的条件。
+     */
     if (!BissEncoder_GetSnapshot(&encoder_snapshot) ||
         (require_ready && !encoder_snapshot.ready) ||
         (encoder_snapshot.sequence == 0U) ||
@@ -534,6 +596,7 @@ static bool MotorControl_RunCurrentLoop(float dt_s,
     MotorVoltageDq voltage_pu;
     float maximum_current_step;
 
+    /* 电流PI始终相同，三个分支只是在选择本周期的Id/Iq目标。 */
     if (encoder_calibration_active)
     {
         step_target.d = encoder_calibration_command.id_ref_a;
@@ -616,6 +679,11 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     motor_mode = MOTOR_CONTROL_STOPPED;
     run_state = MOTOR_RUN_STATE_STOPPED;
     fault_code = MOTOR_FAULT_NONE;
+    MotorStartupTrace_Init(&startup_trace, (uint8_t)config->mode);
+    MotorStartupTrace_RecordCheckpoint(
+        &startup_trace,
+        MOTOR_STARTUP_STAGE_INIT_DONE,
+        (uint8_t)requested_mode);
 
     OpenLoop_Init(&open_loop_state, config->frequency_slew_hz_per_s);
     open_voltage_target.ud_pu = 0.0f;
@@ -811,36 +879,46 @@ void MotorControl_Service(void)
     uint32_t interrupt_state;
     bool safe_to_write;
 
+    if (g_motor_control_debug.foreground_service_count < UINT32_MAX)
+    {
+        ++g_motor_control_debug.foreground_service_count;
+    }
+
     /*
      * ADC 中断只负责先关断功率级并置位完成标志。停止定时器、擦除和写入
      * Flash 全部在主循环执行，避免在任何实时中断中出现不可预测的延时。
      */
     if (encoder_calibration_failure_pending)
     {
-        interrupt_state = __get_PRIMASK();
-        __disable_irq();
-        encoder_calibration_failure_pending = false;
-        if (interrupt_state == 0U)
-        {
-            __enable_irq();
-        }
-        (void)MotorControl_Stop();
+        /*
+         * 在停止 TIM8/ADC 之前保持 pending，使快速中断只走安全返回路径。
+         * 若提前清零，中断会在前台调用 Stop 前恢复常规控制负载。
+         */
+        g_motor_control_debug.encoder_terminal_stage = 10U;
+        status = MotorControl_Stop();
+        g_motor_control_debug.encoder_terminal_hal_status = (uint8_t)status;
+        g_motor_control_debug.encoder_terminal_stage = 11U;
         MotorControl_EnterFault(MOTOR_FAULT_ENCODER_ALIGNMENT);
+        g_motor_control_debug.encoder_terminal_stage = 12U;
         return;
     }
 
     if (encoder_calibration_save_pending)
     {
-        interrupt_state = __get_PRIMASK();
-        __disable_irq();
-        encoder_calibration_save_pending = false;
-        if (interrupt_state == 0U)
-        {
-            __enable_irq();
-        }
-
+        /* pending 在停机和 Flash 写后校验完成前始终保持为1。 */
+        g_motor_control_debug.encoder_save_stage = 2U;
         status = MotorControl_Stop();
         safe_to_write = (status == HAL_OK) && !pwm_enabled && !sampling_started;
+        if (!safe_to_write)
+        {
+            g_motor_control_debug.encoder_save_stage = 6U;
+            g_motor_control_debug.encoder_save_hal_status = (uint8_t)status;
+        }
+        else
+        {
+            g_motor_control_debug.encoder_save_stage = 3U;
+        }
+        g_motor_control_debug.encoder_save_stage = safe_to_write ? 4U : 6U;
         status = MotorConfigStore_Save(&encoder_saved_config, safe_to_write);
         if ((status != HAL_OK) ||
             !EncoderAngle_Init(&encoder_angle_config,
@@ -849,11 +927,25 @@ void MotorControl_Service(void)
                                encoder_saved_config.pole_pairs))
         {
             encoder_calibration_valid = false;
+            if (g_motor_control_debug.encoder_save_stage != 6U)
+            {
+                g_motor_control_debug.encoder_save_stage = 7U;
+            }
+            g_motor_control_debug.encoder_save_hal_status = (uint8_t)status;
             MotorControl_EnterFault(MOTOR_FAULT_CONFIG_STORAGE);
             return;
         }
 
         encoder_calibration_valid = true;
+        g_motor_control_debug.encoder_save_stage = 5U;
+        g_motor_control_debug.encoder_save_hal_status = (uint8_t)HAL_OK;
+        interrupt_state = __get_PRIMASK();
+        __disable_irq();
+        encoder_calibration_save_pending = false;
+        if (interrupt_state == 0U)
+        {
+            __enable_irq();
+        }
         MotorControl_UpdateDebugState();
         return;
     }
@@ -879,6 +971,10 @@ void MotorControl_Service(void)
     encoder_calibration_requested = false;
     if (EncoderCalibration_Start(&encoder_calibration))
     {
+        g_motor_control_debug.encoder_terminal_kind = 0U;
+        g_motor_control_debug.encoder_terminal_stage = 0U;
+        g_motor_control_debug.encoder_terminal_hal_status = (uint8_t)HAL_OK;
+        g_motor_control_debug.service_count_at_terminal = 0U;
         memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
         encoder_calibration_last_sequence = encoder_snapshot.sequence;
         encoder_calibration_active = true;
@@ -923,6 +1019,48 @@ HAL_StatusTypeDef MotorControl_RequestMode(MotorControlMode mode)
         __enable_irq();
     }
     return HAL_OK;
+}
+
+HAL_StatusTypeDef MotorControl_SwitchToOpenVoltage(
+    float ud_pu,
+    float uq_pu,
+    float electrical_frequency_hz)
+{
+    if (!isfinite(ud_pu) || !isfinite(uq_pu) ||
+        !isfinite(electrical_frequency_hz))
+    {
+        return HAL_ERROR;
+    }
+
+    MotorControl_SetOpenLoopCommand(ud_pu, uq_pu, electrical_frequency_hz);
+    return MotorControl_RequestMode(MOTOR_CONTROL_OPEN_VOLTAGE);
+}
+
+HAL_StatusTypeDef MotorControl_SwitchToOpenAngleCurrent(
+    float id_a,
+    float iq_a,
+    float electrical_frequency_hz)
+{
+    if (!isfinite(id_a) || !isfinite(iq_a) ||
+        !isfinite(electrical_frequency_hz))
+    {
+        return HAL_ERROR;
+    }
+
+    MotorControl_SetCurrentCommand(id_a, iq_a, electrical_frequency_hz);
+    return MotorControl_RequestMode(MOTOR_CONTROL_OPEN_ANGLE_CURRENT);
+}
+
+HAL_StatusTypeDef MotorControl_SwitchToEncoderAngleCurrent(float id_a,
+                                                           float iq_a)
+{
+    if (!isfinite(id_a) || !isfinite(iq_a))
+    {
+        return HAL_ERROR;
+    }
+
+    MotorControl_SetEncoderCurrentCommand(id_a, iq_a);
+    return MotorControl_RequestMode(MOTOR_CONTROL_ENCODER_ANGLE_CURRENT);
 }
 
 HAL_StatusTypeDef MotorControl_SetCurrentPiGains(float kp_v_per_a,
@@ -986,6 +1124,11 @@ HAL_StatusTypeDef MotorControl_Start(void)
 {
     HAL_StatusTypeDef status;
 
+    MotorStartupTrace_RecordCheckpoint(
+        &startup_trace,
+        MOTOR_STARTUP_STAGE_START_ENTER,
+        (uint8_t)requested_mode);
+
     if ((motor_mode != MOTOR_CONTROL_STOPPED) || sampling_started)
     {
         return HAL_ERROR;
@@ -997,6 +1140,10 @@ HAL_StatusTypeDef MotorControl_Start(void)
         MotorControl_EnterFault(MOTOR_FAULT_ADC_START);
         return status;
     }
+    MotorStartupTrace_RecordCheckpoint(
+        &startup_trace,
+        MOTOR_STARTUP_STAGE_ADC_CALIBRATED,
+        (uint8_t)requested_mode);
 
     status = Drv8323Board_EnableForPwm();
     if (status != HAL_OK)
@@ -1004,6 +1151,10 @@ HAL_StatusTypeDef MotorControl_Start(void)
         MotorControl_EnterFault(MOTOR_FAULT_DRIVER);
         return status;
     }
+    MotorStartupTrace_RecordCheckpoint(
+        &startup_trace,
+        MOTOR_STARTUP_STAGE_DRIVER_ENABLED,
+        (uint8_t)requested_mode);
 
     CurrentSenseCalibration_Start(&current_calibration,
                                   CURRENT_CALIBRATION_DISCARD_COUNT,
@@ -1013,6 +1164,10 @@ HAL_StatusTypeDef MotorControl_Start(void)
     current_feedback_valid = false;
     run_state = MOTOR_RUN_STATE_CURRENT_CALIBRATING;
     Drv8323Board_SetCurrentCalibration(true);
+    MotorStartupTrace_RecordCheckpoint(
+        &startup_trace,
+        MOTOR_STARTUP_STAGE_CURRENT_CALIBRATION_STARTED,
+        (uint8_t)requested_mode);
 
     status = HAL_ADCEx_InjectedStart_IT(&hadc1);
     if (status != HAL_OK)
@@ -1022,6 +1177,10 @@ HAL_StatusTypeDef MotorControl_Start(void)
         MotorControl_EnterFault(MOTOR_FAULT_ADC_START);
         return status;
     }
+    MotorStartupTrace_RecordCheckpoint(
+        &startup_trace,
+        MOTOR_STARTUP_STAGE_ADC_STARTED,
+        (uint8_t)requested_mode);
 
     status = HAL_TIM_Base_Start_IT(&htim8);
     if (status != HAL_OK)
@@ -1032,6 +1191,10 @@ HAL_StatusTypeDef MotorControl_Start(void)
         MotorControl_EnterFault(MOTOR_FAULT_ADC_START);
         return status;
     }
+    MotorStartupTrace_RecordCheckpoint(
+        &startup_trace,
+        MOTOR_STARTUP_STAGE_TIM8_STARTED,
+        (uint8_t)requested_mode);
 
     status = HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_4);
     if (status != HAL_OK)
@@ -1045,6 +1208,10 @@ HAL_StatusTypeDef MotorControl_Start(void)
     }
 
     sampling_started = true;
+    MotorStartupTrace_RecordCheckpoint(
+        &startup_trace,
+        MOTOR_STARTUP_STAGE_SAMPLING_STARTED,
+        (uint8_t)requested_mode);
     MotorControl_UpdateDebugState();
     return HAL_OK;
 }
@@ -1052,26 +1219,50 @@ HAL_StatusTypeDef MotorControl_Start(void)
 HAL_StatusTypeDef MotorControl_Stop(void)
 {
     HAL_StatusTypeDef result = HAL_OK;
+    HAL_StatusTypeDef stop_status;
 
+    g_motor_control_debug.motor_stop_stage = 1U;
+    g_motor_control_debug.motor_stop_hal_status = (uint8_t)HAL_OK;
     motor_mode = MOTOR_CONTROL_STOPPED;
     run_state = MOTOR_RUN_STATE_STOPPED;
     requested_mode = motor_config.mode;
-    MotorControl_DisablePowerStage();
+    /*
+     * 校准终止时，ADC回调已先关闭三相PWM、DRV_CAL和DRV8323。
+     * 前台只需停止触发/采样外设，不再对同一GPIO关断路径重入。
+     * 其他停机场景仍执行完整的功率级安全关断。
+     */
+    if (!encoder_calibration_save_pending &&
+        !encoder_calibration_failure_pending)
+    {
+        MotorControl_DisablePowerStage();
+    }
+    g_motor_control_debug.motor_stop_stage = 2U;
 
     if (sampling_started)
     {
-        if (HAL_TIM_PWM_Stop(&htim8, TIM_CHANNEL_4) != HAL_OK)
+        g_motor_control_debug.motor_stop_stage = 3U;
+        stop_status = HAL_TIM_PWM_Stop(&htim8, TIM_CHANNEL_4);
+        g_motor_control_debug.motor_stop_hal_status = (uint8_t)stop_status;
+        if (stop_status != HAL_OK)
         {
             result = HAL_ERROR;
         }
-        if (HAL_TIM_Base_Stop_IT(&htim8) != HAL_OK)
+        g_motor_control_debug.motor_stop_stage = 4U;
+        stop_status = HAL_TIM_Base_Stop_IT(&htim8);
+        g_motor_control_debug.motor_stop_hal_status = (uint8_t)stop_status;
+        if (stop_status != HAL_OK)
         {
             result = HAL_ERROR;
         }
-        if (HAL_ADCEx_InjectedStop_IT(&hadc1) != HAL_OK)
+        g_motor_control_debug.motor_stop_stage = 5U;
+        g_motor_control_debug.motor_stop_stage = 6U;
+        stop_status = HAL_ADCEx_InjectedStop_IT(&hadc1);
+        g_motor_control_debug.motor_stop_hal_status = (uint8_t)stop_status;
+        if (stop_status != HAL_OK)
         {
             result = HAL_ERROR;
         }
+        g_motor_control_debug.motor_stop_stage = 7U;
         sampling_started = false;
     }
 
@@ -1081,6 +1272,7 @@ HAL_StatusTypeDef MotorControl_Stop(void)
     memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
     adc_age_ticks = 0U;
     overcurrent_count = 0U;
+    g_motor_control_debug.motor_stop_stage = 8U;
     MotorControl_UpdateDebugState();
     return result;
 }
@@ -1105,10 +1297,16 @@ void MotorControl_FastTick(float dt_s)
 {
     MotorVoltageDq open_voltage;
 
-    /* 每个 TIM8 周期只发起一次非阻塞 DMA 帧；返回 HAL_BUSY 属于正常状态。 */
-    BissEncoder_ControlTick();
-    (void)BissEncoder_StartRead();
-    (void)BissEncoder_GetSnapshot(&encoder_snapshot);
+    /*
+     * 电流零偏校准阶段保持与已验证版本相同的 ADC/TIM8 启动路径。
+     * 校准结束后才允许 SPI4 DMA 进入后台采集；HAL_BUSY 属于正常状态。
+     */
+    if (MotorRuntimePolicy_EncoderAcquisitionAllowed(run_state))
+    {
+        BissEncoder_ControlTick();
+        (void)BissEncoder_StartRead();
+        (void)BissEncoder_GetSnapshot(&encoder_snapshot);
+    }
 
     if (!isfinite(dt_s) || (dt_s <= 0.0f))
     {
@@ -1130,17 +1328,36 @@ void MotorControl_FastTick(float dt_s)
         return;
     }
 
-    MotorControl_ApplyModeRequest();
-    if (motor_mode == MOTOR_CONTROL_FAULT)
+    /*
+     * .mode直接选择模式3时，在这里等待SPI4 DMA发布第一帧一致快照。
+     * 等待期间三相PWM尚未使能，不会输出未知角度的电压矢量。
+     */
+    if ((run_state == MOTOR_RUN_STATE_READY) &&
+        (motor_mode == MOTOR_CONTROL_STOPPED) &&
+        (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
     {
+        if (MotorControl_UpdateEncoderAngle(true))
+        {
+            MotorControl_StartSelectedMode();
+        }
+        MotorControl_UpdateDebugState();
         return;
     }
 
-    if ((motor_mode != MOTOR_CONTROL_OPEN_VOLTAGE) &&
-        (motor_mode != MOTOR_CONTROL_OPEN_ANGLE_CURRENT) &&
-        (motor_mode != MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+    /*
+     * 先验证当前模式，再处理运行时切换。上电电流校准期间motor_mode仍为
+     * STOPPED；若在此阶段调用ApplyModeRequest，它会因电流反馈未就绪而
+     * 将requested_mode错误回退为STOPPED，破坏配置的待启动模式。
+     */
+    if (!MotorRuntimePolicy_ModeRequestAllowed(motor_mode))
     {
         MotorControl_UpdateDebugState();
+        return;
+    }
+
+    MotorControl_ApplyModeRequest();
+    if (motor_mode == MOTOR_CONTROL_FAULT)
+    {
         return;
     }
 
@@ -1198,6 +1415,10 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
 
     if (run_state == MOTOR_RUN_STATE_CURRENT_CALIBRATING)
     {
+        MotorStartupTrace_ObserveCalibration(
+            &startup_trace,
+            (uint8_t)requested_mode,
+            current_calibration.sample_count);
         if (CurrentSenseCalibration_AddSample(&current_calibration,
                                               phase_a_raw,
                                               phase_b_raw))
@@ -1214,6 +1435,10 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
         return;
     }
 
+    /*
+     * 编码器校准路径已实现，但当前尚未完成实机验证。它使用强制电角度
+     * 和小Id电流寻找零点/方向；验证前不要把“编码器可读”视为“已校准”。
+     */
     if (encoder_calibration_active)
     {
         (void)BissEncoder_GetSnapshot(&encoder_snapshot);
@@ -1232,6 +1457,10 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
             &encoder_calibration, &calibration_input, dt_s);
         if (encoder_calibration.state == ENCODER_CAL_COMPLETE)
         {
+            g_motor_control_debug.encoder_terminal_kind = 1U;
+            g_motor_control_debug.encoder_terminal_stage = 1U;
+            g_motor_control_debug.service_count_at_terminal =
+                g_motor_control_debug.foreground_service_count;
             if (EncoderCalibration_GetResult(&encoder_calibration,
                                              &calibration_result) &&
                 MotorCalibrationConfig_Build(
@@ -1241,6 +1470,11 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
                     MOTOR_POLE_PAIRS))
             {
                 encoder_calibration_save_pending = true;
+                g_motor_control_debug.service_count_at_save_request =
+                    g_motor_control_debug.foreground_service_count;
+                g_motor_control_debug.encoder_save_stage = 1U;
+                g_motor_control_debug.encoder_save_hal_status =
+                    (uint8_t)HAL_OK;
             }
             else
             {
@@ -1248,15 +1482,27 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
             }
             encoder_calibration_active = false;
             MotorControl_DisablePowerStage();
+            g_motor_control_debug.encoder_terminal_stage = 2U;
+            MotorControl_QuiesceRealtimeInterrupts();
+            g_motor_control_debug.encoder_terminal_stage = 3U;
             MotorControl_UpdateDebugState();
+            g_motor_control_debug.encoder_terminal_stage = 4U;
             return;
         }
         if (encoder_calibration.state == ENCODER_CAL_FAILED)
         {
+            g_motor_control_debug.encoder_terminal_kind = 2U;
+            g_motor_control_debug.encoder_terminal_stage = 1U;
+            g_motor_control_debug.service_count_at_terminal =
+                g_motor_control_debug.foreground_service_count;
             encoder_calibration_failure_pending = true;
             encoder_calibration_active = false;
             MotorControl_DisablePowerStage();
+            g_motor_control_debug.encoder_terminal_stage = 2U;
+            MotorControl_QuiesceRealtimeInterrupts();
+            g_motor_control_debug.encoder_terminal_stage = 3U;
             MotorControl_UpdateDebugState();
+            g_motor_control_debug.encoder_terminal_stage = 4U;
             return;
         }
 

@@ -93,7 +93,11 @@ bool BissFrame_Parse17(const uint8_t raw[BISS_FRAME_RAW_BYTES], BissFrame17 *fra
     }
     memcpy(frame->raw, raw, BISS_FRAME_RAW_BYTES);
 
-    /* 最长响应为 40 位，因此在 48 位窗口内最多允许 8 位前导空闲。 */
+    /*
+     * 当前编码器响应布局：13位低电平ACK + Start + CDS + 17位位置 +
+     * Error + Warning + 6位CRC，共40位。SPI固定读取48位，因此允许响应
+     * 在窗口中有0～8位前导空闲，解析器通过“13个0后紧跟Start=1”定位。
+     */
     for (ack_start = 0U;
          ack_start <= (BISS_FRAME_RAW_BITS - BISS_RESPONSE_BITS);
          ++ack_start)
@@ -130,6 +134,7 @@ bool BissFrame_Parse17(const uint8_t raw[BISS_FRAME_RAW_BYTES], BissFrame17 *fra
         return false;
     }
 
+    /* Start/CDS只用于同步，从payload_index开始才是17位绝对位置。 */
     position = BissFrame_GetBits(raw, payload_index, BISS_POSITION_BITS);
     error_ok = BissFrame_GetBit(raw, (uint8_t)(payload_index + BISS_POSITION_BITS)) != 0U;
     warning_ok = BissFrame_GetBit(
@@ -139,6 +144,7 @@ bool BissFrame_Parse17(const uint8_t raw[BISS_FRAME_RAW_BYTES], BissFrame17 *fra
         raw,
         (uint8_t)(payload_index + BISS_PAYLOAD_BITS),
         BISS_CRC_BITS);
+    /* BiSS-C CRC覆盖位置及两个状态位，不包含ACK、Start和CDS。 */
     payload = (position << BISS_STATUS_BITS) |
               (error_ok ? 2U : 0U) |
               (warning_ok ? 1U : 0U);
