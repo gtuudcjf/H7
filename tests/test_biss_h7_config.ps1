@@ -91,6 +91,10 @@ Assert-Contains $project '<FileName>encoder_angle\.c</FileName>' 'Keil project i
 Assert-Contains $project '<FileName>crc32\.c</FileName>' 'Keil project is missing crc32.c.'
 Assert-Contains $project '<FileName>motor_config_store\.c</FileName>' `
     'Keil project is missing motor_config_store.c.'
+Assert-Contains $project '<FileName>speed_estimator\.c</FileName>' `
+    'Keil project is missing speed_estimator.c.'
+Assert-Contains $project '<FileName>speed_pi\.c</FileName>' `
+    'Keil project is missing speed_pi.c.'
 Assert-Contains $project '<IROM>[\s\S]*<Size>0x1E0000</Size>' `
     'Keil IROM must exclude Bank2 Sector7 reserved for calibration.'
 

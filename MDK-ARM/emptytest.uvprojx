@@ -421,6 +421,16 @@
               <FilePath>../Core/Src/motor/current_pi.c</FilePath>
             </File>
             <File>
+              <FileName>speed_estimator.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/speed_estimator.c</FilePath>
+            </File>
+            <File>
+              <FileName>speed_pi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/speed_pi.c</FilePath>
+            </File>
+            <File>
               <FileName>biss_frame.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/motor/biss_frame.c</FilePath>

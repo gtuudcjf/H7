@@ -40,8 +40,8 @@ Assert-Contains $params 'MOTOR_CURRENT_START_IQ_A\s+\(0\.3f\)' 'Initial current 
 Assert-Contains $params 'MOTOR_CURRENT_COMMAND_LIMIT_A\s+\(2\.0f\)' 'Current command must be limited to 2 A.'
 Assert-Contains $params 'MOTOR_CURRENT_TRIP_A\s+\(10\.0f\)' 'Software overcurrent threshold must be 10 A.'
 
-Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_OPEN_VOLTAGE' `
-    'The selected startup mode must be explicit in one configuration field.'
+Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_(OPEN_VOLTAGE|OPEN_ANGLE_CURRENT|ENCODER_ANGLE_CURRENT|ENCODER_SPEED_CURRENT)' `
+    'The selected startup mode must be one of the implemented modes.'
 Assert-Contains $main 'MotorControl_SetOpenLoopCommand\(0\.0f,\s*0\.08f,\s*1\.0f\)' `
     'The voltage-open-loop startup profile must be initialized independently of mode selection.'
 Assert-Contains $main 'MotorControl_SetCurrentCommand\(0\.0f,\s*0\.8f,\s*1\.0f\)' `

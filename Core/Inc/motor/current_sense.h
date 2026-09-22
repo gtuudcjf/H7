@@ -10,12 +10,12 @@
 
 typedef struct
 {
-    float adc_reference_v;
-    float adc_full_scale_count;
-    float shunt_resistance_ohm;
-    float amplifier_gain_v_per_v;
-    float phase_a_polarity;
-    float phase_b_polarity;
+    float adc_reference_v;          /**< ADC参考电压，当前为3.3 V。 */
+    float adc_full_scale_count;     /**< ADC数字满量程，12位时为4095。 */
+    float shunt_resistance_ohm;     /**< 低侧采样电阻阻值。 */
+    float amplifier_gain_v_per_v;  /**< DRV8323 CSA实际配置增益。 */
+    float phase_a_polarity;         /**< A相通道符号，只允许+1或-1。 */
+    float phase_b_polarity;         /**< B相通道符号，只允许+1或-1。 */
 } CurrentSenseConfig;
 
 typedef struct

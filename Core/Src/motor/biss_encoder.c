@@ -11,6 +11,7 @@
 #include <string.h>
 
 #include "biss_dma_buffer.h"
+#include "biss_sequence.h"
 
 /* 编译期保证解析器帧长与DMA有效区一致，防止以后只修改其中一处。 */
 typedef char BissDmaFrameSizeMustMatchParser[
@@ -219,7 +220,7 @@ void BissEncoder_OnTransferComplete(void)
     encoder_snapshot.calculated_crc = frame.calculated_crc;
     encoder_snapshot.frame_status = BISS_FRAME_OK;
     encoder_snapshot.warning = !frame.warning_ok;
-    encoder_snapshot.sequence = BissEncoder_IncrementSaturated(encoder_snapshot.sequence);
+    encoder_snapshot.sequence = BissSequence_Next(encoder_snapshot.sequence);
     encoder_snapshot.valid_count = BissEncoder_IncrementSaturated(
         encoder_snapshot.valid_count);
     encoder_snapshot.valid_age_ticks = 0U;

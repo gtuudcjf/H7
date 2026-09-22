@@ -55,19 +55,31 @@
  * 快速控制周期必须与 TIM8 更新事件周期严格一致：
  * 240 MHz / (2 * (11999 + 1)) = 10 kHz，因此 dt = 1 / 10 kHz = 100 us。
  * 后续修改 TIM8 时钟或 ARR 时，必须同步更新此常量，否则电角度积分和
- * 未来 PI 控制器的离散时间都会产生比例误差。
+ * 电流 PI 控制器的离散时间都会产生比例误差。
  */
 #define MOTOR_FAST_TICK_S (MOTOR_CONTROL_PERIOD_S)
 
 /*
- * 三种控制模式共用同一套启动、采样、保护和PWM输出框架。mode只决定
- * 电角度来源以及dq电压是直接给定还是由电流PI计算。20 Hz/s表示虚拟
- * 电角频率每秒最多变化20 Hz，用于避免模式1/2启动时产生频率阶跃；
- * 模式3使用编码器角度，不依赖该频率斜坡。三套命令在初始化阶段均已
- * 预置，编译前只需要修改下面的 .mode 即可选择一种启动模式。
+ * 编译时启动模式只在这里选择：
+ *   MOTOR_CONTROL_OPEN_VOLTAGE
+ *       虚拟电角度 + 直接Ud/Uq，电流只监视、不参与调节；
+ *   MOTOR_CONTROL_OPEN_ANGLE_CURRENT
+ *       虚拟电角度 + Id/Iq电流PI；
+ *   MOTOR_CONTROL_ENCODER_ANGLE_CURRENT
+ *       编码器电角度 + Id/Iq电流PI，需要有效的编码器校准记录。
+ *   MOTOR_CONTROL_ENCODER_SPEED_CURRENT
+ *       编码器机械速度PI生成Iq，复用模式3的编码器电角度和10 kHz电流PI。
+ *
+ * 四种模式共用同一套启动、采样、保护和PWM输出框架。.mode只决定
+ * “角度从哪里来”和“Ud/Uq由谁生成”。四套目标命令会在启动前全部预置，
+ * 所以编译前只改.mode即可选择启动状态。运行中不要直接写本const结构，
+ * 应调用MotorControl_SwitchTo...()，切换会在10 kHz控制边界统一生效。
+ *
+ * frequency_slew_hz_per_s只作用于模式1/2的虚拟角频率；模式3/4使用编码器
+ * 角度。voltage_slew_pu_per_s用于从电流闭环退回模式1时平滑恢复开环电压。
  */
 static const MotorControlConfig motor_config = {
-  .mode = MOTOR_CONTROL_ENCODER_ANGLE_CURRENT,
+  .mode = MOTOR_CONTROL_ENCODER_SPEED_CURRENT,
   .frequency_slew_hz_per_s = 20.0f,
   .voltage_slew_pu_per_s = 5.0f
 };
@@ -153,16 +165,30 @@ int main(void)
     Error_Handler();
   }
 
+
   /*
-   * 三种启动模式的命令全部预置，motor_config.mode决定实际使用哪一套：
+   * 四种启动模式的命令全部预置，motor_config.mode决定实际使用哪一套。
+   * 这些数值是当前24 V母线、当前电机和当前负载的实机验证值，不是通用值；
+   * 更换电机/母线/负载时，必须结合motor_params.h从低电压、低电流重新验证：
    *   模式1：电压开环，Ud=0、Uq=0.08 pu、电角频率=1 Hz；
    *   模式2：虚拟角度+电流闭环，Id=0、Iq=0.8 A、电角频率=1 Hz；
    *   模式3：编码器角度+电流闭环，Id=0、Iq=0.6 A。
+   * Id通常保持0；Iq的正负决定转矩方向。模式3不是位置环，不会保持目标角度。
    */
   MotorControl_SetOpenLoopCommand(0.0f, 0.08f, 1.0f);
   MotorControl_SetCurrentCommand(0.0f, 0.8f, 1.0f);
   MotorControl_SetEncoderCurrentCommand(0.0f, 0.6f);
 
+  /* 模式4当前以50 rpm目标运行；速度环Iq上限保持0.7 A。 */
+  MotorControl_SetSpeedCommand(50.0f);
+
+	if (MotorControl_SetSpeedPiGains(
+				MOTOR_SPEED_PI_KP_A_PER_RPM,
+				MOTOR_SPEED_PI_KI_A_PER_RPM_S,
+				MOTOR_SPEED_PI_KAW_PER_S) != HAL_OK)
+	{
+		Error_Handler();
+	}
   /*
    * 启动顺序由控制层保证：拉高 PC4 -> 等待 DRV8323 就绪 -> 写三个配置
    * 寄存器 -> 启动 TIM8 三路主 PWM 和三路互补 PWM。任一步失败均进入
@@ -172,6 +198,7 @@ int main(void)
   {
     Error_Handler();
   }
+
 
   /*
    * MotorControl_Start() 已启动 ADC 注入中断、TIM8 基准和内部 CH4 采样触发。

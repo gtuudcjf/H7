@@ -42,9 +42,12 @@ typedef enum
 
 typedef struct
 {
-    MotorControlMode mode;             /**< 上电校准结束后进入的模式。 */
-    float frequency_slew_hz_per_s;    /**< 开环电角频率斜坡，Hz/s。 */
-    float voltage_slew_pu_per_s;      /**< 闭环切回开环时的电压过渡斜坡。 */
+    /** 编译时启动模式；运行中切换必须调用MotorControl_RequestMode系列接口。 */
+    MotorControlMode mode;
+    /** 模式1/2虚拟电角频率斜坡，单位Hz/s；模式3/4不使用。 */
+    float frequency_slew_hz_per_s;
+    /** 电流闭环退回模式1时，Ud/Uq回到开环目标的最大变化率，单位pu/s。 */
+    float voltage_slew_pu_per_s;
 } MotorControlConfig;
 
 /**
@@ -80,6 +83,17 @@ typedef struct
     volatile float uq_pu;
     volatile float electrical_angle_pu;
     volatile float electrical_frequency_hz;
+    volatile float speed_target_rpm;
+    volatile float speed_active_target_rpm;
+    volatile float speed_raw_rpm;
+    volatile float speed_filtered_rpm;
+    volatile float speed_error_rpm;
+    volatile float speed_pi_proportional_a;
+    volatile float speed_pi_integrator_a;
+    volatile float speed_iq_command_a;
+    volatile uint32_t speed_control_tick_count;
+    volatile uint8_t speed_pi_saturated;
+    volatile uint8_t speed_estimator_ready;
     volatile float current_kp_v_per_a;
     volatile float current_ki_v_per_a_s;
     volatile float current_kaw_per_s;
@@ -145,6 +159,11 @@ typedef struct
 
 extern volatile MotorControlDebug g_motor_control_debug;
 
+/**
+ * 初始化软件状态、参数、Flash校准记录和硬件适配对象，但不使能PWM。
+ * 调用顺序必须是BissEncoder_Init -> MotorControl_Init -> 设置三套命令
+ * -> MotorControl_Start。
+ */
 HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config);
 
 /** 设置电压开环 dq 标幺电压和目标电角频率。 */
@@ -159,6 +178,9 @@ void MotorControl_SetCurrentCommand(float id_a,
 
 /** 设置编码器角度电流闭环的 d/q 电流，不包含虚拟角频率。 */
 void MotorControl_SetEncoderCurrentCommand(float id_a, float iq_a);
+
+/** 设置模式4的电机轴机械转速目标，单位rpm，内部限制到安全范围。 */
+void MotorControl_SetSpeedCommand(float mechanical_speed_rpm);
 
 /**
  * 设置命令并请求切换到电压开环模式。
@@ -185,13 +207,29 @@ HAL_StatusTypeDef MotorControl_SwitchToOpenAngleCurrent(
 HAL_StatusTypeDef MotorControl_SwitchToEncoderAngleCurrent(float id_a,
                                                            float iq_a);
 
+/** 设置速度目标并请求切换到编码器速度/电流双闭环模式。 */
+HAL_StatusTypeDef MotorControl_SwitchToEncoderSpeedCurrent(
+    float mechanical_speed_rpm);
+
+/** 在线设置速度PI；参数单位依次为A/rpm、A/(rpm*s)和1/s。 */
+HAL_StatusTypeDef MotorControl_SetSpeedPiGains(float kp_a_per_rpm,
+                                               float ki_a_per_rpm_s,
+                                               float kaw_per_s);
+
+/** 在线缩小或恢复速度PI的Iq限幅，但不能突破首版0.6 A安全上限。 */
+HAL_StatusTypeDef MotorControl_SetSpeedIqLimit(float iq_limit_a);
+
 /** 请求执行一次低电流编码器方向/电角度零点校准。 */
 HAL_StatusTypeDef MotorControl_RequestEncoderCalibration(void);
 
 /** 主循环前台服务：启动校准请求并在停机后保存 Flash，禁止放入中断。 */
 void MotorControl_Service(void);
 
-/** 请求在下一个 10 kHz 控制边界切换模式。 */
+/**
+ * 请求在下一个10 kHz控制边界切换模式。
+ * @note 本函数只发布requested_mode，不直接写PWM；实际切换由FastTick执行。
+ * @note 模式3还要求电流反馈有效、编码器ready且校准记录有效。
+ */
 HAL_StatusTypeDef MotorControl_RequestMode(MotorControlMode mode);
 
 /** 设置电流 PI；异常值会被拒绝，参数组在关中断的短临界区内更新。 */
@@ -202,14 +240,23 @@ HAL_StatusTypeDef MotorControl_SetCurrentPiGains(float kp_v_per_a,
 /** 设置电流环电压矢量上限，范围为 0～0.45 pu。 */
 HAL_StatusTypeDef MotorControl_SetCurrentVoltageLimit(float limit_pu);
 
+/** 启动ADC零偏校准、DRV8323和实时触发链；PWM在校准通过后才使能。 */
 HAL_StatusTypeDef MotorControl_Start(void);
+/** 先关功率级，再停止TIM8/ADC实时链路；不会自动重新启动。 */
 HAL_StatusTypeDef MotorControl_Stop(void);
+/** 仅在FAULT状态使用：执行安全停机并清除锁存故障。 */
 HAL_StatusTypeDef MotorControl_ClearFault(void);
 
-/** TIM8 更新中断入口：推进统一电角度，并在电压开环模式更新 PWM。 */
+/**
+ * TIM8更新中断入口：编码器调度、模式切换、角度推进和模式1电压输出。
+ * 电流PI不在这里执行，而在ADC注入完成入口执行。
+ */
 void MotorControl_FastTick(float dt_s);
 
-/** ADC 注入序列完成入口：校准或执行电流闭环。 */
+/**
+ * ADC注入序列完成入口：电流零偏/编码器校准，或模式2/3电流闭环。
+ * 两个ADC原始值必须来自同一次TIM8 CH4触发的A相、B相注入序列。
+ */
 void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
                                         uint32_t phase_b_raw,
                                         float dt_s);

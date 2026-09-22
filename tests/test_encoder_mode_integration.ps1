@@ -54,8 +54,8 @@ Assert-NotContains $control 'HAL_Delay\s*\(' 'Motor control must not introduce b
 
 Assert-Contains $main 'while\s*\(1\)[\s\S]*MotorControl_Service\(\)' `
     'The main loop must service calibration completion and Flash writes.'
-Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_OPEN_VOLTAGE' `
-    'Startup mode selection must be controlled by one configuration field.'
+Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_(OPEN_VOLTAGE|OPEN_ANGLE_CURRENT|ENCODER_ANGLE_CURRENT|ENCODER_SPEED_CURRENT)' `
+    'Startup mode selection must accept each implemented mode.'
 Assert-Contains $main 'MotorControl_SetEncoderCurrentCommand\(0\.0f,\s*0\.6f\)' `
     'The validated encoder-current command must be preloaded before startup.'
 Assert-NotContains $main 'HAL_GetTick\(\)\s*>=' `
