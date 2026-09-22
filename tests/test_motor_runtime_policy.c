@@ -41,6 +41,8 @@ static void Test_InvalidRequestedModeCannotFallBackToVoltageOpenLoop(void)
            MOTOR_START_ACTION_CURRENT_CONTROL);
     assert(MotorRuntimePolicy_ClassifyStartMode(MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ==
            MOTOR_START_ACTION_CURRENT_CONTROL);
+    assert(MotorRuntimePolicy_ClassifyStartMode(MOTOR_CONTROL_ENCODER_SPEED_CURRENT) ==
+           MOTOR_START_ACTION_CURRENT_CONTROL);
     assert(MotorRuntimePolicy_ClassifyStartMode(MOTOR_CONTROL_STOPPED) ==
            MOTOR_START_ACTION_INVALID);
     assert(MotorRuntimePolicy_ClassifyStartMode(MOTOR_CONTROL_FAULT) ==
@@ -55,7 +57,15 @@ static void Test_ModeRequestsRunOnlyFromAnActiveControlMode(void)
     assert(MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_OPEN_VOLTAGE));
     assert(MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_OPEN_ANGLE_CURRENT));
     assert(MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_ENCODER_ANGLE_CURRENT));
+    assert(MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_ENCODER_SPEED_CURRENT));
     assert(!MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_FAULT));
+}
+
+static void Test_SpeedCurrentHandoffIsAlwaysClampedToItsRuntimeLimit(void)
+{
+    assert(MotorRuntimePolicy_ClampSpeedIq(2.0f, 0.6f) == 0.6f);
+    assert(MotorRuntimePolicy_ClampSpeedIq(-2.0f, 0.6f) == -0.6f);
+    assert(MotorRuntimePolicy_ClampSpeedIq(0.3f, 0.6f) == 0.3f);
 }
 
 int main(void)
@@ -65,6 +75,7 @@ int main(void)
     Test_EncoderDmaIsBlockedWhenStoppedOrFaulted();
     Test_InvalidRequestedModeCannotFallBackToVoltageOpenLoop();
     Test_ModeRequestsRunOnlyFromAnActiveControlMode();
+    Test_SpeedCurrentHandoffIsAlwaysClampedToItsRuntimeLimit();
 
     puts("motor runtime policy tests passed");
     return 0;

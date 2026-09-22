@@ -19,7 +19,8 @@ MotorStartAction MotorRuntimePolicy_ClassifyStartMode(MotorControlMode mode)
         return MOTOR_START_ACTION_OPEN_VOLTAGE;
     }
     if ((mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
-        (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+        (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ||
+        (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT))
     {
         return MOTOR_START_ACTION_CURRENT_CONTROL;
     }
@@ -30,4 +31,21 @@ bool MotorRuntimePolicy_ModeRequestAllowed(MotorControlMode active_mode)
 {
     return MotorRuntimePolicy_ClassifyStartMode(active_mode) !=
            MOTOR_START_ACTION_INVALID;
+}
+
+float MotorRuntimePolicy_ClampSpeedIq(float iq_a, float limit_a)
+{
+    if (limit_a <= 0.0f)
+    {
+        return 0.0f;
+    }
+    if (iq_a > limit_a)
+    {
+        return limit_a;
+    }
+    if (iq_a < -limit_a)
+    {
+        return -limit_a;
+    }
+    return iq_a;
 }

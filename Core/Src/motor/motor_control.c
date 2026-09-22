@@ -2,8 +2,17 @@
  * @file motor_control.c
  * @brief H7 电机控制编排：校准、开环、电流环、模式切换和故障处理。
  *
- * 快速路径不执行阻塞式 SPI、延时或日志输出。TIM8 更新中断只负责统一
- * 电角度时基和电压开环；ADC 注入完成中断只负责采样监视和电流闭环。
+ * 本文件是“编排层”，不重复实现Clarke/Park、PI、SVPWM或BiSS协议。阅读时
+ * 先跟踪状态和数据流，再进入各算法小模块：
+ *
+ *   main/HAL回调
+ *      +-- FastTick：编码器调度、模式请求、角度来源、模式1输出
+ *      +-- CurrentSampleComplete：ADC换算、模式2/3电流PI、统一PWM输出
+ *      +-- Service：校准请求、停机后Flash保存（只允许在主循环）
+ *
+ * 快速路径不执行阻塞式SPI、延时、Flash或日志输出。无论哪个模式，最终
+ * 只能通过MotorControl_WriteVoltage -> SVPWM -> Pwm3ph_ApplyDuty写TIM8 CCR，
+ * 避免多个控制路径同时争用PWM。
  */
 #include "motor_control.h"
 
@@ -20,6 +29,8 @@
 #include "motor_runtime_policy.h"
 #include "open_loop.h"
 #include "pwm_3ph.h"
+#include "speed_estimator.h"
+#include "speed_pi.h"
 #include "svpwm.h"
 #include "tim.h"
 
@@ -39,21 +50,27 @@
 #define CURRENT_PI_KI_MAX_V_PER_A_S       (2000.0f)
 #define CURRENT_PI_KAW_MAX_PER_S          (2000.0f)
 #define ENCODER_STALE_LIMIT_TICKS         (10U)
+#define SPEED_PI_KP_MAX_A_PER_RPM         (1.0f)
+#define SPEED_PI_KI_MAX_A_PER_RPM_S       (100.0f)
+#define SPEED_PI_KAW_MAX_PER_S            (2000.0f)
 
 volatile MotorControlDebug g_motor_control_debug;
 
+/* 顶层状态：mode是当前算法，requested_mode是待切换目标，run_state是流程阶段。 */
 static MotorControlConfig motor_config;
 static MotorControlMode motor_mode = MOTOR_CONTROL_STOPPED;
 static MotorControlMode requested_mode = MOTOR_CONTROL_OPEN_VOLTAGE;
 static MotorRunState run_state = MOTOR_RUN_STATE_STOPPED;
 static MotorFaultCode fault_code = MOTOR_FAULT_NONE;
 
+/* 模式1/2共用的虚拟角度和模式1电压目标。 */
 static OpenLoopState open_loop_state;
 static MotorVoltageDq open_voltage_target;
 static MotorVoltageDq last_voltage_pu;
 static bool open_voltage_blend_active;
 static float open_target_frequency_hz;
 
+/* ADC原始值 -> 相电流 -> alpha/beta -> d/q反馈。 */
 static CurrentSenseConfig current_sense_config;
 static CurrentSenseOffsets current_offsets;
 static CurrentSenseCalibration current_calibration;
@@ -64,6 +81,7 @@ static bool current_feedback_valid;
 static bool current_sense_ready;
 static bool current_calibration_failed;
 
+/* 模式2/3/4共用同一个电流PI；各模式只在电角度来源和目标命令上不同。 */
 static CurrentPiController current_pi;
 static CurrentPiResult current_pi_result;
 static FocDq current_reference_target;
@@ -73,6 +91,7 @@ static float current_target_frequency_hz;
 static float current_voltage_limit_pu = MOTOR_POLE_VOLTAGE_LIMIT_START_PU;
 static float alignment_elapsed_s;
 
+/* 模式3/4与编码器校准路径使用的快照、角度配置和持久化状态。 */
 static BissEncoderSnapshot encoder_snapshot;
 static EncoderAngleConfig encoder_angle_config;
 static EncoderAngleSample encoder_angle_sample;
@@ -86,6 +105,17 @@ static volatile bool encoder_calibration_failure_pending;
 static bool encoder_calibration_valid;
 static float active_electrical_angle_pu;
 static uint32_t encoder_calibration_last_sequence;
+
+/* 模式3/4共享速度观测；只有模式4执行速度PI并生成speed_current_reference_target。 */
+static SpeedEstimator speed_estimator;
+static SpeedPiController speed_pi;
+static SpeedPiResult speed_pi_result;
+static FocDq speed_current_reference_target;
+static volatile float speed_target_rpm;
+static float speed_active_target_rpm;
+static uint32_t speed_divider_count;
+static uint32_t speed_control_tick_count;
+static bool speed_mode_waiting_for_estimator;
 
 static uint32_t adc_age_ticks;
 static uint32_t overcurrent_count;
@@ -126,6 +156,40 @@ static bool MotorControl_ModeIsImplemented(MotorControlMode mode)
     return MotorRuntimePolicy_ClassifyStartMode(mode) != MOTOR_START_ACTION_INVALID;
 }
 
+static bool MotorControl_ModeUsesCurrentLoop(MotorControlMode mode)
+{
+    return (mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
+           (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ||
+           (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT);
+}
+
+static bool MotorControl_ModeUsesEncoderAngle(MotorControlMode mode)
+{
+    return (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ||
+           (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT);
+}
+
+static bool MotorControl_ModeUsesSpeedLoop(MotorControlMode mode)
+{
+    return mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT;
+}
+
+static void MotorControl_ResetSpeedState(bool reset_estimator)
+{
+    if (reset_estimator)
+    {
+        SpeedEstimator_Reset(&speed_estimator);
+    }
+    SpeedPi_Reset(&speed_pi);
+    memset(&speed_pi_result, 0, sizeof(speed_pi_result));
+    speed_current_reference_target.d = 0.0f;
+    speed_current_reference_target.q = 0.0f;
+    speed_active_target_rpm = 0.0f;
+    speed_divider_count = 0U;
+    speed_control_tick_count = 0U;
+    speed_mode_waiting_for_estimator = false;
+}
+
 static void MotorControl_UpdateDebugState(void)
 {
     uint8_t index;
@@ -139,8 +203,23 @@ static void MotorControl_UpdateDebugState(void)
     g_motor_control_debug.overcurrent_count = overcurrent_count;
     g_motor_control_debug.electrical_angle_pu = active_electrical_angle_pu;
     g_motor_control_debug.electrical_frequency_hz =
-        (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ?
+        MotorControl_ModeUsesEncoderAngle(motor_mode) ?
             0.0f : open_loop_state.electrical_frequency_hz;
+    g_motor_control_debug.speed_target_rpm = speed_target_rpm;
+    g_motor_control_debug.speed_active_target_rpm = speed_active_target_rpm;
+    g_motor_control_debug.speed_raw_rpm = speed_estimator.raw_rpm;
+    g_motor_control_debug.speed_filtered_rpm = speed_estimator.filtered_rpm;
+    g_motor_control_debug.speed_error_rpm = speed_pi_result.error_rpm;
+    g_motor_control_debug.speed_pi_proportional_a =
+        speed_pi_result.proportional_a;
+    g_motor_control_debug.speed_pi_integrator_a = speed_pi.integrator_a;
+    g_motor_control_debug.speed_iq_command_a =
+        speed_current_reference_target.q;
+    g_motor_control_debug.speed_control_tick_count = speed_control_tick_count;
+    g_motor_control_debug.speed_pi_saturated =
+        speed_pi_result.saturated ? 1U : 0U;
+    g_motor_control_debug.speed_estimator_ready =
+        speed_estimator.ready ? 1U : 0U;
     g_motor_control_debug.encoder_ready = encoder_snapshot.ready ? 1U : 0U;
     g_motor_control_debug.encoder_warning = encoder_snapshot.warning ? 1U : 0U;
     g_motor_control_debug.encoder_calibrated = encoder_calibration_valid ? 1U : 0U;
@@ -226,6 +305,7 @@ static void MotorControl_EnterFault(MotorFaultCode fault)
     encoder_calibration_failure_pending = false;
     memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
     CurrentPi_Reset(&current_pi);
+    MotorControl_ResetSpeedState(true);
     MotorControl_DisablePowerStage();
     MotorControl_UpdateDebugState();
 }
@@ -312,7 +392,11 @@ static void MotorControl_StartSelectedMode(void)
         return;
     }
 
-    if (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+    /*
+     * 模式3比模式2多三项硬门槛：电流采样有效、Flash校准有效、编码器数据
+     * ready且新鲜。任一条件不满足都禁止带着未知电角度使能PWM。
+     */
+    if (MotorControl_ModeUsesEncoderAngle(requested_mode))
     {
         if (!current_sense_ready)
         {
@@ -342,6 +426,11 @@ static void MotorControl_StartSelectedMode(void)
         return;
     }
 
+    /*
+     * 模式2/3/4复用电流环启动分支。模式2从固定零电角度进入ALIGNING；
+     * 模式3/4直接使用此刻编码器电角度进入RUNNING，不做虚拟角度对齐。
+     * 模式4的速度估算器就绪前保持零Iq，随后由1 kHz速度PI生成Iq目标。
+     */
     if (start_action == MOTOR_START_ACTION_CURRENT_CONTROL)
     {
         if (!current_sense_ready)
@@ -360,9 +449,15 @@ static void MotorControl_StartSelectedMode(void)
         open_loop_state.electrical_frequency_hz = 0.0f;
         open_loop_state.target_frequency_hz = 0.0f;
         active_electrical_angle_pu =
-            (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ?
+            MotorControl_ModeUsesEncoderAngle(requested_mode) ?
                 encoder_angle_sample.electrical_angle_pu : 0.0f;
         CurrentPi_Reset(&current_pi);
+        if (MotorControl_ModeUsesEncoderAngle(requested_mode))
+        {
+            MotorControl_ResetSpeedState(true);
+            speed_mode_waiting_for_estimator =
+                MotorControl_ModeUsesSpeedLoop(requested_mode);
+        }
     }
     else
     {
@@ -394,8 +489,7 @@ static void MotorControl_FinishCalibration(void)
     {
         /* 保留已验证的电压开环，但明确禁止进入依赖电流反馈的模式。 */
         fault_code = MOTOR_FAULT_CURRENT_CALIBRATION;
-        if ((requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
-            (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+        if (MotorControl_ModeUsesCurrentLoop(requested_mode))
         {
             MotorControl_EnterFault(MOTOR_FAULT_CURRENT_CALIBRATION);
             return;
@@ -413,7 +507,7 @@ static void MotorControl_FinishCalibration(void)
      * 有效位置。先保持功率级PWM关闭并停在READY，FastTick取得首帧后
      * 再进入编码器角度电流闭环。缺少校准参数则立即报告明确故障。
      */
-    if ((requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) &&
+    if (MotorControl_ModeUsesEncoderAngle(requested_mode) &&
         encoder_calibration_valid)
     {
         MotorControl_UpdateDebugState();
@@ -501,18 +595,92 @@ static bool MotorControl_UpdateEncoderAngle(bool require_ready)
     return true;
 }
 
+static bool MotorControl_RunSpeedTask(void)
+{
+    SpeedEstimatorUpdateStatus estimator_status;
+    float maximum_speed_step;
+
+    if (!MotorControl_ModeUsesEncoderAngle(motor_mode))
+    {
+        return true;
+    }
+
+    ++speed_divider_count;
+    if (speed_divider_count < MOTOR_SPEED_CONTROL_DIVIDER)
+    {
+        return true;
+    }
+    speed_divider_count = 0U;
+
+    estimator_status = SpeedEstimator_Update(
+        &speed_estimator,
+        encoder_snapshot.position_raw,
+        encoder_snapshot.sequence,
+        MOTOR_SPEED_CONTROL_PERIOD_S);
+    if (estimator_status == SPEED_ESTIMATOR_UPDATE_INVALID)
+    {
+        MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
+        return false;
+    }
+    if ((estimator_status != SPEED_ESTIMATOR_UPDATE_READY) ||
+        !MotorControl_ModeUsesSpeedLoop(motor_mode))
+    {
+        return true;
+    }
+
+    if (speed_mode_waiting_for_estimator)
+    {
+        speed_active_target_rpm = speed_estimator.filtered_rpm;
+        if (!SpeedPi_PreloadOutput(&speed_pi,
+                                   speed_active_target_rpm,
+                                   speed_estimator.filtered_rpm,
+                                   current_reference_active.q))
+        {
+            MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
+            return false;
+        }
+        speed_mode_waiting_for_estimator = false;
+    }
+
+    maximum_speed_step =
+        MOTOR_SPEED_COMMAND_SLEW_RPM_PER_S * MOTOR_SPEED_CONTROL_PERIOD_S;
+    speed_active_target_rpm = MotorControl_MoveToward(
+        speed_active_target_rpm, speed_target_rpm, maximum_speed_step);
+    if (!SpeedPi_Step(&speed_pi,
+                      speed_active_target_rpm,
+                      speed_estimator.filtered_rpm,
+                      MOTOR_SPEED_CONTROL_PERIOD_S,
+                      &speed_pi_result))
+    {
+        MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
+        return false;
+    }
+
+    speed_current_reference_target.d = 0.0f;
+    speed_current_reference_target.q = speed_pi_result.iq_command_a;
+    ++speed_control_tick_count;
+    return true;
+}
+
 static void MotorControl_ApplyModeRequest(void)
 {
     FocDq requested_voltage_v;
     float requested_angle_pu;
+    const MotorControlMode previous_mode = motor_mode;
+    const FocDq previous_current_reference = current_reference_active;
 
     if ((requested_mode == motor_mode) || !MotorControl_ModeIsImplemented(requested_mode))
     {
         return;
     }
 
-    if ((requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
-        (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+    /*
+     * 进入任一电流闭环时先用“新模式的角度”重算当前Id/Iq，再把PI预装载到
+     * 切换前最后Ud/Uq。普通切换从实测电流起步；进入模式4时保存并按速度Iq
+     * 边界裁剪旧活动参考且强制Id=0；退出模式4时保留其最后活动参考。随后
+     * 现有电流命令斜坡再走向新模式目标，兼顾电流边界与电压连续性。
+     */
+    if (MotorControl_ModeUsesCurrentLoop(requested_mode))
     {
         if (!current_sense_ready || !current_feedback_valid)
         {
@@ -521,7 +689,7 @@ static void MotorControl_ApplyModeRequest(void)
             return;
         }
 
-        if (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+        if (MotorControl_ModeUsesEncoderAngle(requested_mode))
         {
             if (!MotorControl_UpdateEncoderAngle(true))
             {
@@ -534,7 +702,7 @@ static void MotorControl_ApplyModeRequest(void)
         else
         {
             /* 从编码器模式退出时，让虚拟角度从当前转子角度继续，避免相位阶跃。 */
-            if (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+            if (MotorControl_ModeUsesEncoderAngle(motor_mode))
             {
                 open_loop_state.electrical_angle_pu = active_electrical_angle_pu;
             }
@@ -549,14 +717,31 @@ static void MotorControl_ApplyModeRequest(void)
             return;
         }
 
-        current_reference_active.d = MotorControl_Clamp(
-            current_feedback_dq.d,
-            -MOTOR_CURRENT_COMMAND_LIMIT_A,
-            MOTOR_CURRENT_COMMAND_LIMIT_A);
-        current_reference_active.q = MotorControl_Clamp(
-            current_feedback_dq.q,
-            -MOTOR_CURRENT_COMMAND_LIMIT_A,
-            MOTOR_CURRENT_COMMAND_LIMIT_A);
+        if (MotorControl_ModeUsesSpeedLoop(requested_mode))
+        {
+            const float handoff_iq_a =
+                MotorControl_ModeUsesCurrentLoop(previous_mode) ?
+                    previous_current_reference.q : current_feedback_dq.q;
+
+            current_reference_active.d = 0.0f;
+            current_reference_active.q = MotorRuntimePolicy_ClampSpeedIq(
+                handoff_iq_a, speed_pi.config.output_limit_a);
+        }
+        else if (MotorControl_ModeUsesSpeedLoop(previous_mode))
+        {
+            current_reference_active = previous_current_reference;
+        }
+        else
+        {
+            current_reference_active.d = MotorControl_Clamp(
+                current_feedback_dq.d,
+                -MOTOR_CURRENT_COMMAND_LIMIT_A,
+                MOTOR_CURRENT_COMMAND_LIMIT_A);
+            current_reference_active.q = MotorControl_Clamp(
+                current_feedback_dq.q,
+                -MOTOR_CURRENT_COMMAND_LIMIT_A,
+                MOTOR_CURRENT_COMMAND_LIMIT_A);
+        }
         requested_voltage_v.d = last_voltage_pu.ud_pu * MOTOR_NOMINAL_VBUS_V;
         requested_voltage_v.q = last_voltage_pu.uq_pu * MOTOR_NOMINAL_VBUS_V;
         if (!CurrentPi_PreloadOutput(&current_pi,
@@ -572,11 +757,53 @@ static void MotorControl_ApplyModeRequest(void)
         run_state = MOTOR_RUN_STATE_RUNNING;
         alignment_elapsed_s = CURRENT_ALIGNMENT_TIME_S;
         active_electrical_angle_pu = requested_angle_pu;
+
+        if (MotorControl_ModeUsesSpeedLoop(requested_mode))
+        {
+            if (!MotorControl_ModeUsesEncoderAngle(previous_mode))
+            {
+                SpeedEstimator_Reset(&speed_estimator);
+            }
+            SpeedPi_Reset(&speed_pi);
+            memset(&speed_pi_result, 0, sizeof(speed_pi_result));
+            speed_divider_count = 0U;
+            speed_control_tick_count = 0U;
+            speed_mode_waiting_for_estimator = true;
+            speed_current_reference_target.d = 0.0f;
+            speed_current_reference_target.q = current_reference_active.q;
+            if (speed_estimator.ready)
+            {
+                speed_active_target_rpm = speed_estimator.filtered_rpm;
+                if (!SpeedPi_PreloadOutput(&speed_pi,
+                                           speed_active_target_rpm,
+                                           speed_estimator.filtered_rpm,
+                                           current_reference_active.q))
+                {
+                    MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
+                    return;
+                }
+                speed_mode_waiting_for_estimator = false;
+            }
+        }
+        else if (MotorControl_ModeUsesSpeedLoop(previous_mode))
+        {
+            SpeedPi_Reset(&speed_pi);
+            memset(&speed_pi_result, 0, sizeof(speed_pi_result));
+            speed_mode_waiting_for_estimator = false;
+        }
+        if (!MotorControl_ModeUsesEncoderAngle(requested_mode))
+        {
+            SpeedEstimator_Reset(&speed_estimator);
+            speed_divider_count = 0U;
+        }
     }
     else
     {
-        /* 从 PI 最后输出开始，再缓慢回到保存的开环命令。 */
-        if (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+        /*
+         * 从电流闭环退回模式1时不能立即跳到预设开环电压：先继承PI最后
+         * 的Ud/Uq，再由voltage_slew_pu_per_s平滑走向open_voltage_target。
+         */
+        if (MotorControl_ModeUsesEncoderAngle(motor_mode))
         {
             open_loop_state.electrical_angle_pu = active_electrical_angle_pu;
         }
@@ -585,6 +812,7 @@ static void MotorControl_ApplyModeRequest(void)
         open_voltage_blend_active = true;
         motor_mode = MOTOR_CONTROL_OPEN_VOLTAGE;
         run_state = MOTOR_RUN_STATE_RUNNING;
+        MotorControl_ResetSpeedState(true);
     }
     MotorControl_UpdateDebugState();
 }
@@ -594,9 +822,10 @@ static bool MotorControl_RunCurrentLoop(float dt_s,
 {
     FocDq step_target;
     MotorVoltageDq voltage_pu;
+    float current_command_slew_a_per_s;
     float maximum_current_step;
 
-    /* 电流PI始终相同，三个分支只是在选择本周期的Id/Iq目标。 */
+    /* 电流PI始终相同，各分支只是在选择本周期的Id/Iq目标。 */
     if (encoder_calibration_active)
     {
         step_target.d = encoder_calibration_command.id_ref_a;
@@ -615,13 +844,27 @@ static bool MotorControl_RunCurrentLoop(float dt_s,
     }
     else
     {
-        step_target = (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ?
-            encoder_current_reference_target : current_reference_target;
+        if (motor_mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT)
+        {
+            step_target = speed_current_reference_target;
+        }
+        else if (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+        {
+            step_target = encoder_current_reference_target;
+        }
+        else
+        {
+            step_target = current_reference_target;
+        }
     }
 
     if (!encoder_calibration_active)
     {
-        maximum_current_step = MOTOR_CURRENT_COMMAND_SLEW_A_PER_S * dt_s;
+        current_command_slew_a_per_s =
+            (motor_mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT) ?
+                MOTOR_SPEED_CURRENT_COMMAND_SLEW_A_PER_S :
+                MOTOR_CURRENT_COMMAND_SLEW_A_PER_S;
+        maximum_current_step = current_command_slew_a_per_s * dt_s;
         current_reference_active.d = MotorControl_MoveToward(
             current_reference_active.d, step_target.d, maximum_current_step);
         current_reference_active.q = MotorControl_MoveToward(
@@ -661,6 +904,8 @@ static bool MotorControl_RunCurrentLoop(float dt_s,
 HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
 {
     CurrentPiConfig pi_config;
+    SpeedEstimatorConfig speed_estimator_config;
+    SpeedPiConfig speed_pi_config;
 
     memset((void *)&g_motor_control_debug, 0, sizeof(g_motor_control_debug));
     if ((config == 0) || !MotorControl_ModeIsImplemented(config->mode) ||
@@ -692,6 +937,7 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     open_target_frequency_hz = 0.0f;
     open_voltage_blend_active = false;
 
+    /* 从motor_params.h集中装入与电机/功率板相关的物理参数。 */
     current_sense_config.adc_reference_v = MOTOR_ADC_REFERENCE_V;
     current_sense_config.adc_full_scale_count = MOTOR_ADC_FULL_SCALE_COUNT;
     current_sense_config.shunt_resistance_ohm = MOTOR_SHUNT_RESISTANCE_OHM;
@@ -715,6 +961,18 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
         return HAL_ERROR;
     }
 
+    speed_pi_config.kp_a_per_rpm = MOTOR_SPEED_PI_KP_A_PER_RPM;
+    speed_pi_config.ki_a_per_rpm_s = MOTOR_SPEED_PI_KI_A_PER_RPM_S;
+    speed_pi_config.kaw_per_s = MOTOR_SPEED_PI_KAW_PER_S;
+    speed_pi_config.output_limit_a = MOTOR_SPEED_IQ_LIMIT_A;
+    if ((MOTOR_SPEED_IQ_LIMIT_A > MOTOR_CURRENT_COMMAND_LIMIT_A) ||
+        !SpeedPi_Init(&speed_pi, &speed_pi_config))
+    {
+        fault_code = MOTOR_FAULT_INVALID_CONFIG;
+        MotorControl_UpdateDebugState();
+        return HAL_ERROR;
+    }
+
     current_reference_target.d = 0.0f;
     current_reference_target.q = MOTOR_CURRENT_START_IQ_A;
     encoder_current_reference_target.d = 0.0f;
@@ -724,6 +982,8 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     current_target_frequency_hz = 1.0f;
     current_voltage_limit_pu = MOTOR_POLE_VOLTAGE_LIMIT_START_PU;
     alignment_elapsed_s = 0.0f;
+    speed_target_rpm = 0.0f;
+    MotorControl_ResetSpeedState(false);
     adc_age_ticks = 0U;
     overcurrent_count = 0U;
     pwm_enabled = false;
@@ -744,7 +1004,7 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
 
     /*
      * Flash 中没有有效记录并不是启动故障：电压开环和虚拟角度电流环
-     * 仍可照常运行。只有请求编码器角度模式时才要求该记录有效。
+     * 仍可照常运行。只有请求编码器角度/速度模式时才要求该记录有效。
      */
     encoder_calibration_valid =
         (MotorConfigStore_Load(&encoder_saved_config) == HAL_OK) &&
@@ -752,6 +1012,16 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
                           encoder_saved_config.electrical_zero_raw,
                           encoder_saved_config.encoder_direction,
                           encoder_saved_config.pole_pairs);
+    speed_estimator_config.counts_per_turn = MOTOR_ENCODER_COUNTS_PER_TURN;
+    speed_estimator_config.direction = encoder_calibration_valid ?
+        encoder_angle_config.direction : 1;
+    speed_estimator_config.filter_cutoff_hz = MOTOR_SPEED_FILTER_CUTOFF_HZ;
+    if (!SpeedEstimator_Init(&speed_estimator, &speed_estimator_config))
+    {
+        fault_code = MOTOR_FAULT_INVALID_CONFIG;
+        MotorControl_UpdateDebugState();
+        return HAL_ERROR;
+    }
     (void)BissEncoder_GetSnapshot(&encoder_snapshot);
 
     if (Drv8323Board_Init() != HAL_OK)
@@ -848,6 +1118,28 @@ void MotorControl_SetEncoderCurrentCommand(float id_a, float iq_a)
     }
 }
 
+void MotorControl_SetSpeedCommand(float mechanical_speed_rpm)
+{
+    uint32_t interrupt_state;
+
+    if (!isfinite(mechanical_speed_rpm))
+    {
+        return;
+    }
+
+    interrupt_state = __get_PRIMASK();
+    __disable_irq();
+    speed_target_rpm = MotorControl_Clamp(
+        mechanical_speed_rpm,
+        -MOTOR_SPEED_COMMAND_LIMIT_RPM,
+        MOTOR_SPEED_COMMAND_LIMIT_RPM);
+    g_motor_control_debug.speed_target_rpm = speed_target_rpm;
+    if (interrupt_state == 0U)
+    {
+        __enable_irq();
+    }
+}
+
 HAL_StatusTypeDef MotorControl_RequestEncoderCalibration(void)
 {
     uint32_t interrupt_state;
@@ -878,6 +1170,7 @@ void MotorControl_Service(void)
     HAL_StatusTypeDef status;
     uint32_t interrupt_state;
     bool safe_to_write;
+    SpeedEstimatorConfig speed_estimator_config;
 
     if (g_motor_control_debug.foreground_service_count < UINT32_MAX)
     {
@@ -937,6 +1230,15 @@ void MotorControl_Service(void)
         }
 
         encoder_calibration_valid = true;
+        speed_estimator_config.counts_per_turn = MOTOR_ENCODER_COUNTS_PER_TURN;
+        speed_estimator_config.direction = encoder_angle_config.direction;
+        speed_estimator_config.filter_cutoff_hz = MOTOR_SPEED_FILTER_CUTOFF_HZ;
+        if (!SpeedEstimator_Init(&speed_estimator, &speed_estimator_config))
+        {
+            encoder_calibration_valid = false;
+            MotorControl_EnterFault(MOTOR_FAULT_INVALID_CONFIG);
+            return;
+        }
         g_motor_control_debug.encoder_save_stage = 5U;
         g_motor_control_debug.encoder_save_hal_status = (uint8_t)HAL_OK;
         interrupt_state = __get_PRIMASK();
@@ -982,6 +1284,7 @@ void MotorControl_Service(void)
         current_reference_active.d = 0.0f;
         current_reference_active.q = 0.0f;
         CurrentPi_Reset(&current_pi);
+        MotorControl_ResetSpeedState(true);
     }
     if (interrupt_state == 0U)
     {
@@ -995,21 +1298,24 @@ HAL_StatusTypeDef MotorControl_RequestMode(MotorControlMode mode)
     uint32_t interrupt_state;
 
     if (!MotorControl_ModeIsImplemented(mode) || (motor_mode == MOTOR_CONTROL_FAULT) ||
-        (((mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
-          (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)) && current_calibration_failed) ||
+        (MotorControl_ModeUsesCurrentLoop(mode) && current_calibration_failed) ||
         encoder_calibration_active || encoder_calibration_requested ||
         encoder_calibration_save_pending || encoder_calibration_failure_pending)
     {
         return HAL_ERROR;
     }
 
-    if ((mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) &&
+    if (MotorControl_ModeUsesEncoderAngle(mode) &&
         (!current_sense_ready || !encoder_calibration_valid ||
          !MotorControl_UpdateEncoderAngle(true)))
     {
         return HAL_ERROR;
     }
 
+    /*
+     * 这里只原子发布请求。FastTick在统一控制边界调用ApplyModeRequest，
+     * 因此API调用方（主循环/通信任务）不会在半个PWM周期中途改写控制路径。
+     */
     interrupt_state = __get_PRIMASK();
     __disable_irq();
     requested_mode = mode;
@@ -1061,6 +1367,103 @@ HAL_StatusTypeDef MotorControl_SwitchToEncoderAngleCurrent(float id_a,
 
     MotorControl_SetEncoderCurrentCommand(id_a, iq_a);
     return MotorControl_RequestMode(MOTOR_CONTROL_ENCODER_ANGLE_CURRENT);
+}
+
+HAL_StatusTypeDef MotorControl_SwitchToEncoderSpeedCurrent(
+    float mechanical_speed_rpm)
+{
+    if (!isfinite(mechanical_speed_rpm))
+    {
+        return HAL_ERROR;
+    }
+
+    MotorControl_SetSpeedCommand(mechanical_speed_rpm);
+    return MotorControl_RequestMode(MOTOR_CONTROL_ENCODER_SPEED_CURRENT);
+}
+
+HAL_StatusTypeDef MotorControl_SetSpeedPiGains(float kp_a_per_rpm,
+                                               float ki_a_per_rpm_s,
+                                               float kaw_per_s)
+{
+    uint32_t interrupt_state;
+    bool valid;
+
+    if (!isfinite(kp_a_per_rpm) || !isfinite(ki_a_per_rpm_s) ||
+        !isfinite(kaw_per_s) ||
+        (kp_a_per_rpm < 0.0f) ||
+        (kp_a_per_rpm > SPEED_PI_KP_MAX_A_PER_RPM) ||
+        (ki_a_per_rpm_s < 0.0f) ||
+        (ki_a_per_rpm_s > SPEED_PI_KI_MAX_A_PER_RPM_S) ||
+        (kaw_per_s < 0.0f) || (kaw_per_s > SPEED_PI_KAW_MAX_PER_S))
+    {
+        return HAL_ERROR;
+    }
+
+    interrupt_state = __get_PRIMASK();
+    __disable_irq();
+    valid = SpeedPi_SetGains(
+        &speed_pi, kp_a_per_rpm, ki_a_per_rpm_s, kaw_per_s);
+    if (interrupt_state == 0U)
+    {
+        __enable_irq();
+    }
+    return valid ? HAL_OK : HAL_ERROR;
+}
+
+HAL_StatusTypeDef MotorControl_SetSpeedIqLimit(float iq_limit_a)
+{
+    uint32_t interrupt_state;
+    bool valid;
+    bool preload_required;
+    CurrentPiController candidate_current_pi;
+    FocDq limited_active_reference;
+    FocDq requested_voltage_v;
+
+    if (!isfinite(iq_limit_a) || (iq_limit_a <= 0.0f) ||
+        (iq_limit_a > MOTOR_SPEED_IQ_LIMIT_A) ||
+        (iq_limit_a > MOTOR_CURRENT_COMMAND_LIMIT_A))
+    {
+        return HAL_ERROR;
+    }
+
+    interrupt_state = __get_PRIMASK();
+    __disable_irq();
+    preload_required = MotorControl_ModeUsesSpeedLoop(motor_mode);
+    candidate_current_pi = current_pi;
+    limited_active_reference = current_reference_active;
+    limited_active_reference.d = 0.0f;
+    limited_active_reference.q = MotorRuntimePolicy_ClampSpeedIq(
+        limited_active_reference.q, iq_limit_a);
+    requested_voltage_v.d = last_voltage_pu.ud_pu * MOTOR_NOMINAL_VBUS_V;
+    requested_voltage_v.q = last_voltage_pu.uq_pu * MOTOR_NOMINAL_VBUS_V;
+    valid = !preload_required ||
+        (current_feedback_valid &&
+         CurrentPi_PreloadOutput(&candidate_current_pi,
+                                 &limited_active_reference,
+                                 &current_feedback_dq,
+                                 &requested_voltage_v));
+    if (valid)
+    {
+        valid = SpeedPi_SetOutputLimit(&speed_pi, iq_limit_a);
+    }
+    if (valid)
+    {
+        speed_current_reference_target.d = 0.0f;
+        speed_current_reference_target.q = MotorControl_Clamp(
+            speed_current_reference_target.q, -iq_limit_a, iq_limit_a);
+        if (preload_required)
+        {
+            current_pi = candidate_current_pi;
+            current_reference_active.d = 0.0f;
+            current_reference_active.q = MotorRuntimePolicy_ClampSpeedIq(
+                current_reference_active.q, iq_limit_a);
+        }
+    }
+    if (interrupt_state == 0U)
+    {
+        __enable_irq();
+    }
+    return valid ? HAL_OK : HAL_ERROR;
 }
 
 HAL_StatusTypeDef MotorControl_SetCurrentPiGains(float kp_v_per_a,
@@ -1267,6 +1670,7 @@ HAL_StatusTypeDef MotorControl_Stop(void)
     }
 
     CurrentPi_Reset(&current_pi);
+    MotorControl_ResetSpeedState(true);
     encoder_calibration_requested = false;
     encoder_calibration_active = false;
     memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
@@ -1298,6 +1702,12 @@ void MotorControl_FastTick(float dt_s)
     MotorVoltageDq open_voltage;
 
     /*
+     * TIM8更新中断的职责顺序：
+     *   1. 调度非阻塞编码器帧；2.处理模式3/4首帧等待；3.应用模式请求；
+     *   4.选择/推进本周期电角度；5.模式3/4按10分频运行速度估算；
+     *   6.仅在模式1直接计算并写PWM。
+     * 模式2/3/4到此只准备角度和电流目标，真正的电流PI等待本周期ADC样本完成。
+     *
      * 电流零偏校准阶段保持与已验证版本相同的 ADC/TIM8 启动路径。
      * 校准结束后才允许 SPI4 DMA 进入后台采集；HAL_BUSY 属于正常状态。
      */
@@ -1310,9 +1720,7 @@ void MotorControl_FastTick(float dt_s)
 
     if (!isfinite(dt_s) || (dt_s <= 0.0f))
     {
-        if ((motor_mode == MOTOR_CONTROL_OPEN_VOLTAGE) ||
-            (motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
-            (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ||
+        if (MotorControl_ModeIsImplemented(motor_mode) ||
             encoder_calibration_active)
         {
             MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
@@ -1329,12 +1737,12 @@ void MotorControl_FastTick(float dt_s)
     }
 
     /*
-     * .mode直接选择模式3时，在这里等待SPI4 DMA发布第一帧一致快照。
+     * .mode直接选择模式3/4时，在这里等待SPI4 DMA发布第一帧一致快照。
      * 等待期间三相PWM尚未使能，不会输出未知角度的电压矢量。
      */
     if ((run_state == MOTOR_RUN_STATE_READY) &&
         (motor_mode == MOTOR_CONTROL_STOPPED) &&
-        (requested_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+        MotorControl_ModeUsesEncoderAngle(requested_mode))
     {
         if (MotorControl_UpdateEncoderAngle(true))
         {
@@ -1361,8 +1769,7 @@ void MotorControl_FastTick(float dt_s)
         return;
     }
 
-    if ((motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
-        (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+    if (MotorControl_ModeUsesCurrentLoop(motor_mode))
     {
         ++adc_age_ticks;
         if (adc_age_ticks > CURRENT_ADC_TIMEOUT_TICKS)
@@ -1371,7 +1778,7 @@ void MotorControl_FastTick(float dt_s)
             return;
         }
 
-        if (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+        if (MotorControl_ModeUsesEncoderAngle(motor_mode))
         {
             if (!MotorControl_UpdateEncoderAngle(false))
             {
@@ -1379,6 +1786,10 @@ void MotorControl_FastTick(float dt_s)
                 return;
             }
             active_electrical_angle_pu = encoder_angle_sample.electrical_angle_pu;
+            if (!MotorControl_RunSpeedTask())
+            {
+                return;
+            }
         }
         else
         {
@@ -1410,6 +1821,12 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
     float electrical_angle_pu;
     float open_voltage_magnitude;
 
+    /*
+     * ADC注入完成中断的职责顺序：
+     *   启动零偏校准 -> 编码器校准状态机 -> 运行时电流换算/保护
+     *   -> 模式2/3/4电流PI -> 统一SVPWM/PWM输出。
+     * 模式1仍换算电流用于监视和过流保护，但不会调用电流PI。
+     */
     g_motor_control_debug.phase_a_raw = phase_a_raw;
     g_motor_control_debug.phase_b_raw = phase_b_raw;
 
@@ -1436,8 +1853,9 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
     }
 
     /*
-     * 编码器校准路径已实现，但当前尚未完成实机验证。它使用强制电角度
-     * 和小Id电流寻找零点/方向；验证前不要把“编码器可读”视为“已校准”。
+     * 编码器校准使用强制电角度和小Id电流寻找零点/方向。即使该路径已在
+     * 当前电机上验证，“编码器可读”仍不等于“已校准”；模式3/4只接受
+     * 通过CRC保存并与当前极对数匹配的校准记录。
      */
     if (encoder_calibration_active)
     {
@@ -1555,7 +1973,7 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
         return;
     }
 
-    if (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT)
+    if (MotorControl_ModeUsesEncoderAngle(motor_mode))
     {
         if (!MotorControl_UpdateEncoderAngle(false))
         {
@@ -1575,8 +1993,7 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
         return;
     }
 
-    if ((motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
-        (motor_mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT))
+    if (MotorControl_ModeUsesCurrentLoop(motor_mode))
     {
         (void)MotorControl_RunCurrentLoop(dt_s, electrical_angle_pu);
     }

@@ -10,9 +10,9 @@
 
 typedef struct
 {
-    uint32_t zero_raw;
-    int8_t direction;
-    uint8_t pole_pairs;
+    uint32_t zero_raw; /**< d轴对齐定子零轴时的原始位置，不是编码器出厂零点。 */
+    int8_t direction;  /**< 编码器计数方向到电机正方向的映射，只能为+1/-1。 */
+    uint8_t pole_pairs;/**< 电机极对数；换电机后必须重新校准并保存。 */
 } EncoderAngleConfig;
 
 typedef struct
