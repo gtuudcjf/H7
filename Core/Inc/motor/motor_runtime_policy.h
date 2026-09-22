@@ -20,7 +20,10 @@ typedef enum
     /* 模式4：编码器机械速度PI生成Iq，复用模式3的编码器电角度和电流PI。 */
     MOTOR_CONTROL_ENCODER_SPEED_CURRENT,
     /* 锁存故障状态；必须先停机并显式清故障，不能直接请求其他模式。 */
-    MOTOR_CONTROL_FAULT
+    MOTOR_CONTROL_FAULT,
+    /* 单圈位置P环生成速度目标，再复用模式4的速度PI与模式3的电流PI。
+     * 显式编号避免改变现有故障状态的数值5。 */
+    MOTOR_CONTROL_ENCODER_POSITION_CURRENT = 6
 } MotorControlMode;
 
 /*

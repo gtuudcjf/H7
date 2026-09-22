@@ -43,6 +43,10 @@ static void Test_InvalidRequestedModeCannotFallBackToVoltageOpenLoop(void)
            MOTOR_START_ACTION_CURRENT_CONTROL);
     assert(MotorRuntimePolicy_ClassifyStartMode(MOTOR_CONTROL_ENCODER_SPEED_CURRENT) ==
            MOTOR_START_ACTION_CURRENT_CONTROL);
+    assert(MOTOR_CONTROL_FAULT == 5);
+    assert(MOTOR_CONTROL_ENCODER_POSITION_CURRENT == 6);
+    assert(MotorRuntimePolicy_ClassifyStartMode(MOTOR_CONTROL_ENCODER_POSITION_CURRENT) ==
+           MOTOR_START_ACTION_CURRENT_CONTROL);
     assert(MotorRuntimePolicy_ClassifyStartMode(MOTOR_CONTROL_STOPPED) ==
            MOTOR_START_ACTION_INVALID);
     assert(MotorRuntimePolicy_ClassifyStartMode(MOTOR_CONTROL_FAULT) ==
@@ -58,6 +62,7 @@ static void Test_ModeRequestsRunOnlyFromAnActiveControlMode(void)
     assert(MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_OPEN_ANGLE_CURRENT));
     assert(MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_ENCODER_ANGLE_CURRENT));
     assert(MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_ENCODER_SPEED_CURRENT));
+    assert(MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_ENCODER_POSITION_CURRENT));
     assert(!MotorRuntimePolicy_ModeRequestAllowed(MOTOR_CONTROL_FAULT));
 }
 

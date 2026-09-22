@@ -20,7 +20,8 @@ MotorStartAction MotorRuntimePolicy_ClassifyStartMode(MotorControlMode mode)
     }
     if ((mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
         (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ||
-        (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT))
+        (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT) ||
+        (mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT))
     {
         return MOTOR_START_ACTION_CURRENT_CONTROL;
     }
