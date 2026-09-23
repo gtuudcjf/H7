@@ -69,6 +69,8 @@
  *       编码器电角度 + Id/Iq电流PI，需要有效的编码器校准记录。
  *   MOTOR_CONTROL_ENCODER_SPEED_CURRENT
  *       编码器机械速度PI生成Iq，复用模式3的编码器电角度和10 kHz电流PI。
+ *   MOTOR_CONTROL_ENCODER_POSITION_CURRENT
+ *       单圈轴侧位置P环生成速度目标，再复用模式4的速度PI和10 kHz电流PI；进入时先保持当前位置。
  *
  * 四种模式共用同一套启动、采样、保护和PWM输出框架。.mode只决定
  * “角度从哪里来”和“Ud/Uq由谁生成”。四套目标命令会在启动前全部预置，

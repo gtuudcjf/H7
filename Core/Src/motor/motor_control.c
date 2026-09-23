@@ -29,6 +29,7 @@
 #include "motor_runtime_policy.h"
 #include "open_loop.h"
 #include "pwm_3ph.h"
+#include "position_controller.h"
 #include "speed_estimator.h"
 #include "speed_pi.h"
 #include "svpwm.h"
@@ -117,6 +118,13 @@ static uint32_t speed_divider_count;
 static uint32_t speed_control_tick_count;
 static bool speed_mode_waiting_for_estimator;
 
+/* 模式6外层位置P环；输出仍进入既有速度PI和电流PI。 */
+static PositionController position_controller;
+static PositionControllerResult position_result;
+static volatile float position_target_deg;
+static float position_speed_target_rpm;
+static volatile bool position_control_ready;
+
 static uint32_t adc_age_ticks;
 static uint32_t overcurrent_count;
 static bool pwm_enabled;
@@ -160,18 +168,47 @@ static bool MotorControl_ModeUsesCurrentLoop(MotorControlMode mode)
 {
     return (mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT) ||
            (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ||
-           (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT);
+           (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT) ||
+           (mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT);
 }
 
 static bool MotorControl_ModeUsesEncoderAngle(MotorControlMode mode)
 {
     return (mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT) ||
-           (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT);
+           (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT) ||
+           (mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT);
 }
 
 static bool MotorControl_ModeUsesSpeedLoop(MotorControlMode mode)
 {
-    return mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT;
+    return (mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT) ||
+           (mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT);
+}
+
+static void MotorControl_ResetPositionState(void)
+{
+    memset(&position_result, 0, sizeof(position_result));
+    position_target_deg = 0.0f;
+    position_speed_target_rpm = 0.0f;
+    position_control_ready = false;
+}
+
+static bool MotorControl_CapturePositionTarget(void)
+{
+    const float feedback_deg =
+        encoder_angle_sample.mechanical_angle_pu * 360.0f;
+
+    if (!isfinite(feedback_deg) || (feedback_deg < 0.0f) ||
+        (feedback_deg >= 360.0f))
+    {
+        return false;
+    }
+
+    memset(&position_result, 0, sizeof(position_result));
+    position_target_deg = feedback_deg;
+    position_speed_target_rpm = 0.0f;
+    position_control_ready = true;
+    return true;
 }
 
 static void MotorControl_ResetSpeedState(bool reset_estimator)
@@ -188,6 +225,7 @@ static void MotorControl_ResetSpeedState(bool reset_estimator)
     speed_divider_count = 0U;
     speed_control_tick_count = 0U;
     speed_mode_waiting_for_estimator = false;
+    MotorControl_ResetPositionState();
 }
 
 static void MotorControl_UpdateDebugState(void)
@@ -220,6 +258,14 @@ static void MotorControl_UpdateDebugState(void)
         speed_pi_result.saturated ? 1U : 0U;
     g_motor_control_debug.speed_estimator_ready =
         speed_estimator.ready ? 1U : 0U;
+    g_motor_control_debug.position_target_deg = position_target_deg;
+    g_motor_control_debug.position_feedback_deg =
+        encoder_angle_sample.mechanical_angle_pu * 360.0f;
+    g_motor_control_debug.position_error_deg = position_result.error_deg;
+    g_motor_control_debug.position_speed_target_rpm =
+        position_speed_target_rpm;
+    g_motor_control_debug.position_control_ready =
+        position_control_ready ? 1U : 0U;
     g_motor_control_debug.encoder_ready = encoder_snapshot.ready ? 1U : 0U;
     g_motor_control_debug.encoder_warning = encoder_snapshot.warning ? 1U : 0U;
     g_motor_control_debug.encoder_calibrated = encoder_calibration_valid ? 1U : 0U;
@@ -455,6 +501,12 @@ static void MotorControl_StartSelectedMode(void)
         if (MotorControl_ModeUsesEncoderAngle(requested_mode))
         {
             MotorControl_ResetSpeedState(true);
+            if ((requested_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT) &&
+                !MotorControl_CapturePositionTarget())
+            {
+                MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
+                return;
+            }
             speed_mode_waiting_for_estimator =
                 MotorControl_ModeUsesSpeedLoop(requested_mode);
         }
@@ -599,6 +651,7 @@ static bool MotorControl_RunSpeedTask(void)
 {
     SpeedEstimatorUpdateStatus estimator_status;
     float maximum_speed_step;
+    float requested_speed_rpm;
 
     if (!MotorControl_ModeUsesEncoderAngle(motor_mode))
     {
@@ -642,10 +695,27 @@ static bool MotorControl_RunSpeedTask(void)
         speed_mode_waiting_for_estimator = false;
     }
 
+    requested_speed_rpm = speed_target_rpm;
+    if (motor_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
+    {
+        if (!position_control_ready ||
+            !PositionController_Step(
+                &position_controller,
+                position_target_deg,
+                encoder_angle_sample.mechanical_angle_pu,
+                &position_result))
+        {
+            MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
+            return false;
+        }
+        position_speed_target_rpm = position_result.speed_target_rpm;
+        requested_speed_rpm = position_speed_target_rpm;
+    }
+
     maximum_speed_step =
         MOTOR_SPEED_COMMAND_SLEW_RPM_PER_S * MOTOR_SPEED_CONTROL_PERIOD_S;
     speed_active_target_rpm = MotorControl_MoveToward(
-        speed_active_target_rpm, speed_target_rpm, maximum_speed_step);
+        speed_active_target_rpm, requested_speed_rpm, maximum_speed_step);
     if (!SpeedPi_Step(&speed_pi,
                       speed_active_target_rpm,
                       speed_estimator.filtered_rpm,
@@ -758,6 +828,20 @@ static void MotorControl_ApplyModeRequest(void)
         alignment_elapsed_s = CURRENT_ALIGNMENT_TIME_S;
         active_electrical_angle_pu = requested_angle_pu;
 
+        if (motor_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
+        {
+            MotorControl_ResetPositionState();
+            if (!MotorControl_CapturePositionTarget())
+            {
+                MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
+                return;
+            }
+        }
+        else if (previous_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
+        {
+            MotorControl_ResetPositionState();
+        }
+
         if (MotorControl_ModeUsesSpeedLoop(requested_mode))
         {
             if (!MotorControl_ModeUsesEncoderAngle(previous_mode))
@@ -844,7 +928,7 @@ static bool MotorControl_RunCurrentLoop(float dt_s,
     }
     else
     {
-        if (motor_mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT)
+        if (MotorControl_ModeUsesSpeedLoop(motor_mode))
         {
             step_target = speed_current_reference_target;
         }
@@ -861,7 +945,7 @@ static bool MotorControl_RunCurrentLoop(float dt_s,
     if (!encoder_calibration_active)
     {
         current_command_slew_a_per_s =
-            (motor_mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT) ?
+            MotorControl_ModeUsesSpeedLoop(motor_mode) ?
                 MOTOR_SPEED_CURRENT_COMMAND_SLEW_A_PER_S :
                 MOTOR_CURRENT_COMMAND_SLEW_A_PER_S;
         maximum_current_step = current_command_slew_a_per_s * dt_s;
@@ -904,6 +988,7 @@ static bool MotorControl_RunCurrentLoop(float dt_s,
 HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
 {
     CurrentPiConfig pi_config;
+    PositionControllerConfig position_config;
     SpeedEstimatorConfig speed_estimator_config;
     SpeedPiConfig speed_pi_config;
 
@@ -967,6 +1052,16 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     speed_pi_config.output_limit_a = MOTOR_SPEED_IQ_LIMIT_A;
     if ((MOTOR_SPEED_IQ_LIMIT_A > MOTOR_CURRENT_COMMAND_LIMIT_A) ||
         !SpeedPi_Init(&speed_pi, &speed_pi_config))
+    {
+        fault_code = MOTOR_FAULT_INVALID_CONFIG;
+        MotorControl_UpdateDebugState();
+        return HAL_ERROR;
+    }
+
+    position_config.kp_rpm_per_deg = MOTOR_POSITION_KP_RPM_PER_DEG;
+    position_config.max_speed_rpm = MOTOR_POSITION_SPEED_LIMIT_RPM;
+    position_config.tolerance_deg = MOTOR_POSITION_TOLERANCE_DEG;
+    if (!PositionController_Init(&position_controller, &position_config))
     {
         fault_code = MOTOR_FAULT_INVALID_CONFIG;
         MotorControl_UpdateDebugState();
@@ -1138,6 +1233,41 @@ void MotorControl_SetSpeedCommand(float mechanical_speed_rpm)
     {
         __enable_irq();
     }
+}
+
+HAL_StatusTypeDef MotorControl_SetPositionCommand(float target_deg)
+{
+    uint32_t interrupt_state;
+
+    /* 单圈位置不做自动取模，避免把上位机的非法 360 度悄悄解释为 0 度。 */
+    if (!isfinite(target_deg) || (target_deg < 0.0f) ||
+        (target_deg >= 360.0f) ||
+        (motor_mode != MOTOR_CONTROL_ENCODER_POSITION_CURRENT) ||
+        (run_state != MOTOR_RUN_STATE_RUNNING) ||
+        !position_control_ready || !current_sense_ready ||
+        !encoder_calibration_valid || !MotorControl_UpdateEncoderAngle(true))
+    {
+        return HAL_ERROR;
+    }
+
+    interrupt_state = __get_PRIMASK();
+    __disable_irq();
+    if ((motor_mode != MOTOR_CONTROL_ENCODER_POSITION_CURRENT) ||
+        (run_state != MOTOR_RUN_STATE_RUNNING) || !position_control_ready)
+    {
+        if (interrupt_state == 0U)
+        {
+            __enable_irq();
+        }
+        return HAL_ERROR;
+    }
+    position_target_deg = target_deg;
+    g_motor_control_debug.position_target_deg = target_deg;
+    if (interrupt_state == 0U)
+    {
+        __enable_irq();
+    }
+    return HAL_OK;
 }
 
 HAL_StatusTypeDef MotorControl_RequestEncoderCalibration(void)
@@ -1379,6 +1509,12 @@ HAL_StatusTypeDef MotorControl_SwitchToEncoderSpeedCurrent(
 
     MotorControl_SetSpeedCommand(mechanical_speed_rpm);
     return MotorControl_RequestMode(MOTOR_CONTROL_ENCODER_SPEED_CURRENT);
+}
+
+HAL_StatusTypeDef MotorControl_SwitchToEncoderPositionCurrent(void)
+{
+    return MotorControl_RequestMode(
+        MOTOR_CONTROL_ENCODER_POSITION_CURRENT);
 }
 
 HAL_StatusTypeDef MotorControl_SetSpeedPiGains(float kp_a_per_rpm,

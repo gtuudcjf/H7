@@ -130,4 +130,9 @@
 #define MOTOR_SPEED_PI_KAW_PER_S             (10.0f)
 #define MOTOR_SPEED_IQ_LIMIT_A               (0.7f)
 
+/* 单圈轴侧位置环：1 kHz P 控制输出速度目标，仍受现有速度/电流环限幅。 */
+#define MOTOR_POSITION_KP_RPM_PER_DEG        (0.4f)
+#define MOTOR_POSITION_SPEED_LIMIT_RPM       (20.0f)
+#define MOTOR_POSITION_TOLERANCE_DEG         (0.5f)
+
 #endif /* MOTOR_PARAMS_H */

@@ -94,6 +94,11 @@ typedef struct
     volatile uint32_t speed_control_tick_count;
     volatile uint8_t speed_pi_saturated;
     volatile uint8_t speed_estimator_ready;
+    volatile float position_target_deg;
+    volatile float position_feedback_deg;
+    volatile float position_error_deg;
+    volatile float position_speed_target_rpm;
+    volatile uint8_t position_control_ready;
     volatile float current_kp_v_per_a;
     volatile float current_ki_v_per_a_s;
     volatile float current_kaw_per_s;
@@ -182,6 +187,9 @@ void MotorControl_SetEncoderCurrentCommand(float id_a, float iq_a);
 /** 设置模式4的电机轴机械转速目标，单位rpm，内部限制到安全范围。 */
 void MotorControl_SetSpeedCommand(float mechanical_speed_rpm);
 
+/** 仅在位置模式 RUNNING 时接收单圈轴侧目标角 [0, 360) 度；失败不更改旧目标。 */
+HAL_StatusTypeDef MotorControl_SetPositionCommand(float target_deg);
+
 /**
  * 设置命令并请求切换到电压开环模式。
  * 模式切换在下一个 10 kHz 控制边界生效。
@@ -210,6 +218,9 @@ HAL_StatusTypeDef MotorControl_SwitchToEncoderAngleCurrent(float id_a,
 /** 设置速度目标并请求切换到编码器速度/电流双闭环模式。 */
 HAL_StatusTypeDef MotorControl_SwitchToEncoderSpeedCurrent(
     float mechanical_speed_rpm);
+
+/** 请求位置模式；生效时捕获当前轴侧角度作为保持目标。 */
+HAL_StatusTypeDef MotorControl_SwitchToEncoderPositionCurrent(void);
 
 /** 在线设置速度PI；参数单位依次为A/rpm、A/(rpm*s)和1/s。 */
 HAL_StatusTypeDef MotorControl_SetSpeedPiGains(float kp_a_per_rpm,
