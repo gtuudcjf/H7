@@ -431,6 +431,11 @@
               <FilePath>../Core/Src/motor/speed_pi.c</FilePath>
             </File>
             <File>
+              <FileName>position_controller.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/position_controller.c</FilePath>
+            </File>
+            <File>
               <FileName>biss_frame.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/motor/biss_frame.c</FilePath>

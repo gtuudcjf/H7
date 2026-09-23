@@ -37,9 +37,9 @@ if ($paramsHeader -notmatch '#define\s+MOTOR_SPEED_CURRENT_COMMAND_SLEW_A_PER_S\
     throw 'Speed mode must define a dedicated 10 A/s current-command slew rate.'
 }
 
-if ($motorSource -notmatch 'motor_mode\s*==\s*MOTOR_CONTROL_ENCODER_SPEED_CURRENT[\s\S]{0,240}MOTOR_SPEED_CURRENT_COMMAND_SLEW_A_PER_S')
+if ($motorSource -notmatch 'MotorControl_ModeUsesSpeedLoop\s*\(\s*motor_mode\s*\)[\s\S]{0,160}MOTOR_SPEED_CURRENT_COMMAND_SLEW_A_PER_S')
 {
-    throw 'Speed mode must select its dedicated current-command slew rate.'
+    throw 'All modes using the speed loop must select its dedicated current-command slew rate.'
 }
 
 if ($motorSource -notmatch 'MOTOR_CURRENT_COMMAND_SLEW_A_PER_S')

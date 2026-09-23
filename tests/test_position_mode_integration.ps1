@@ -5,6 +5,7 @@ $header = Get-Content -Raw -Encoding UTF8 (Join-Path $root 'Core/Inc/motor/motor
 $source = Get-Content -Raw -Encoding UTF8 (Join-Path $root 'Core/Src/motor/motor_control.c')
 $params = Get-Content -Raw -Encoding UTF8 (Join-Path $root 'Core/Inc/motor/motor_params.h')
 $main = Get-Content -Raw -Encoding UTF8 (Join-Path $root 'Core/Src/main.c')
+$project = Get-Content -Raw -Encoding UTF8 (Join-Path $root 'MDK-ARM/emptytest.uvprojx')
 
 function Assert-Contains([string]$Text, [string]$Pattern, [string]$Message)
 {
@@ -55,6 +56,8 @@ Assert-Contains $task.Value 'requested_speed_rpm\s*=\s*speed_target_rpm' `
     'Mode 4 must continue to use its independent speed command.'
 Assert-Contains $task.Value 'SpeedPi_Step\s*\(' `
     'Position mode must reuse the existing inner speed PI.'
+Assert-Contains $task.Value 'speed_mode_waiting_for_estimator[\s\S]*?MOTOR_CONTROL_ENCODER_POSITION_CURRENT[\s\S]*?speed_active_target_rpm\s*=\s*0\.0f' `
+    'Position mode must not inherit measured speed while waiting for the estimator.'
 if ($task.Value.IndexOf('PositionController_Step') -gt
     $task.Value.IndexOf('SpeedPi_Step'))
 {
@@ -63,9 +66,16 @@ if ($task.Value.IndexOf('PositionController_Step') -gt
 
 Assert-Contains $source 'motor_mode\s*==\s*MOTOR_CONTROL_ENCODER_ANGLE_CURRENT' `
     'Mode 3 current reference selection is missing.'
+$handoff = [regex]::Match($source,
+    'static void MotorControl_ApplyModeRequest\s*\(void\)[\s\S]*?\n\}')
+if (-not $handoff.Success) { throw 'Could not locate mode handoff.' }
+Assert-Contains $handoff.Value 'speed_estimator\.ready[\s\S]*?MOTOR_CONTROL_ENCODER_POSITION_CURRENT[\s\S]*?speed_active_target_rpm\s*=\s*0\.0f' `
+    'Mode 4 to position handoff must start from zero speed reference.'
 Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_ENCODER_SPEED_CURRENT' `
     'The validated speed mode must remain the default.'
 Assert-Contains $main 'MotorControl_SetSpeedCommand\s*\(50\.0f\)' `
     'The validated 50 rpm speed command must remain unchanged.'
+Assert-Contains $project '<FilePath>\.\./Core/Src/motor/position_controller\.c</FilePath>' `
+    'The Keil project does not compile position_controller.c.'
 
 Write-Host 'position-mode integration checks passed'

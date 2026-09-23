@@ -181,3 +181,24 @@ Current motor speed target = 50 rpm
 F407 工程中的离散 PI 系数没有直接复制，因为其数值隐含了原调用频率、速度单位、采样方法和
 机械对象。当前 H743 实现显式使用 A/rpm、A/(rpm*s) 和秒，任何控制周期变化都应先复核
 `MOTOR_CONTROL_PERIOD_S` 与 `MOTOR_SPEED_CONTROL_DIVIDER`，再重新整定。
+
+## 9. 位置模式首次实机验证
+
+位置模式复用本章已经验证的速度 PI、电流 PI、`0.7 A` Iq 上限和 `10 A/s` 电流命令
+斜率。首次试验保持 `MOTOR_POSITION_SPEED_LIMIT_RPM = 20.0f`，不要同时提高位置增益、
+速度限幅或 Iq 限幅。
+
+1. 空载并确保机械行程不会碰限位，先确认模式 3、模式 4 和编码器校准仍正常；
+   若从运行中的模式 4 切换，先把速度命令降到 0 rpm 并等待实际速度接近零。
+2. 调用 `MotorControl_SwitchToEncoderPositionCurrent()`，等待 `mode` 切换完成且
+   `position_control_ready == 1`；此时目标应等于反馈，电机应保持当前位置；
+3. 先调用 `MotorControl_SetPositionCommand()` 做 ±2 度和 ±5 度阶跃；
+4. 再测试 359→1 度与 1→359 度，确认走约 2 度的最短路径；
+5. 小步正常后才测试更大角度，且始终保留停机和断电手段。
+
+同时观察 `position_target_deg`、`position_feedback_deg`、`position_error_deg`、
+`position_speed_target_rpm`、`speed_filtered_rpm`、`speed_iq_command_a`、`iq_ref_a`、
+`iq_a`、`speed_pi_saturated` 和全部编码器故障计数。若方向错误、持续饱和、振荡、撞击、
+异常噪声或温升，立即停止；不要用提高 Iq 上限来掩盖反馈方向或机械问题。
+
+当前软件只完成静态测试和构建验证，尚未证明真实电机的位置稳定性和负载性能。

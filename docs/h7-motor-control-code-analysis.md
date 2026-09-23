@@ -19,7 +19,7 @@
 
 注意：模式3不是“位置环”。它只是用编码器给出的转子电角度代替虚拟电角度，
 使d/q电流跟随真实转子坐标系。模式4在该电流环外增加速度PI来生成`Iq_ref`；
-当前工程仍没有位置给定、位置误差或位置PI。
+模式6另加单圈位置给定与位置 P 环，详见第 17 节。
 
 ## 2. 建议的代码阅读顺序
 
@@ -283,7 +283,7 @@ electrical_angle_pu = wrap(mechanical_angle_pu * pole_pairs)
 安装位置和相序；拆装联轴器、改变相线、修改极对数或更换电机后必须重新校准。
 能够读取`encoder_position_raw`只证明通信和帧解析正确，不代表旧校准仍然有效。
 
-## 9. 四种控制模式的联系与区别
+## 9. 五种运行控制模式的联系与区别
 
 ### 模式1：`MOTOR_CONTROL_OPEN_VOLTAGE`
 
@@ -622,3 +622,53 @@ F407 工程中依赖隐含调用周期的离散系数；移植时将调用周期
 
 带减速器时无法可靠手动转动电机轴，因此方向验证采用模式 3 的小电流驱动法。完整步骤见
 `docs/h7-speed-loop-bring-up.md`。
+
+## 17. 模式 6：单圈轴侧位置环
+
+`MOTOR_CONTROL_ENCODER_POSITION_CURRENT` 在既有速度环外增加一个 1 kHz 的位置 P 环：
+
+```text
+校准后的轴侧机械角 [0, 360) deg
+    -> position_controller.c（最短路径误差 (-180, 180] deg）
+    -> 有限速度目标（初值 Kp=0.4 rpm/deg，限幅 ±20 rpm）
+    -> 既有 speed_pi.c（限幅 ±0.7 A）
+    -> 既有 10 kHz current_pi.c（速度模式电流斜率 10 A/s）
+    -> SVPWM -> TIM8 PWM
+```
+
+该模式是单圈位置控制，不累计圈数。位置零点来自现有编码器校准后的
+`mechanical_angle_pu`，命令单位是电机轴机械角度而不是减速器输出角度。控制器在跨越
+0/360 度边界时走最短路径；误差恰好为 180 度时固定选择正方向。
+
+进入位置模式时，代码先读取新鲜的编码器反馈并把当前位置捕获为目标，因此切换动作本身不会
+命令电机回到旧位置。只有 `mode` 已是位置模式、`run_state` 已是 `RUNNING` 且
+`position_control_ready == 1` 后，以下命令才会成功：
+
+```c
+if (MotorControl_SwitchToEncoderPositionCurrent() == HAL_OK)
+{
+    /* 等待 FastTick 完成模式切换并检查 position_control_ready。 */
+}
+
+if (MotorControl_SetPositionCommand(30.0f) != HAL_OK)
+{
+    /* 未进入位置模式、编码器无效或目标不在 [0, 360) 时拒绝。 */
+}
+```
+
+若从非零转速切换，速度参考从 0 rpm 开始制动，但机械惯性仍可能使转子越过捕获点；
+实机验证应先在模式 4 降至近零速。
+
+停机、故障或退出位置模式都会清除位置目标及 ready 标志，旧目标不会在下次进入时重放。
+模式 3 仍直接使用 `Iq` 命令，模式 4 仍使用独立的 `speed_target_rpm`；位置模式没有改写
+这两条路径。关键 Watch 字段如下：
+
+- `position_target_deg`：有效的单圈轴侧目标；
+- `position_feedback_deg`：校准后的单圈轴侧反馈；
+- `position_error_deg`：最短路径位置误差；
+- `position_speed_target_rpm`：位置 P 环输出、速度 PI 输入斜坡前的目标；
+- `position_control_ready`：是否已安全捕获进入位置；
+- 同时观察 `speed_filtered_rpm`、`speed_iq_command_a`、`iq_ref_a`、`iq_a` 和故障字段。
+
+上述参数是基于已经验证的速度环给出的保守首轮值，软件测试和 Keil 构建不能证明实机位置
+稳定性。首次通电必须在空载、可急停条件下完成小角度试验。

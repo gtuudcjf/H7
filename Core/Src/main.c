@@ -72,12 +72,12 @@
  *   MOTOR_CONTROL_ENCODER_POSITION_CURRENT
  *       单圈轴侧位置P环生成速度目标，再复用模式4的速度PI和10 kHz电流PI；进入时先保持当前位置。
  *
- * 四种模式共用同一套启动、采样、保护和PWM输出框架。.mode只决定
- * “角度从哪里来”和“Ud/Uq由谁生成”。四套目标命令会在启动前全部预置，
+ * 五种运行模式共用同一套启动、采样、保护和PWM输出框架。.mode只决定
+ * “角度从哪里来”和“Ud/Uq由谁生成”。已有目标命令会在启动前预置，
  * 所以编译前只改.mode即可选择启动状态。运行中不要直接写本const结构，
  * 应调用MotorControl_SwitchTo...()，切换会在10 kHz控制边界统一生效。
  *
- * frequency_slew_hz_per_s只作用于模式1/2的虚拟角频率；模式3/4使用编码器
+ * frequency_slew_hz_per_s只作用于模式1/2的虚拟角频率；模式3/4/6使用编码器
  * 角度。voltage_slew_pu_per_s用于从电流闭环退回模式1时平滑恢复开环电压。
  */
 static const MotorControlConfig motor_config = {

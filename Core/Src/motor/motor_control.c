@@ -107,7 +107,7 @@ static bool encoder_calibration_valid;
 static float active_electrical_angle_pu;
 static uint32_t encoder_calibration_last_sequence;
 
-/* 模式3/4共享速度观测；只有模式4执行速度PI并生成speed_current_reference_target。 */
+/* 编码器模式共享速度观测；模式4/6执行速度PI，模式6先由位置P环生成速度目标。 */
 static SpeedEstimator speed_estimator;
 static SpeedPiController speed_pi;
 static SpeedPiResult speed_pi_result;
@@ -683,7 +683,15 @@ static bool MotorControl_RunSpeedTask(void)
 
     if (speed_mode_waiting_for_estimator)
     {
-        speed_active_target_rpm = speed_estimator.filtered_rpm;
+        if (motor_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
+        {
+            /* 位置模式保持捕获点；不能从旧模式的非零速度继续滑行。 */
+            speed_active_target_rpm = 0.0f;
+        }
+        else
+        {
+            speed_active_target_rpm = speed_estimator.filtered_rpm;
+        }
         if (!SpeedPi_PreloadOutput(&speed_pi,
                                    speed_active_target_rpm,
                                    speed_estimator.filtered_rpm,
@@ -836,6 +844,7 @@ static void MotorControl_ApplyModeRequest(void)
                 MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
                 return;
             }
+            speed_active_target_rpm = 0.0f;
         }
         else if (previous_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
         {
@@ -857,7 +866,14 @@ static void MotorControl_ApplyModeRequest(void)
             speed_current_reference_target.q = current_reference_active.q;
             if (speed_estimator.ready)
             {
-                speed_active_target_rpm = speed_estimator.filtered_rpm;
+                if (motor_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
+                {
+                    speed_active_target_rpm = 0.0f;
+                }
+                else
+                {
+                    speed_active_target_rpm = speed_estimator.filtered_rpm;
+                }
                 if (!SpeedPi_PreloadOutput(&speed_pi,
                                            speed_active_target_rpm,
                                            speed_estimator.filtered_rpm,
@@ -1237,6 +1253,7 @@ void MotorControl_SetSpeedCommand(float mechanical_speed_rpm)
 
 HAL_StatusTypeDef MotorControl_SetPositionCommand(float target_deg)
 {
+    BissEncoderSnapshot command_snapshot;
     uint32_t interrupt_state;
 
     /* 单圈位置不做自动取模，避免把上位机的非法 360 度悄悄解释为 0 度。 */
@@ -1245,7 +1262,10 @@ HAL_StatusTypeDef MotorControl_SetPositionCommand(float target_deg)
         (motor_mode != MOTOR_CONTROL_ENCODER_POSITION_CURRENT) ||
         (run_state != MOTOR_RUN_STATE_RUNNING) ||
         !position_control_ready || !current_sense_ready ||
-        !encoder_calibration_valid || !MotorControl_UpdateEncoderAngle(true))
+        !encoder_calibration_valid ||
+        !BissEncoder_GetSnapshot(&command_snapshot) ||
+        !command_snapshot.ready || (command_snapshot.sequence == 0U) ||
+        (command_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS))
     {
         return HAL_ERROR;
     }
