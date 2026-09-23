@@ -82,10 +82,60 @@ static void TestInvalidInputsDoNotChangeResult(void)
     assert(result.within_tolerance);
 }
 
+static void TestStartupTargetDefaultsToCurrentPosition(void)
+{
+    PositionController controller;
+    const PositionControllerConfig config = {0.4f, 20.0f, 0.5f};
+    float target_deg = -1.0f;
+
+    assert(PositionController_Init(&controller, &config));
+    assert(PositionController_CaptureStartupTarget(&controller, 42.0f,
+                                                   &target_deg));
+    assert(Near(target_deg, 42.0f));
+}
+
+static void TestStartupTargetIsAppliedOnlyOnce(void)
+{
+    PositionController controller;
+    const PositionControllerConfig config = {0.4f, 20.0f, 0.5f};
+    float target_deg = -1.0f;
+
+    assert(PositionController_Init(&controller, &config));
+    assert(PositionController_SetStartupTarget(&controller, 180.0f));
+    assert(PositionController_CaptureStartupTarget(&controller, 42.0f,
+                                                   &target_deg));
+    assert(Near(target_deg, 180.0f));
+    assert(PositionController_CaptureStartupTarget(&controller, 77.0f,
+                                                   &target_deg));
+    assert(Near(target_deg, 77.0f));
+}
+
+static void TestInvalidStartupTargetCannotReplaceValidTarget(void)
+{
+    PositionController controller;
+    const PositionControllerConfig config = {0.4f, 20.0f, 0.5f};
+    float target_deg = -1.0f;
+
+    assert(PositionController_Init(&controller, &config));
+    assert(PositionController_SetStartupTarget(&controller, 5.0f));
+    assert(!PositionController_SetStartupTarget(&controller, -1.0f));
+    assert(!PositionController_SetStartupTarget(&controller, 360.0f));
+    assert(!PositionController_SetStartupTarget(&controller, NAN));
+    assert(!PositionController_CaptureStartupTarget(&controller, NAN,
+                                                    &target_deg));
+    assert(Near(target_deg, -1.0f));
+    assert(PositionController_CaptureStartupTarget(&controller, 42.0f,
+                                                   &target_deg));
+    assert(Near(target_deg, 5.0f));
+}
+
 int main(void)
 {
     TestShortestPathAndLimit();
     TestInvalidInputsDoNotChangeResult();
+    TestStartupTargetDefaultsToCurrentPosition();
+    TestStartupTargetIsAppliedOnlyOnce();
+    TestInvalidStartupTargetCannotReplaceValidTarget();
     puts("position controller tests passed");
     return 0;
 }

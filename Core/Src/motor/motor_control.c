@@ -197,15 +197,16 @@ static bool MotorControl_CapturePositionTarget(void)
 {
     const float feedback_deg =
         encoder_angle_sample.mechanical_angle_pu * 360.0f;
+    float target_deg;
 
-    if (!isfinite(feedback_deg) || (feedback_deg < 0.0f) ||
-        (feedback_deg >= 360.0f))
+    if (!PositionController_CaptureStartupTarget(
+            &position_controller, feedback_deg, &target_deg))
     {
         return false;
     }
 
     memset(&position_result, 0, sizeof(position_result));
-    position_target_deg = feedback_deg;
+    position_target_deg = target_deg;
     position_speed_target_rpm = 0.0f;
     position_control_ready = true;
     return true;
@@ -1255,11 +1256,38 @@ HAL_StatusTypeDef MotorControl_SetPositionCommand(float target_deg)
 {
     BissEncoderSnapshot command_snapshot;
     uint32_t interrupt_state;
+    bool accepted;
 
     /* 单圈位置不做自动取模，避免把上位机的非法 360 度悄悄解释为 0 度。 */
     if (!isfinite(target_deg) || (target_deg < 0.0f) ||
-        (target_deg >= 360.0f) ||
-        (motor_mode != MOTOR_CONTROL_ENCODER_POSITION_CURRENT) ||
+        (target_deg >= 360.0f))
+    {
+        return HAL_ERROR;
+    }
+
+    /* 启动前只缓存显式给定；真正进入模式 6 时先取得有效编码器角度，
+     * 随后由速度估算器就绪和原有速度/电流斜率约束电机运动。 */
+    if ((motor_mode == MOTOR_CONTROL_STOPPED) &&
+        (run_state == MOTOR_RUN_STATE_STOPPED) &&
+        (requested_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT) &&
+        !sampling_started)
+    {
+        interrupt_state = __get_PRIMASK();
+        __disable_irq();
+        accepted = (motor_mode == MOTOR_CONTROL_STOPPED) &&
+            (run_state == MOTOR_RUN_STATE_STOPPED) &&
+            (requested_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT) &&
+            !sampling_started &&
+            PositionController_SetStartupTarget(&position_controller,
+                                                target_deg);
+        if (interrupt_state == 0U)
+        {
+            __enable_irq();
+        }
+        return accepted ? HAL_OK : HAL_ERROR;
+    }
+
+    if ((motor_mode != MOTOR_CONTROL_ENCODER_POSITION_CURRENT) ||
         (run_state != MOTOR_RUN_STATE_RUNNING) ||
         !position_control_ready || !current_sense_ready ||
         !encoder_calibration_valid ||

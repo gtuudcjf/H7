@@ -45,8 +45,6 @@ Assert-Contains $motorSource 'speed_control_tick_count' `
     'Speed-loop execution is not observable in the debugger.'
 Assert-Contains $mainSource 'MotorControl_SetSpeedCommand\s*\(' `
     'main.c does not preconfigure the speed command.'
-Assert-Contains $mainSource '\.mode\s*=\s*MOTOR_CONTROL_ENCODER_SPEED_CURRENT' `
-    'The hardware-validated encoder speed/current mode must be the default.'
 
 $callbackMatch = [regex]::Match(
     $motorSource,

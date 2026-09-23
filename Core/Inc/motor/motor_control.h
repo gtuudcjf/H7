@@ -187,7 +187,9 @@ void MotorControl_SetEncoderCurrentCommand(float id_a, float iq_a);
 /** 设置模式4的电机轴机械转速目标，单位rpm，内部限制到安全范围。 */
 void MotorControl_SetSpeedCommand(float mechanical_speed_rpm);
 
-/** 仅在位置模式 RUNNING 时接收单圈轴侧目标角 [0, 360) 度；失败不更改旧目标。 */
+/** 设置单圈轴侧目标角 [0, 360) 度；非法角度不更改旧目标。
+ * 模式 6 启动前可预设一次目标；未预设时启动会捕获并保持当前位置。
+ * 运行中仍要求模式 6、有效编码器和就绪的电流/位置控制。 */
 HAL_StatusTypeDef MotorControl_SetPositionCommand(float target_deg);
 
 /**

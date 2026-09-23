@@ -28,6 +28,42 @@ bool PositionController_Init(PositionController *controller,
     }
 
     controller->config = *config;
+    controller->startup_target_deg = 0.0f;
+    controller->startup_target_pending = false;
+    return true;
+}
+
+bool PositionController_SetStartupTarget(PositionController *controller,
+                                         float target_deg)
+{
+    if ((controller == 0) ||
+        !PositionController_ConfigIsValid(&controller->config) ||
+        !isfinite(target_deg) || (target_deg < 0.0f) ||
+        (target_deg >= 360.0f))
+    {
+        return false;
+    }
+
+    controller->startup_target_deg = target_deg;
+    controller->startup_target_pending = true;
+    return true;
+}
+
+bool PositionController_CaptureStartupTarget(PositionController *controller,
+                                             float feedback_deg,
+                                             float *target_deg)
+{
+    if ((controller == 0) || (target_deg == 0) ||
+        !PositionController_ConfigIsValid(&controller->config) ||
+        !isfinite(feedback_deg) || (feedback_deg < 0.0f) ||
+        (feedback_deg >= 360.0f))
+    {
+        return false;
+    }
+
+    *target_deg = controller->startup_target_pending ?
+        controller->startup_target_deg : feedback_deg;
+    controller->startup_target_pending = false;
     return true;
 }
 

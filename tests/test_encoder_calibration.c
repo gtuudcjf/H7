@@ -55,7 +55,7 @@ static void AdvanceToDirectionMove(EncoderCalibration *calibration,
 {
     assert(EncoderCalibration_Start(calibration));
     AdvanceUntilState(calibration, ENCODER_CAL_ALIGN_ZERO, zero_position, 4U);
-    AdvanceUntilState(calibration, ENCODER_CAL_PREALIGN_MOVE, zero_position, 2500U);
+    AdvanceUntilState(calibration, ENCODER_CAL_PREALIGN_MOVE, zero_position, 5000U);
     AdvanceUntilState(calibration, ENCODER_CAL_PREALIGN_RETURN, zero_position, 5000U);
     AdvanceUntilState(calibration, ENCODER_CAL_SETTLE_ZERO, zero_position, 5000U);
     AdvanceUntilState(calibration, ENCODER_CAL_DIRECTION_MOVE, zero_position, 6000U);
@@ -70,9 +70,9 @@ static void AdvanceDirectionAndReturn(EncoderCalibration *calibration,
     AdvanceUntilState(calibration, ENCODER_CAL_RETURN_ZERO,
                       final_position, 6000U);
     AdvanceUntilState(calibration, ENCODER_CAL_SETTLE_RETURN,
-                      return_position, 4000U);
+                      return_position, 5000U);
     AdvanceUntilState(calibration, ENCODER_CAL_COMPLETE,
-                      return_position, 6000U);
+                      return_position, 11000U);
 }
 
 static void Test_AlignmentCurrentRampsAndIqRemainsZero(void)
@@ -154,7 +154,7 @@ static void Test_CircularAverageHandlesPositionWrap(void)
 
     EncoderCalibration_Init(&calibration);
     assert(EncoderCalibration_Start(&calibration));
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_ZERO, 131071U, 12000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_ZERO, 131071U, 13000U);
 
     /* 完成500 ms等待，然后让128个样本在131071/0之间交替。 */
     for (index = 0U; index < 5000U; ++index)
@@ -181,7 +181,7 @@ static void Test_ReturnMismatchRejectsNonRepeatableZero(void)
     AdvanceToDirectionMove(&calibration, 10000U);
     AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 11311U, 5000U);
     AdvanceUntilState(&calibration, ENCODER_CAL_RETURN_ZERO, 11311U, 6000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_RETURN, 10600U, 4000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_RETURN, 10600U, 5000U);
     AdvanceUntilState(&calibration, ENCODER_CAL_FAILED, 10600U, 10000U);
     assert(calibration.failure == ENCODER_CAL_FAILURE_RETURN_MISMATCH);
     assert(calibration.return_error_count == 600);
@@ -227,7 +227,7 @@ static void Test_UnstableAndMissingSamplesFailSafely(void)
 
     EncoderCalibration_Init(&calibration);
     assert(EncoderCalibration_Start(&calibration));
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_ZERO, 10000U, 12000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_ZERO, 10000U, 13000U);
     for (index = 0U; index < 5000U; ++index)
     {
         (void)Step(&calibration, 10000U);

@@ -22,9 +22,9 @@ if ($mainSource -notmatch 'MotorControl_SetSpeedPiGains\s*\(\s*MOTOR_SPEED_PI_KP
     throw 'main.c must apply the speed PI gains from motor_params.h.'
 }
 
-if ($mainSource -notmatch '\.mode\s*=\s*MOTOR_CONTROL_ENCODER_SPEED_CURRENT')
+if ($mainSource -notmatch '\.mode\s*=\s*MOTOR_CONTROL_ENCODER_(SPEED|POSITION)_CURRENT')
 {
-    throw 'The 0.7 A trial must start in encoder speed/current mode.'
+    throw 'The 0.7 A trial must start in encoder speed/current or position/current mode.'
 }
 
 if ($mainSource -notmatch 'MotorControl_SetSpeedCommand\s*\(\s*50\.0f\s*\)')

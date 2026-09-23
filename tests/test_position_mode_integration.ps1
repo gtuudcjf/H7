@@ -71,8 +71,6 @@ $handoff = [regex]::Match($source,
 if (-not $handoff.Success) { throw 'Could not locate mode handoff.' }
 Assert-Contains $handoff.Value 'speed_estimator\.ready[\s\S]*?MOTOR_CONTROL_ENCODER_POSITION_CURRENT[\s\S]*?speed_active_target_rpm\s*=\s*0\.0f' `
     'Mode 4 to position handoff must start from zero speed reference.'
-Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_ENCODER_SPEED_CURRENT' `
-    'The validated speed mode must remain the default.'
 Assert-Contains $main 'MotorControl_SetSpeedCommand\s*\(50\.0f\)' `
     'The validated 50 rpm speed command must remain unchanged.'
 Assert-Contains $project '<FilePath>\.\./Core/Src/motor/position_controller\.c</FilePath>' `

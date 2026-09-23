@@ -81,7 +81,7 @@
  * 角度。voltage_slew_pu_per_s用于从电流闭环退回模式1时平滑恢复开环电压。
  */
 static const MotorControlConfig motor_config = {
-  .mode = MOTOR_CONTROL_ENCODER_SPEED_CURRENT,
+  .mode = MOTOR_CONTROL_ENCODER_POSITION_CURRENT,
   .frequency_slew_hz_per_s = 20.0f,
   .voltage_slew_pu_per_s = 5.0f
 };
@@ -169,28 +169,38 @@ int main(void)
 
 
   /*
-   * 四种启动模式的命令全部预置，motor_config.mode决定实际使用哪一套。
+   * 五种运行模式的命令集中预置，motor_config.mode决定实际使用哪一套。
    * 这些数值是当前24 V母线、当前电机和当前负载的实机验证值，不是通用值；
    * 更换电机/母线/负载时，必须结合motor_params.h从低电压、低电流重新验证：
    *   模式1：电压开环，Ud=0、Uq=0.08 pu、电角频率=1 Hz；
    *   模式2：虚拟角度+电流闭环，Id=0、Iq=0.8 A、电角频率=1 Hz；
    *   模式3：编码器角度+电流闭环，Id=0、Iq=0.6 A。
+   *   模式4：编码器速度+电流闭环，目标50 rpm。
+   *   模式6：单圈轴侧位置+速度+电流闭环，目标60°。
    * Id通常保持0；Iq的正负决定转矩方向。模式3不是位置环，不会保持目标角度。
    */
   MotorControl_SetOpenLoopCommand(0.0f, 0.08f, 1.0f);
   MotorControl_SetCurrentCommand(0.0f, 0.8f, 1.0f);
   MotorControl_SetEncoderCurrentCommand(0.0f, 0.6f);
-
-  /* 模式4当前以50 rpm目标运行；速度环Iq上限保持0.7 A。 */
   MotorControl_SetSpeedCommand(50.0f);
 
-	if (MotorControl_SetSpeedPiGains(
-				MOTOR_SPEED_PI_KP_A_PER_RPM,
-				MOTOR_SPEED_PI_KI_A_PER_RPM_S,
-				MOTOR_SPEED_PI_KAW_PER_S) != HAL_OK)
-	{
-		Error_Handler();
-	}
+  /* 位置目标只能为 [0, 360) 度；未选择模式6时不预置，避免日后切换时意外转动。 */
+  if (motor_config.mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
+  {
+    if (MotorControl_SetPositionCommand(60.0f) != HAL_OK)
+    {
+      Error_Handler();
+    }
+  }
+
+  /* 模式4与模式6共用速度PI；其数值仍由motor_params.h统一管理。 */
+  if (MotorControl_SetSpeedPiGains(
+          MOTOR_SPEED_PI_KP_A_PER_RPM,
+          MOTOR_SPEED_PI_KI_A_PER_RPM_S,
+          MOTOR_SPEED_PI_KAW_PER_S) != HAL_OK)
+  {
+    Error_Handler();
+  }
   /*
    * 启动顺序由控制层保证：拉高 PC4 -> 等待 DRV8323 就绪 -> 写三个配置
    * 寄存器 -> 启动 TIM8 三路主 PWM 和三路互补 PWM。任一步失败均进入
@@ -220,7 +230,7 @@ int main(void)
      * 处理编码器标定请求和停机后的 Flash 保存。该服务无忙等，但可能执行
      * Flash 擦写，所以只能放在主循环，禁止移动到 TIM8/ADC/SPI 中断。
      * 编码器校准由调试/通信命令显式调用 MotorControl_RequestEncoderCalibration()，
-     * 上电不会自动校准或自动转动。
+     * 上电不会自动校准；模式6若显式预置目标，则在控制就绪后按限速/斜率移动。
      */
     MotorControl_Service();
   }
