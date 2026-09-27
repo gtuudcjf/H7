@@ -481,6 +481,16 @@
               <FilePath>../Core/Src/motor/motor_runtime_policy.c</FilePath>
             </File>
             <File>
+              <FileName>motor_telemetry_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/motor_telemetry_core.c</FilePath>
+            </File>
+            <File>
+              <FileName>motor_telemetry.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/motor/motor_telemetry.c</FilePath>
+            </File>
+            <File>
               <FileName>motor_startup_trace.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/motor/motor_startup_trace.c</FilePath>

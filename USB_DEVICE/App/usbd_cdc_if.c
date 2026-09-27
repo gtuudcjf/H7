@@ -22,6 +22,7 @@
 #include "usbd_cdc_if.h"
 
 /* USER CODE BEGIN INCLUDE */
+#include "motor_telemetry.h"
 
 /* USER CODE END INCLUDE */
 
@@ -166,6 +167,7 @@ static int8_t CDC_Init_FS(void)
 static int8_t CDC_DeInit_FS(void)
 {
   /* USER CODE BEGIN 4 */
+  MotorTelemetry_OnUsbDisconnected();
   return (USBD_OK);
   /* USER CODE END 4 */
 }
@@ -282,6 +284,11 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 {
   uint8_t result = USBD_OK;
   /* USER CODE BEGIN 7 */
+  if (hUsbDeviceFS.dev_state != USBD_STATE_CONFIGURED ||
+      hUsbDeviceFS.pClassData == NULL)
+  {
+    return USBD_BUSY;
+  }
   USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)hUsbDeviceFS.pClassData;
   if (hcdc->TxState != 0){
     return USBD_BUSY;
@@ -308,6 +315,7 @@ static int8_t CDC_TransmitCplt_FS(uint8_t *Buf, uint32_t *Len, uint8_t epnum)
 {
   uint8_t result = USBD_OK;
   /* USER CODE BEGIN 13 */
+  MotorTelemetry_OnUsbComplete();
   UNUSED(Buf);
   UNUSED(Len);
   UNUSED(epnum);

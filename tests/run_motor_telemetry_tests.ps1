@@ -29,6 +29,13 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw 'Telemetry core test failed.'
     }
+    $adapterExecutable = Join-Path $env:TEMP 'test_motor_telemetry_adapter.exe'
+    & $compiler -Wall -Werror -I tests/stubs/telemetry -I Core/Inc/motor `
+        tests/test_motor_telemetry_adapter.c Core/Src/motor/motor_telemetry.c `
+        Core/Src/motor/motor_telemetry_core.c -o $adapterExecutable
+    if ($LASTEXITCODE -ne 0) { throw 'Telemetry adapter compile failed.' }
+    & $adapterExecutable
+    if ($LASTEXITCODE -ne 0) { throw 'Telemetry adapter test failed.' }
 } finally {
     Pop-Location
 }

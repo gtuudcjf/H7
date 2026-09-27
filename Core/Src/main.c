@@ -29,6 +29,7 @@
 /* USER CODE BEGIN Includes */
 #include "biss_encoder.h"
 #include "motor_control.h"
+#include "motor_telemetry.h"
 #include "motor_params.h"
 
 /* USER CODE END Includes */
@@ -210,6 +211,8 @@ int main(void)
   {
     Error_Handler();
   }
+  MotorTelemetry_Init(&huart1, MOTOR_TELEMETRY_UART_ENABLED,
+                      MOTOR_TELEMETRY_USB_ENABLED);
 
 
   /*
@@ -233,6 +236,7 @@ int main(void)
      * 上电不会自动校准；模式6若显式预置目标，则在控制就绪后按限速/斜率移动。
      */
     MotorControl_Service();
+    MotorTelemetry_Service();
   }
   /* USER CODE END 3 */
 }
@@ -297,6 +301,16 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+  MotorTelemetry_OnUartComplete(huart);
+}
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
+{
+  MotorTelemetry_OnUartError(huart);
+}
+
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
