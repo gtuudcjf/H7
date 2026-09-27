@@ -12,6 +12,13 @@ $project = Read-Source 'MDK-ARM/emptytest.uvprojx'
 Require $main 'MotorControl_Start\(\)[\s\S]*?MotorTelemetry_Init\(&huart1' 'Telemetry initialization missing.'
 Require $main 'MotorControl_Service\(\);\s*MotorTelemetry_Service\(\);' 'Foreground telemetry missing.'
 Require $irq 'USART1_IRQHandler\(void\)[\s\S]*?HAL_UART_IRQHandler\(&huart1\)' 'USART1 IRQ missing.'
+if ($irq -match 'USER CODE BEGIN 1[\s\S]*?USART1_IRQHandler[\s\S]*?USER CODE END 1') {
+    throw 'USART1 handler in preserved USER section duplicates CubeMX generation.'
+}
+if ([regex]::Matches($irq, 'void\s+USART1_IRQHandler\s*\(').Count -ne 1) {
+    throw 'USART1 handler must have exactly one definition.'
+}
+Require $irq 'USART1_IRQHandler\(void\)[\s\S]*?USER CODE BEGIN USART1_IRQn 0[\s\S]*?HAL_UART_IRQHandler\(&huart1\)[\s\S]*?USER CODE BEGIN USART1_IRQn 1' 'USART1 must use standard generated handler layout.'
 Require $uart 'HAL_NVIC_SetPriority\(USART1_IRQn, 5, 0\)' 'UART priority must be 5.'
 Require $uart 'HAL_NVIC_EnableIRQ\(USART1_IRQn\)' 'UART IRQ not enabled.'
 Require $main 'HAL_UART_TxCpltCallback[\s\S]*?MotorTelemetry_OnUartComplete\(huart\)' 'UART completion missing.'
