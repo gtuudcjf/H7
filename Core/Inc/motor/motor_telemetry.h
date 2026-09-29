@@ -5,7 +5,7 @@
 #include "motor_telemetry_core.h"
 
 /* Foreground-only configuration; never reinitialize an active transfer. */
-#define MOTOR_TELEMETRY_UART_ENABLED true
+#define MOTOR_TELEMETRY_UART_ENABLED false
 #define MOTOR_TELEMETRY_USB_ENABLED true
 
 typedef struct

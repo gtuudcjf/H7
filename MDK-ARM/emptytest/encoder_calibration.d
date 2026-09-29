@@ -1,0 +1,9 @@
+emptytest\encoder_calibration.o: ../Core/Src/motor/encoder_calibration.c
+emptytest\encoder_calibration.o: ../Core/Inc/motor/encoder_calibration.h
+emptytest\encoder_calibration.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+emptytest\encoder_calibration.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdint.h
+emptytest\encoder_calibration.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\limits.h
+emptytest\encoder_calibration.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
+emptytest\encoder_calibration.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+emptytest\encoder_calibration.o: ../Core/Inc/motor/biss_frame.h
+emptytest\encoder_calibration.o: ../Core/Inc/motor/motor_params.h

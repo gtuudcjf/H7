@@ -55,3 +55,6 @@ emptytest\usbd_cdc_if.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.
 emptytest\usbd_cdc_if.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_core.h
 emptytest\usbd_cdc_if.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ioreq.h
 emptytest\usbd_cdc_if.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc/usbd_ctlreq.h
+emptytest\usbd_cdc_if.o: ../Core/Inc/motor/motor_telemetry.h
+emptytest\usbd_cdc_if.o: ../Core/Inc/motor/motor_telemetry_core.h
+emptytest\usbd_cdc_if.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h

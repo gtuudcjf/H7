@@ -55,3 +55,13 @@ emptytest\main.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdio.h
 emptytest\main.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
 emptytest\main.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
 emptytest\main.o: ../Core/Inc/gpio.h
+emptytest\main.o: ../Core/Inc/motor/biss_encoder.h
+emptytest\main.o: D:\Keil_v5\ARM\ARMCC\Bin\..\include\stdbool.h
+emptytest\main.o: ../Core/Inc/motor/biss_frame.h
+emptytest\main.o: ../Core/Inc/motor/motor_control.h
+emptytest\main.o: ../Core/Inc/motor/encoder_calibration.h
+emptytest\main.o: ../Core/Inc/motor/motor_runtime_policy.h
+emptytest\main.o: ../Core/Inc/motor/motor_startup_trace.h
+emptytest\main.o: ../Core/Inc/motor/motor_telemetry.h
+emptytest\main.o: ../Core/Inc/motor/motor_telemetry_core.h
+emptytest\main.o: ../Core/Inc/motor/motor_params.h

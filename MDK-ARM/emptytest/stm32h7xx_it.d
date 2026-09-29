@@ -45,3 +45,5 @@ emptytest\stm32h7xx_it.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12
 emptytest\stm32h7xx_it.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_ll_usb.h
 emptytest\stm32h7xx_it.o: C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/stm32h7xx_hal_pcd_ex.h
 emptytest\stm32h7xx_it.o: ../Core/Inc/stm32h7xx_it.h
+emptytest\stm32h7xx_it.o: ../Core/Inc/spi.h
+emptytest\stm32h7xx_it.o: ../Core/Inc/usart.h

@@ -82,7 +82,7 @@
  * 角度。voltage_slew_pu_per_s用于从电流闭环退回模式1时平滑恢复开环电压。
  */
 static const MotorControlConfig motor_config = {
-  .mode = MOTOR_CONTROL_ENCODER_POSITION_CURRENT,
+  .mode = MOTOR_CONTROL_ENCODER_SPEED_CURRENT,
   .frequency_slew_hz_per_s = 20.0f,
   .voltage_slew_pu_per_s = 5.0f
 };
