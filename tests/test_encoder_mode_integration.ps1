@@ -25,8 +25,10 @@ function Assert-NotContains {
 
 Assert-Contains $publicControlHeaders 'MOTOR_CONTROL_ENCODER_ANGLE_CURRENT' `
     'The encoder-angle current mode must have an explicit name.'
-Assert-Contains $header '#define\s+MOTOR_CONTROL_ENCODER_CURRENT\s+MOTOR_CONTROL_ENCODER_ANGLE_CURRENT' `
-    'The previous reserved encoder mode name must remain as an alias.'
+Assert-NotContains $header '#define\s+MOTOR_CONTROL_ENCODER_CURRENT\b' `
+    'The unused encoder-current compatibility alias must be removed.'
+Assert-NotContains $header '#define\s+MOTOR_CONTROL_OPEN_LOOP\b' `
+    'The unused open-loop compatibility alias must be removed.'
 Assert-Contains $header 'MotorControl_SetEncoderCurrentCommand\s*\(float id_a,\s*float iq_a\)' `
     'Encoder mode requires a frequency-independent Id/Iq command.'
 Assert-Contains $header 'MotorControl_SwitchToEncoderAngleCurrent\s*\(float id_a,[\s\S]*float iq_a\)' `

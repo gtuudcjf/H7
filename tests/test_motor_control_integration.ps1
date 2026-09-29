@@ -17,6 +17,13 @@ function Assert-Contains {
     }
 }
 
+function Assert-NotContains {
+    param([string]$Text, [string]$Pattern, [string]$Message)
+    if ($Text -match $Pattern) {
+        throw $Message
+    }
+}
+
 Assert-Contains $publicControlHeaders 'MOTOR_CONTROL_OPEN_VOLTAGE' 'Voltage-open-loop mode must remain public.'
 Assert-Contains $publicControlHeaders 'MOTOR_CONTROL_OPEN_ANGLE_CURRENT' 'Open-angle current mode must be public.'
 Assert-Contains $header 'MotorControl_RequestMode' 'A boundary-applied runtime mode request API is required.'
@@ -25,6 +32,35 @@ Assert-Contains $header 'MotorControl_SwitchToOpenAngleCurrent' 'A one-call open
 Assert-Contains $header 'MotorControl_SwitchToEncoderAngleCurrent' 'A one-call encoder-angle current-mode switch API is required.'
 Assert-Contains $header 'MotorControl_SetCurrentPiGains' 'Current PI gains must be tunable through a validated API.'
 Assert-Contains $header 'g_motor_control_debug' 'Keil/Ozone debug observability must be exported.'
+
+foreach ($field in @(
+    'mode', 'requested_mode', 'run_state', 'fault',
+    'phase_a_raw', 'phase_b_raw', 'phase_a_offset', 'phase_b_offset',
+    'id_ref_a', 'id_a', 'iq_ref_a', 'iq_a', 'electrical_angle_pu',
+    'speed_target_rpm', 'speed_active_target_rpm', 'speed_filtered_rpm',
+    'speed_iq_command_a', 'speed_pi_saturated',
+    'position_target_deg', 'position_feedback_deg', 'position_error_deg',
+    'adc_age_ticks', 'overcurrent_count', 'voltage_saturated',
+    'encoder_ready', 'encoder_calibrated', 'encoder_position_raw',
+    'encoder_age_ticks', 'encoder_frame_status', 'encoder_crc_error_count',
+    'encoder_frame_error_count', 'encoder_spi_error_count',
+    'encoder_timeout_count', 'encoder_dma_guard_error_count'
+)) {
+    Assert-Contains $header ("\b" + [regex]::Escape($field) + "\b") `
+        "Essential motor debug field is missing: $field"
+}
+
+foreach ($removed in @(
+    'speed_pi_proportional_a', 'speed_pi_integrator_a',
+    'ud_integrator_v', 'uq_integrator_v', 'i_alpha_a', 'i_beta_a',
+    'encoder_raw', 'encoder_received_crc', 'encoder_calculated_crc',
+    'startup_trace_count', 'startup_trace_stage', 'foreground_service_count'
+)) {
+    Assert-NotContains $header ("\b" + [regex]::Escape($removed) + "\b") `
+        "Redundant motor debug field is still exported: $removed"
+}
+Assert-NotContains ($header + "`n" + $control) 'motor_startup_trace\.h|MotorStartupTrace' `
+    'Startup-only trace code must be removed from motor control.'
 
 Assert-Contains $control 'CURRENT_CALIBRATION_DISCARD_COUNT\s+\(16U\)' 'Calibration must discard 16 samples.'
 Assert-Contains $control 'CURRENT_CALIBRATION_SAMPLE_COUNT\s+\(256U\)' 'Calibration must average 256 samples.'

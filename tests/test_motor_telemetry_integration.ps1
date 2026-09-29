@@ -9,6 +9,8 @@ $irq = Read-Source 'Core/Src/stm32h7xx_it.c'
 $uart = Read-Source 'Core/Src/usart.c'
 $cdc = Read-Source 'USB_DEVICE/App/usbd_cdc_if.c'
 $project = Read-Source 'MDK-ARM/emptytest.uvprojx'
+$telemetryHeader = Read-Source 'Core/Inc/motor/motor_telemetry.h'
+$telemetrySource = Read-Source 'Core/Src/motor/motor_telemetry.c'
 Require $main 'MotorControl_Start\(\)[\s\S]*?MotorTelemetry_Init\(&huart1' 'Telemetry initialization missing.'
 Require $main 'MotorControl_Service\(\);\s*MotorTelemetry_Service\(\);' 'Foreground telemetry missing.'
 Require $irq 'USART1_IRQHandler\(void\)[\s\S]*?HAL_UART_IRQHandler\(&huart1\)' 'USART1 IRQ missing.'
@@ -30,4 +32,7 @@ foreach ($name in @('motor_telemetry_core.c', 'motor_telemetry.c')) {
     Require $project ([regex]::Escape($name)) "Keil missing $name"
 }
 Require (Read-Source 'emptytest.ioc') 'NVIC.USART1_IRQn=true\\:5\\:0' 'CubeMX UART IRQ missing.'
+if (($telemetryHeader + "`n" + $telemetrySource) -match 'MotorTelemetryDebug|g_motor_telemetry_debug') {
+    throw 'Telemetry must keep port diagnostics internal instead of exporting a debug mirror.'
+}
 Write-Output 'motor telemetry integration tests passed'
