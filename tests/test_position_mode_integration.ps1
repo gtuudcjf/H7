@@ -17,8 +17,7 @@ Assert-Contains $header 'MotorControl_SetPositionCommand\s*\(' `
 Assert-Contains $header 'MotorControl_SwitchToEncoderPositionCurrent\s*\(' `
     'The position mode switch API is missing.'
 foreach ($field in @('position_target_deg', 'position_feedback_deg',
-                    'position_error_deg', 'position_speed_target_rpm',
-                    'position_control_ready'))
+                    'position_error_deg'))
 {
     Assert-Contains $header ("\b" + $field + "\b") "Debug field $field is missing."
 }

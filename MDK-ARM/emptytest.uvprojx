@@ -491,11 +491,6 @@
               <FilePath>../Core/Src/motor/motor_telemetry.c</FilePath>
             </File>
             <File>
-              <FileName>motor_startup_trace.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../Core/Src/motor/motor_startup_trace.c</FilePath>
-            </File>
-            <File>
               <FileName>drv8323.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/motor/drv8323.c</FilePath>
