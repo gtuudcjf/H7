@@ -57,14 +57,12 @@ Error 不合格的帧只增加错误计数，不覆盖上一帧有效位置。
 
 在 Keil Watch/Ozone 中展开 `g_motor_control_debug`，手动缓慢转动电机轴：
 
-- `encoder_valid_count`应持续增加。
 - 连续 32 个有效帧后 `encoder_ready == 1`。
 - `encoder_frame_status == BISS_FRAME_OK`。
 - `encoder_position_raw`覆盖 0～131071，并在一圈边界连续回绕。
-- `encoder_sequence`持续增加，`encoder_age_ticks`通常为 0 或 1。
+- 缓慢转轴时 `encoder_position_raw`持续变化，`encoder_age_ticks`通常为 0 或 1。
 - `encoder_crc_error_count`、`encoder_frame_error_count`、
   `encoder_spi_error_count`和`encoder_timeout_count`不应持续增加。
-- 编码器正常时 `encoder_warning == 0`。
 
 通信不稳定时不要标定。先用差分端和 MCU 端同时确认时钟极性、返回数据建立
 时间、供电、地和终端电阻，再考虑小幅降低 SPI4 时钟。
@@ -130,8 +128,8 @@ MotorControl_Start();
 
 - `mode == MOTOR_CONTROL_ENCODER_ANGLE_CURRENT`、`run_state == RUNNING`。
 - `id_a`应接近 0；`iq_a`应朝 `+0.1 A`跟随。
-- `electrical_angle_pu`与`encoder_electrical_angle_pu`一致，并随转子变化。
-- `ud_v/uq_v`和 PI 积分项不应持续顶住电压限幅。
+- `electrical_angle_pu`应随转子连续变化。
+- `voltage_saturated`不应长期为 1。
 - `encoder_age_ticks <= 10`，错误计数不连续增加。
 
 确认 0.1 A 稳定后才依次尝试 0.2 A、0.3 A。未经确认不要超过已在虚拟角度

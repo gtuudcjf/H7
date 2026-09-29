@@ -68,9 +68,9 @@ MotorControl_RequestMode(MOTOR_CONTROL_OPEN_VOLTAGE);
 正 `Iq_ref`建立后重点观察：
 
 - `iq_a`应当朝正方向跟随`iq_ref_a`。
-- `iq_error_a`应逐渐减小。
-- `uq_v`不应长期顶在电压限幅。
-- 三相重构和应满足`ia_a + ib_a + ic_a`接近0。
+- `iq_ref_a - iq_a`的差值应逐渐减小。
+- `voltage_saturated`不应长期为 1。
+- `current_sense_ready`应保持为 1，`overcurrent_count`不应持续增加。
 
 如果正`Iq_ref`使`iq_a`快速向负方向增大，这是正反馈，必须立即停止，不要通过继续增加PI来尝试修复。断电后检查相序，并只在以下集中参数中修正采样极性：
 

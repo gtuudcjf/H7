@@ -34,17 +34,10 @@ id_a
 iq_a
 speed_target_rpm
 speed_active_target_rpm
-speed_raw_rpm
 speed_filtered_rpm
-speed_error_rpm
-speed_pi_proportional_a
-speed_pi_integrator_a
 speed_iq_command_a
 speed_pi_saturated
-speed_estimator_ready
-speed_control_tick_count
 encoder_position_raw
-encoder_sequence
 encoder_age_ticks
 encoder_frame_status
 encoder_crc_error_count
@@ -73,10 +66,8 @@ Watch 窗口逐行刷新，不是原子快照。判断方向和稳定性时看�
    最多 `+0.6 A`。不要一次跳到上限。
 4. 电机转动时确认：
    - `encoder_position_raw` 按同一方向持续变化，跨越 0/131071 时没有速度尖峰；
-   - `speed_estimator_ready=1`；
-   - `speed_raw_rpm` 与 `speed_filtered_rpm` 均为正；
-   - `encoder_sequence` 持续增加，`speed_raw_rpm` 持续刷新；模式 3 下
-     `speed_control_tick_count` 保持不变是正常现象，因为该计数只统计模式 4 的 PI 执行次数；
+   - `encoder_ready=1`，并且 `speed_filtered_rpm` 为正且持续刷新；
+   - `encoder_position_raw` 按同一方向持续变化，`encoder_age_ticks` 不持续增加；
    - 编码器错误计数不持续增加。
 5. 将 `Iq` 缓慢降回 0，安全停机。
 
@@ -89,7 +80,7 @@ Watch 窗口逐行刷新，不是原子快照。判断方向和稳定性时看�
 
 1. 设置 `Id=0 A`、`Iq=-0.2 A`；
 2. 若静摩擦阻止转动，每次只增加 `0.1 A` 的绝对值，最多到 `-0.6 A`；
-3. 确认位置趋势反向，`speed_raw_rpm` 和 `speed_filtered_rpm` 均为负；
+3. 确认位置趋势反向，`speed_filtered_rpm` 为负；
 4. 将 `Iq` 缓慢降回 0，安全停机。
 
 只有正、负两个方向都正确，才继续速度闭环。
@@ -111,7 +102,7 @@ MotorControl_SetSpeedCommand(0.0f);
 上电后确认：
 
 - `mode` 最终进入 `MOTOR_CONTROL_ENCODER_SPEED_CURRENT`；
-- `speed_estimator_ready` 由 0 变为 1；
+- `encoder_ready` 保持为 1，`encoder_age_ticks` 不持续增加；
 - `speed_active_target_rpm` 从实测速度平滑走向 0；
 - `speed_iq_command_a` 没有突跳到 ±0.6 A；
 - `speed_pi_saturated` 不应持续为 1；
@@ -191,13 +182,13 @@ F407 工程中的离散 PI 系数没有直接复制，因为其数值隐含了�
 1. 空载并确保机械行程不会碰限位，先确认模式 3、模式 4 和编码器校准仍正常；
    若从运行中的模式 4 切换，先把速度命令降到 0 rpm 并等待实际速度接近零。
 2. 调用 `MotorControl_SwitchToEncoderPositionCurrent()`，等待 `mode` 切换完成且
-   `position_control_ready == 1`；此时目标应等于反馈，电机应保持当前位置；
+   `run_state` 为运行、`encoder_ready == 1`；此时目标应等于反馈，电机应保持当前位置；
 3. 先调用 `MotorControl_SetPositionCommand()` 做 ±2 度和 ±5 度阶跃；
 4. 再测试 359→1 度与 1→359 度，确认走约 2 度的最短路径；
 5. 小步正常后才测试更大角度，且始终保留停机和断电手段。
 
 同时观察 `position_target_deg`、`position_feedback_deg`、`position_error_deg`、
-`position_speed_target_rpm`、`speed_filtered_rpm`、`speed_iq_command_a`、`iq_ref_a`、
+`speed_active_target_rpm`、`speed_filtered_rpm`、`speed_iq_command_a`、`iq_ref_a`、
 `iq_a`、`speed_pi_saturated` 和全部编码器故障计数。若方向错误、持续饱和、振荡、撞击、
 异常噪声或温升，立即停止；不要用提高 Iq 上限来掩盖反馈方向或机械问题。
 

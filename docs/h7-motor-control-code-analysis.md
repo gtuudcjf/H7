@@ -244,10 +244,7 @@ SPI4回调和电机控制中断可能并发访问编码器数据，因此控制�
 
 关键变量含义：
 
-- `encoder_raw[6]`：最近解析帧的6个原始字节；
 - `encoder_position_raw`：最近有效17位位置，范围0～131071；
-- `encoder_sequence`：每成功发布一帧加1；
-- `encoder_valid_count`：累计有效帧数；
 - `encoder_age_ticks`：距离最近有效帧的10 kHz周期数；
 - `encoder_ready`：连续32帧有效后置1；
 - `encoder_frame_status`：最近一次帧解析结果；
@@ -258,7 +255,7 @@ SPI4回调和电机控制中断可能并发访问编码器数据，因此控制�
 - `encoder_dma_guard_error_count`：DMA越界保护区被破坏次数。
 
 Keil在程序运行时逐项刷新Watch变量，不保证所有字段来自同一个瞬间。因此可能短暂
-看到`received_crc != calculated_crc`，或`Id/Iq/error`不满足同一时刻的算术关系。
+看到电流给定、反馈和状态不满足同一时刻的算术关系。
 带功率运行时不要为了截图直接暂停CPU，暂停可能让PWM停留在不可控瞬间。判断稳定性
 应观察错误计数趋势；确需一致快照时，先把Iq命令降为0并安全停机，再暂停读取。
 
@@ -382,19 +379,17 @@ IDLE
 电流环：
 
 - `id_ref_a/iq_ref_a`与`id_a/iq_a`；
-- `ud_v/uq_v`与`ud_pu/uq_pu`；
 - `voltage_saturated`、`overcurrent_count`、`adc_age_ticks`。
 
 编码器：
 
 - `mode`、`requested_mode`、`run_state`、`fault`；
 - `encoder_ready`应保持1；
-- `encoder_sequence`和`encoder_valid_count`应持续增加；
 - `encoder_age_ticks`通常应保持很小；
 - `encoder_position_raw`应与机械位置一致且范围正确；
 - 五类编码器错误计数不应持续增加；
 - `encoder_calibrated`应为1才能进入模式3；
-- `encoder_mechanical_angle_pu`和`encoder_electrical_angle_pu`应随转子连续环绕。
+- `electrical_angle_pu`应随转子连续环绕。
 
 ## 13. 模式选择与运行时切换
 
@@ -612,13 +607,10 @@ F407 工程中依赖隐含调用周期的离散系数；移植时将调用周期
 
 - `speed_target_rpm`：用户要求值，已经过 ±100 rpm 限制；
 - `speed_active_target_rpm`：经过 20 rpm/s 斜坡后的 PI 实际目标；
-- `speed_raw_rpm` / `speed_filtered_rpm`：原始与低通后的电机轴速度；
-- `speed_error_rpm`：实际送入 PI 的误差；
-- `speed_pi_proportional_a` / `speed_pi_integrator_a`：PI 两部分，单位 A；
+- `speed_filtered_rpm`：低通后的电机轴速度；
 - `speed_iq_command_a`：速度环生成的 `Iq_ref`；
 - `speed_pi_saturated`：是否碰到当前速度环电流限幅；
-- `speed_estimator_ready`：是否已取得足够的新位置样本；
-- `speed_control_tick_count`：真正以新编码器样本执行速度 PI 的次数。
+- `encoder_ready` / `encoder_age_ticks`：编码器是否就绪以及反馈是否持续更新。
 
 带减速器时无法可靠手动转动电机轴，因此方向验证采用模式 3 的小电流驱动法。完整步骤见
 `docs/h7-speed-loop-bring-up.md`。
@@ -641,13 +633,13 @@ F407 工程中依赖隐含调用周期的离散系数；移植时将调用周期
 0/360 度边界时走最短路径；误差恰好为 180 度时固定选择正方向。
 
 进入位置模式时，代码先读取新鲜的编码器反馈并把当前位置捕获为目标，因此切换动作本身不会
-命令电机回到旧位置。只有 `mode` 已是位置模式、`run_state` 已是 `RUNNING` 且
-`position_control_ready == 1` 后，以下命令才会成功：
+命令电机回到旧位置。确认 `mode` 已是位置模式、`run_state` 已是 `RUNNING`、
+`encoder_ready == 1` 且目标与反馈一致后，再发送新的位置命令：
 
 ```c
 if (MotorControl_SwitchToEncoderPositionCurrent() == HAL_OK)
 {
-    /* 等待 FastTick 完成模式切换并检查 position_control_ready。 */
+    /* 等待 FastTick 完成模式切换，并确认模式、状态和编码器反馈正常。 */
 }
 
 if (MotorControl_SetPositionCommand(30.0f) != HAL_OK)
@@ -666,8 +658,8 @@ if (MotorControl_SetPositionCommand(30.0f) != HAL_OK)
 - `position_target_deg`：有效的单圈轴侧目标；
 - `position_feedback_deg`：校准后的单圈轴侧反馈；
 - `position_error_deg`：最短路径位置误差；
-- `position_speed_target_rpm`：位置 P 环输出、速度 PI 输入斜坡前的目标；
-- `position_control_ready`：是否已安全捕获进入位置；
+- `speed_active_target_rpm`：位置 P 环输出经过速度斜坡后的实际目标；
+- `encoder_ready`：位置反馈是否有效；
 - 同时观察 `speed_filtered_rpm`、`speed_iq_command_a`、`iq_ref_a`、`iq_a` 和故障字段。
 
 上述参数是基于已经验证的速度环给出的保守首轮值，软件测试和 Keil 构建不能证明实机位置

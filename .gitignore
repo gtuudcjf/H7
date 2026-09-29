@@ -1,2 +1,8 @@
 # Local linked worktrees created during development.
 .worktrees/
+
+# Keil build outputs and per-user UI state.
+MDK-ARM/emptytest/
+MDK-ARM/*.log
+MDK-ARM/*.lst
+MDK-ARM/*.uvguix.*
