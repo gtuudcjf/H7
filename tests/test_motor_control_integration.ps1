@@ -55,7 +55,8 @@ foreach ($removed in @(
     'ud_integrator_v', 'uq_integrator_v', 'i_alpha_a', 'i_beta_a',
     'encoder_raw', 'encoder_received_crc', 'encoder_calculated_crc',
     'startup_trace_count', 'startup_trace_stage', 'foreground_service_count',
-    'speed_control_tick_count', 'position_speed_target_rpm'
+    'speed_control_tick_count', 'position_speed_target_rpm',
+    'current_voltage_limit_pu'
 )) {
     Assert-NotContains ($header + "`n" + $control) `
         ("\b" + [regex]::Escape($removed) + "\b") `

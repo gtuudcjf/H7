@@ -89,7 +89,6 @@ static FocDq current_reference_target;
 static FocDq current_reference_active;
 static FocDq encoder_current_reference_target;
 static float current_target_frequency_hz;
-static float current_voltage_limit_pu = MOTOR_POLE_VOLTAGE_LIMIT_START_PU;
 static float alignment_elapsed_s;
 
 /* 模式3/4与编码器校准路径使用的快照、角度配置和持久化状态。 */
@@ -1016,7 +1015,6 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     current_reference_active.d = 0.0f;
     current_reference_active.q = 0.0f;
     current_target_frequency_hz = 1.0f;
-    current_voltage_limit_pu = MOTOR_POLE_VOLTAGE_LIMIT_START_PU;
     alignment_elapsed_s = 0.0f;
     speed_target_rpm = 0.0f;
     MotorControl_ResetSpeedState(false);
@@ -1584,10 +1582,6 @@ HAL_StatusTypeDef MotorControl_SetCurrentVoltageLimit(float limit_pu)
     interrupt_state = __get_PRIMASK();
     __disable_irq();
     valid = CurrentPi_SetOutputLimit(&current_pi, limit_pu * MOTOR_NOMINAL_VBUS_V);
-    if (valid)
-    {
-        current_voltage_limit_pu = limit_pu;
-    }
     if (interrupt_state == 0U)
     {
         __enable_irq();
