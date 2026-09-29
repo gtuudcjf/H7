@@ -65,7 +65,6 @@ int main(void)
     Advance();
     assert(uart_calls == 1U && usb_calls == 0U);
     assert(memcmp(uart_frame, expected, 36) == 0 && primask == 0U);
-    assert(g_motor_telemetry_debug.usb.dropped == 1U);
     memcpy(saved, uart_frame, 36);
     hUsbDeviceFS.dev_state = USBD_STATE_CONFIGURED;
     hUsbDeviceFS.pClassData = &hUsbDeviceFS;
@@ -83,7 +82,6 @@ int main(void)
     MotorTelemetry_SetUartEnabled(false);
     disconnect_before_mask = 1;
     Advance();
-    assert(g_motor_telemetry_debug.usb.busy); /* reconnect before submission */
     assert(usb_calls == 2U);
     Advance();
     assert(usb_calls == 2U);
@@ -97,15 +95,17 @@ int main(void)
     MotorTelemetry_SetUartEnabled(true);
     uart_result = HAL_BUSY;
     Advance();
-    assert(!g_motor_telemetry_debug.uart.busy);
+    assert(uart_calls == 2U);
     uart_result = HAL_ERROR;
     Advance();
-    assert(g_motor_telemetry_debug.uart.errors == 1U);
+    assert(uart_calls == 3U); /* HAL_BUSY did not leave the port claimed. */
     MotorTelemetry_SetUsbEnabled(true);
     usb_result = USBD_FAIL;
     usb_irq = 0U;
     Advance();
-    assert(!g_motor_telemetry_debug.usb.busy && usb_irq == 0U);
+    assert(usb_calls == 3U && usb_irq == 0U);
+    Advance();
+    assert(usb_calls == 4U); /* A failed submission is retried next period. */
     puts("motor telemetry adapter tests passed");
     return 0;
 }

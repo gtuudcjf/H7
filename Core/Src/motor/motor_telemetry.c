@@ -5,24 +5,6 @@
 extern USBD_HandleTypeDef hUsbDeviceFS;
 static MotorTelemetryCore telemetry;
 static UART_HandleTypeDef *telemetry_uart;
-volatile MotorTelemetryDebug g_motor_telemetry_debug;
-
-static void PublishPort(volatile MotorTelemetryPortDebug *debug,
-                        const MotorTelemetryPort *port)
-{
-    debug->enabled = port->enabled;
-    debug->busy = port->busy;
-    debug->completed = port->completed;
-    debug->dropped = port->dropped;
-    debug->errors = port->errors;
-}
-
-static void PublishDebug(void)
-{
-    PublishPort(&g_motor_telemetry_debug.uart, &telemetry.port[MOTOR_TELEMETRY_UART]);
-    PublishPort(&g_motor_telemetry_debug.usb, &telemetry.port[MOTOR_TELEMETRY_USB]);
-    g_motor_telemetry_debug.invalid_values = telemetry.invalid_values;
-}
 
 static MotorTelemetrySendResult SendUart(void *context, uint8_t *frame, uint16_t length)
 {
@@ -59,7 +41,6 @@ void MotorTelemetry_Init(UART_HandleTypeDef *uart, bool uart_enabled, bool usb_e
 {
     telemetry_uart = uart;
     MotorTelemetryCore_Init(&telemetry, HAL_GetTick(), uart_enabled, usb_enabled);
-    PublishDebug();
 }
 
 void MotorTelemetry_Service(void)
@@ -87,19 +68,16 @@ void MotorTelemetry_Service(void)
         __set_PRIMASK(primask);
     }
     MotorTelemetryCore_Service(&telemetry, now, values, sinks);
-    PublishDebug();
 }
 
 void MotorTelemetry_SetUartEnabled(bool enabled)
 {
     MotorTelemetryCore_SetEnabled(&telemetry, MOTOR_TELEMETRY_UART, enabled);
-    PublishDebug();
 }
 
 void MotorTelemetry_SetUsbEnabled(bool enabled)
 {
     MotorTelemetryCore_SetEnabled(&telemetry, MOTOR_TELEMETRY_USB, enabled);
-    PublishDebug();
 }
 
 void MotorTelemetry_OnUartComplete(UART_HandleTypeDef *uart)
