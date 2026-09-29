@@ -115,14 +115,12 @@ static FocDq speed_current_reference_target;
 static volatile float speed_target_rpm;
 static float speed_active_target_rpm;
 static uint32_t speed_divider_count;
-static uint32_t speed_control_tick_count;
 static bool speed_mode_waiting_for_estimator;
 
 /* 模式6外层位置P环；输出仍进入既有速度PI和电流PI。 */
 static PositionController position_controller;
 static PositionControllerResult position_result;
 static volatile float position_target_deg;
-static float position_speed_target_rpm;
 static volatile bool position_control_ready;
 
 static uint32_t adc_age_ticks;
@@ -188,7 +186,6 @@ static void MotorControl_ResetPositionState(void)
 {
     memset(&position_result, 0, sizeof(position_result));
     position_target_deg = 0.0f;
-    position_speed_target_rpm = 0.0f;
     position_control_ready = false;
 }
 
@@ -206,7 +203,6 @@ static bool MotorControl_CapturePositionTarget(void)
 
     memset(&position_result, 0, sizeof(position_result));
     position_target_deg = target_deg;
-    position_speed_target_rpm = 0.0f;
     position_control_ready = true;
     return true;
 }
@@ -223,7 +219,6 @@ static void MotorControl_ResetSpeedState(bool reset_estimator)
     speed_current_reference_target.q = 0.0f;
     speed_active_target_rpm = 0.0f;
     speed_divider_count = 0U;
-    speed_control_tick_count = 0U;
     speed_mode_waiting_for_estimator = false;
     MotorControl_ResetPositionState();
 }
@@ -659,8 +654,7 @@ static bool MotorControl_RunSpeedTask(void)
             MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
             return false;
         }
-        position_speed_target_rpm = position_result.speed_target_rpm;
-        requested_speed_rpm = position_speed_target_rpm;
+        requested_speed_rpm = position_result.speed_target_rpm;
     }
 
     maximum_speed_step =
@@ -679,7 +673,6 @@ static bool MotorControl_RunSpeedTask(void)
 
     speed_current_reference_target.d = 0.0f;
     speed_current_reference_target.q = speed_pi_result.iq_command_a;
-    ++speed_control_tick_count;
     return true;
 }
 
@@ -803,7 +796,6 @@ static void MotorControl_ApplyModeRequest(void)
             SpeedPi_Reset(&speed_pi);
             memset(&speed_pi_result, 0, sizeof(speed_pi_result));
             speed_divider_count = 0U;
-            speed_control_tick_count = 0U;
             speed_mode_waiting_for_estimator = true;
             speed_current_reference_target.d = 0.0f;
             speed_current_reference_target.q = current_reference_active.q;

@@ -41,8 +41,10 @@ Assert-Contains $motorSource 'SpeedPi_Step\s*\(' `
     'Motor control does not execute the speed PI.'
 Assert-Contains $motorSource 'SpeedPi_PreloadOutput\s*\(' `
     'Speed mode entry does not preload PI output for a smooth transition.'
-Assert-Contains $motorSource 'speed_control_tick_count' `
-    'Speed-loop execution is not observable in the debugger.'
+Assert-Contains $motorHeader 'speed_iq_command_a' `
+    'The speed PI output must remain observable in the debugger.'
+Assert-Contains $motorHeader 'speed_pi_saturated' `
+    'The speed PI saturation state must remain observable in the debugger.'
 Assert-Contains $mainSource 'MotorControl_SetSpeedCommand\s*\(' `
     'main.c does not preconfigure the speed command.'
 

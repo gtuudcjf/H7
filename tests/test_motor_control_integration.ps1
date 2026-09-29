@@ -54,10 +54,12 @@ foreach ($removed in @(
     'speed_pi_proportional_a', 'speed_pi_integrator_a',
     'ud_integrator_v', 'uq_integrator_v', 'i_alpha_a', 'i_beta_a',
     'encoder_raw', 'encoder_received_crc', 'encoder_calculated_crc',
-    'startup_trace_count', 'startup_trace_stage', 'foreground_service_count'
+    'startup_trace_count', 'startup_trace_stage', 'foreground_service_count',
+    'speed_control_tick_count', 'position_speed_target_rpm'
 )) {
-    Assert-NotContains $header ("\b" + [regex]::Escape($removed) + "\b") `
-        "Redundant motor debug field is still exported: $removed"
+    Assert-NotContains ($header + "`n" + $control) `
+        ("\b" + [regex]::Escape($removed) + "\b") `
+        "Redundant motor diagnostic state is still present: $removed"
 }
 Assert-NotContains ($header + "`n" + $control) 'motor_startup_trace\.h|MotorStartupTrace' `
     'Startup-only trace code must be removed from motor control.'

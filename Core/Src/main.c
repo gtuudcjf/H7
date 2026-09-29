@@ -143,13 +143,7 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
   /*
-   * 建议阅读本工程时把以下三个调用看成三个不同层次：
-   *   BissEncoder_Init()：只建立SPI4/DMA编码器采集对象；
-   *   MotorControl_Init()：只初始化控制状态和软件模块，不启动功率级；
-   *   MotorControl_Start()：按安全顺序启动ADC校准、驱动和实时中断。
-   */
-  /*
-   * 只绑定 SPI4/DMA，不会立即产生编码器时钟。PE6 已在 MX_GPIO_Init()
+   * 这里只绑定 SPI4/DMA，不会产生编码器时钟。PE6 已在 MX_GPIO_Init()
    * 中先配置为低电平，因此编码器接口上电期间不会出现无意义发送。
    */
   if (BissEncoder_Init(&hspi4) != HAL_OK)
@@ -157,12 +151,7 @@ int main(void)
     Error_Handler();
   }
 
-  /*
-   * MotorControl_Init() 只完成以下安全初始化，不向功率级输出 PWM：
-   *   1. 将通用 DRV8323 对象绑定到 SPI2、PC1(CS)、PC4(ENA)；
-   *   2. 清零开环角度和频率状态；
-   *   3. 将 TIM8 CCR1/2/3 预置为50%中性占空比。
-   */
+  /* 初始化控制状态和硬件适配对象，但不使能功率级。 */
   if (MotorControl_Init(&motor_config) != HAL_OK)
   {
     Error_Handler();
@@ -194,7 +183,7 @@ int main(void)
     }
   }
 
-  /* 模式4与模式6共用速度PI；其数值仍由motor_params.h统一管理。 */
+  /* 模式4与模式6共用速度 PI，参数由 motor_params.h 统一管理。 */
   if (MotorControl_SetSpeedPiGains(
           MOTOR_SPEED_PI_KP_A_PER_RPM,
           MOTOR_SPEED_PI_KI_A_PER_RPM_S,
@@ -214,11 +203,6 @@ int main(void)
   MotorTelemetry_Init(&huart1, MOTOR_TELEMETRY_UART_ENABLED,
                       MOTOR_TELEMETRY_USB_ENABLED);
 
-
-  /*
-   * MotorControl_Start() 已启动 ADC 注入中断、TIM8 基准和内部 CH4 采样触发。
-   * 禁止在此重复启动 TIM8，否则 HAL 状态机会返回错误或破坏采样时序。
-   */
 
   /* USER CODE END 2 */
 
