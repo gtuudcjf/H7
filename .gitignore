@@ -6,3 +6,6 @@ MDK-ARM/emptytest/
 MDK-ARM/*.log
 MDK-ARM/*.lst
 MDK-ARM/*.uvguix.*
+
+# J-Link debugger log written during on-target sessions.
+MDK-ARM/JLinkLog.txt
