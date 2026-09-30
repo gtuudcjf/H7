@@ -82,7 +82,7 @@
  * 角度。voltage_slew_pu_per_s用于从电流闭环退回模式1时平滑恢复开环电压。
  */
 static const MotorControlConfig motor_config = {
-  .mode = MOTOR_CONTROL_ENCODER_SPEED_CURRENT,
+  .mode = MOTOR_CONTROL_ENCODER_ANGLE_CURRENT,
   .frequency_slew_hz_per_s = 20.0f,
   .voltage_slew_pu_per_s = 5.0f
 };
@@ -171,7 +171,7 @@ int main(void)
    */
   MotorControl_SetOpenLoopCommand(0.0f, 0.08f, 1.0f);
   MotorControl_SetCurrentCommand(0.0f, 0.8f, 1.0f);
-  MotorControl_SetEncoderCurrentCommand(0.0f, 0.6f);
+  MotorControl_SetEncoderCurrentCommand(0.0f, 0.0f);
   MotorControl_SetSpeedCommand(50.0f);
 
   /* 位置目标只能为 [0, 360) 度；未选择模式6时不预置，避免日后切换时意外转动。 */
