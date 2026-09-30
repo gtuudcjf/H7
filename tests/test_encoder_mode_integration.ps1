@@ -58,8 +58,8 @@ Assert-Contains $main 'while\s*\(1\)[\s\S]*MotorControl_Service\(\)' `
     'The main loop must service calibration completion and Flash writes.'
 Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_(OPEN_VOLTAGE|OPEN_ANGLE_CURRENT|ENCODER_ANGLE_CURRENT|ENCODER_SPEED_CURRENT|ENCODER_POSITION_CURRENT)' `
     'Startup mode selection must accept each implemented mode.'
-Assert-Contains $main 'MotorControl_SetEncoderCurrentCommand\(0\.0f,\s*0\.6f\)' `
-    'The validated encoder-current command must be preloaded before startup.'
+Assert-Contains $main 'MotorControl_SetEncoderCurrentCommand\(0\.0f,\s*0\.0f\)' `
+    'Encoder-current startup must remain at zero current for safe diagnostics.'
 Assert-NotContains $main 'HAL_GetTick\(\)\s*>=' `
     'Production main must not contain time-triggered calibration or motion tests.'
 

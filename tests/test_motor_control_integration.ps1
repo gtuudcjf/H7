@@ -85,8 +85,8 @@ Assert-Contains $main 'MotorControl_SetOpenLoopCommand\(0\.0f,\s*0\.08f,\s*1\.0f
     'The voltage-open-loop startup profile must be initialized independently of mode selection.'
 Assert-Contains $main 'MotorControl_SetCurrentCommand\(0\.0f,\s*0\.8f,\s*1\.0f\)' `
     'The open-angle current startup profile must be initialized independently of mode selection.'
-Assert-Contains $main 'MotorControl_SetEncoderCurrentCommand\(0\.0f,\s*0\.6f\)' `
-    'The encoder-angle current startup profile must be initialized independently of mode selection.'
+Assert-Contains $main 'MotorControl_SetEncoderCurrentCommand\(0\.0f,\s*0\.0f\)' `
+    'The encoder-angle current startup profile must remain at zero current for safe diagnostics.'
 Assert-Contains $main 'HAL_ADCEx_InjectedConvCpltCallback' 'ADC injected completion callback must be integrated.'
 Assert-Contains $main 'ADC_INJECTED_RANK_1[\s\S]*ADC_INJECTED_RANK_2' 'ADC callback must read I_A before I_B.'
 
