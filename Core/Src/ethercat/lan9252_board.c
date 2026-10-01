@@ -70,10 +70,19 @@ static LAN9252Status board_transfer(void *context, const uint8_t *tx,
         else memset(tx_chunk, 0, count);
         status = HAL_SPI_TransmitReceive(&hspi1, tx_chunk, rx_chunk, count, timeout_ms);
         if (status == HAL_TIMEOUT) return LAN9252_ERR_DIRECT_TIMEOUT;
-        if (status != HAL_OK) return LAN9252_ERR_IO;
+        /* In H7 HAL V1.12.1 blocking TxRx, FLAG is set only when the EOT
+         * wait times out, then the API returns HAL_ERROR. Its tick timeout
+         * can precede the DWT budget, so elapsed time alone cannot detect it.
+         * Read the error code only for HAL_ERROR: HAL_BUSY can retain stale
+         * error flags from an earlier call. */
+        if (status == HAL_ERROR &&
+            (HAL_SPI_GetError(&hspi1) & HAL_SPI_ERROR_FLAG) != 0U) {
+            return LAN9252_ERR_DIRECT_TIMEOUT;
+        }
         if (board_time_us(context) - start >= timeout_us) {
             return LAN9252_ERR_DIRECT_TIMEOUT;
         }
+        if (status != HAL_OK) return LAN9252_ERR_IO;
         if (rx != NULL) { memcpy(rx, rx_chunk, count); rx += count; }
         if (tx != NULL) tx += count;
         length -= count;

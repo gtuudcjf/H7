@@ -14,6 +14,7 @@ static unsigned calls, cs_writes, wire_length;
 static uint8_t wire[256];
 static uint32_t cs, last_timeout, duration_us;
 static HAL_StatusTypeDef response;
+static uint32_t response_error;
 static unsigned checks;
 #define CHECK(expr) do { ++checks; if (!(expr)) { \
     fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, #expr); exit(1); } } while (0)
@@ -21,6 +22,9 @@ static void advance_cycles(uint64_t count) {
     cycles += count; test_dwt.CYCCNT = (uint32_t)cycles;
 }
 uint32_t HAL_GetTick(void) { return (uint32_t)(cycles / 480000U); }
+uint32_t HAL_SPI_GetError(const SPI_HandleTypeDef *spi) {
+    CHECK(spi == &hspi1); return spi->ErrorCode;
+}
 void HAL_GPIO_WritePin(void *port, uint16_t pin, uint32_t state) {
     CHECK(port == GPIOA && pin == GPIO_PIN_4); cs = state; ++cs_writes;
 }
@@ -31,6 +35,7 @@ HAL_StatusTypeDef HAL_SPI_TransmitReceive(SPI_HandleTypeDef *spi,
     CHECK(length > 0 && length <= 32 && timeout > 0 && timeout < 0xffffffffU);
     CHECK(wire_length + length <= sizeof(wire));
     ++calls; last_timeout = timeout;
+    spi->ErrorCode = response_error;
     for (i = 0; i < length; ++i) {
         wire[wire_length++] = tx[i]; rx[i] = (uint8_t)(0xa0U + i);
     }
@@ -39,7 +44,8 @@ HAL_StatusTypeDef HAL_SPI_TransmitReceive(SPI_HandleTypeDef *spi,
 }
 static void reset_bus(void) {
     calls = cs_writes = wire_length = duration_us = 0;
-    response = HAL_OK; memset(wire, 0xcc, sizeof(wire));
+    response = HAL_OK; response_error = HAL_SPI_ERROR_NONE;
+    memset(wire, 0xcc, sizeof(wire));
 }
 int main(void) {
     const LAN9252Transport *t = LAN9252_BoardTransport();
@@ -112,6 +118,26 @@ int main(void) {
     reset_bus(); response = HAL_ERROR;
     CHECK(LAN9252_ReadDirect(&ctx, 0x0064, rx, 4) == LAN9252_ERR_IO);
     CHECK(calls == 1 && cs_writes == 2 && cs == GPIO_PIN_SET);
+    LAN9252_InitContext(&ctx, t);
+    reset_bus(); response = HAL_ERROR; response_error = HAL_SPI_ERROR_FLAG;
+    duration_us = 1000; /* H7 EOT wait expires, then HAL returns HAL_ERROR. */
+    CHECK(LAN9252_ReadDirect(&ctx, 0x0064, rx, 4) == LAN9252_ERR_DIRECT_TIMEOUT);
+    CHECK(ctx.last_error == LAN9252_ERR_DIRECT_TIMEOUT && ctx.timeout_count == 1);
+    CHECK(calls == 1 && cs_writes == 2 && cs == GPIO_PIN_SET);
+    reset_bus(); response = HAL_ERROR; response_error = HAL_SPI_ERROR_OVR;
+    CHECK(LAN9252_ReadDirect(&ctx, 0x0064, rx, 4) == LAN9252_ERR_IO);
+    CHECK(ctx.last_error == LAN9252_ERR_IO && ctx.timeout_count == 1);
+    CHECK(calls == 1 && cs_writes == 2 && cs == GPIO_PIN_SET);
+    reset_bus(); response = HAL_ERROR; response_error = HAL_SPI_ERROR_FLAG;
+    duration_us = 100; /* Millisecond tick edge can precede the DWT budget. */
+    CHECK(LAN9252_ReadDirect(&ctx, 0x0064, rx, 4) == LAN9252_ERR_DIRECT_TIMEOUT);
+    CHECK(ctx.timeout_count == 2 && calls == 1 && cs_writes == 2 && cs == GPIO_PIN_SET);
+    reset_bus(); response = HAL_ERROR; duration_us = 1000;
+    CHECK(LAN9252_ReadDirect(&ctx, 0x0064, rx, 4) == LAN9252_ERR_DIRECT_TIMEOUT);
+    CHECK(ctx.timeout_count == 3 && calls == 1 && cs_writes == 2 && cs == GPIO_PIN_SET);
+    reset_bus(); response = HAL_BUSY; response_error = HAL_SPI_ERROR_FLAG;
+    CHECK(t->transfer(t->context, tx, rx, 5, 1000) == LAN9252_ERR_IO);
+    CHECK(calls == 1 && cs_writes == 0); /* busy must not consume stale FLAG */
     reset_bus(); response = HAL_TIMEOUT;
     CHECK(LAN9252_ReadDirect(&ctx, 0x0064, rx, 4) == LAN9252_ERR_DIRECT_TIMEOUT);
     CHECK(calls == 1 && cs_writes == 2 && cs == GPIO_PIN_SET);
