@@ -1,3 +1,4 @@
+param([switch]$HardwareOnly)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 
@@ -56,7 +57,9 @@ $spi123Hz = ([decimal]$hseHz / $pllM) * $pllN / $pllQ
 if ($spi123Hz -ne 64000000) {
     throw "SPI123 PLL clock must be 64 MHz: HSE_VALUE=$hseHz / M=$pllM * N=$pllN / Q=$pllQ gives $spi123Hz Hz."
 }
-Require $main 'MX_SPI1_Init\s*\(\s*\)' 'main.c must initialize SPI1.'
+if (-not $HardwareOnly) {
+    Require $main 'MX_SPI1_Init\s*\(\s*\)' 'main.c must initialize SPI1.'
+}
 
 Require $gpio 'HAL_GPIO_WritePin\s*\(\s*GPIOA\s*,\s*GPIO_PIN_4\s*,\s*GPIO_PIN_SET\s*\)' 'PA4 CS must start high.'
 Require $gpio 'GPIO_PIN_4[\s\S]{0,240}GPIO_MODE_OUTPUT_PP[\s\S]{0,240}HAL_GPIO_Init\s*\(\s*GPIOA' 'PA4 must be push-pull output.'
@@ -72,10 +75,30 @@ foreach ($pin in 0,1,3) {
     Forbid $ioc "(?m)^PE$pin\.Signal=GPIO_EXTI" "PE$pin must not use EXTI."
 }
 Require $gpio 'GPIO_InitStruct\.Pin\s*=\s*(?=[^;]*\bGPIO_PIN_0\b)(?=[^;]*\bGPIO_PIN_1\b)(?=[^;]*\bGPIO_PIN_3\b)[^;]+;[\s\S]{0,200}GPIO_InitStruct\.Mode\s*=\s*GPIO_MODE_INPUT\s*;[\s\S]{0,250}HAL_GPIO_Init\s*\(\s*GPIOE\s*,\s*&GPIO_InitStruct\s*\)' 'PE0/1/3 must be initialized as GPIOE inputs without EXTI.'
-Require $project 'ETHERCAT_BRINGUP_ONLY=1' 'Keil target must define ETHERCAT_BRINGUP_ONLY=1.'
-Require $project 'Core[\\/]Inc[\\/]ethercat' 'Keil target needs the EtherCAT include path.'
-Require $project 'lan9252_spi\.c' 'Keil target is missing LAN9252 SPI source.'
-Require $project 'ethercat_service\.c' 'Keil target is missing EtherCAT service source.'
+if (-not $HardwareOnly) {
+    Require $project 'ETHERCAT_BRINGUP_ONLY=1' 'Keil target must define ETHERCAT_BRINGUP_ONLY=1.'
+    Require $project 'Core[\\/]Inc[\\/]ethercat' 'Keil target needs the EtherCAT include path.'
+    Require $project 'lan9252_spi\.c' 'Keil target is missing LAN9252 SPI source.'
+    Require $project 'ethercat_service\.c' 'Keil target is missing EtherCAT service source.'
+    Require $project 'lan9252_board\.c' 'Keil target is missing LAN9252 board source.'
+}
+
+foreach ($setting in @{
+    Mode='SPI_MODE_MASTER'; Direction='SPI_DIRECTION_2LINES';
+    DataSize='SPI_DATASIZE_8BIT'; FirstBit='SPI_FIRSTBIT_MSB'; NSS='SPI_NSS_SOFT'
+}.GetEnumerator()) {
+    Require $spi "hspi1\.Init\.$($setting.Key)\s*=\s*$($setting.Value)\s*;" "SPI1 $($setting.Key) is incorrect."
+    Require $ioc "(?m)^SPI1\.$($setting.Key)=$($setting.Value)\s*`$" "CubeMX SPI1 $($setting.Key) is incorrect."
+}
+Require $ioc '(?m)^PA4\.GPIO_Speed=GPIO_SPEED_FREQ_MEDIUM\s*$' 'CubeMX PA4 must use medium speed.'
+Require $ioc '(?m)^PA4\.GPIO_PuPd=GPIO_NOPULL\s*$' 'CubeMX PA4 must not use pull resistors.'
+Require $gpio 'GPIO_PIN_4[\s\S]{0,240}GPIO_MODE_OUTPUT_PP[\s\S]{0,120}GPIO_NOPULL[\s\S]{0,120}GPIO_SPEED_FREQ_MEDIUM[\s\S]{0,120}HAL_GPIO_Init\s*\(\s*GPIOA' 'PA4 must use no pull and medium speed.'
+Require $ioc 'ProjectManager\.functionlistsort=[^\r\n]*MX_SPI1_Init-SPI1' 'CubeMX initialization order must include SPI1.'
+$board = Read-Required 'Core/Src/ethercat/lan9252_board.c'
+$boardHeader = Read-Required 'Core/Inc/ethercat/lan9252_board.h'
+Require $boardHeader 'const\s+LAN9252Transport\s*\*\s*LAN9252_BoardTransport\s*\(void\)' 'Board transport API is missing.'
+Require $board 'HAL_SPI_TransmitReceive' 'Board adapter must use blocking full-duplex SPI.'
+Forbid $board 'HAL_MAX_DELAY|HAL_SPI_\w+_(?:DMA|IT)\s*\(|__disable_irq\s*\(' 'Board adapter must use finite blocking calls without DMA/IRQ or global interrupt masking.'
 
 $existing = @{ 2 = 32; 3 = 64; 4 = 128 }
 foreach ($number in 2,3,4) {

@@ -23,9 +23,12 @@ typedef enum {
 } LAN9252Status;
 
 /* Synchronous full-duplex transport. NULL tx clocks zero bytes; NULL rx
- * discards incoming bytes. Must return within timeout_us, using ERR_IO for
+ * discards incoming bytes. Must bound calls by timeout_us, using ERR_IO for
  * bus errors and ERR_DIRECT_TIMEOUT for a timeout. It must not control CS.
  * time_us must keep advancing during polling and wrap naturally at 32 bits.
+ * A blocking HAL adapter may document its minimum timeout granularity; the
+ * H743 board adapter permits <1 ms extra wait for sub-ms remaining budgets,
+ * plus execution/interrupt overhead, and reports late completion as timeout.
  * Calls on the same controller must be serialized by the caller (no ISR use).
  */
 typedef LAN9252Status (*LAN9252TransferFn)(void *context,

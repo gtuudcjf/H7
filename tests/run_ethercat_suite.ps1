@@ -3,7 +3,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 $failures = @()
 $pending = @()
 
-foreach ($name in 'test_ethercat_h7_config','test_ethercat_identity','test_ethercat_ssc_integration') {
+foreach ($name in 'test_ethercat_h7_config','test_ethercat_identity','test_ethercat_ssc_integration','test_lan9252_board') {
     $script = Join-Path $PSScriptRoot "$name.ps1"
     try {
         & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
