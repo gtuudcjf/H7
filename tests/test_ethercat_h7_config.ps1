@@ -46,6 +46,11 @@ $hseHz = Read-ClockNumber $halConfig '(?m)^\s*#\s*define\s+HSE_VALUE\s+\(?\s*(\d
 $pllM = Read-ClockNumber $main 'RCC_OscInitStruct\.PLL\.PLLM\s*=\s*(\d+)\s*;' 'PLL1 M'
 $pllN = Read-ClockNumber $main 'RCC_OscInitStruct\.PLL\.PLLN\s*=\s*(\d+)\s*;' 'PLL1 N'
 $pllQ = Read-ClockNumber $main 'RCC_OscInitStruct\.PLL\.PLLQ\s*=\s*(\d+)\s*;' 'PLL1 Q'
+$pllFrac = Read-ClockNumber $main 'RCC_OscInitStruct\.PLL\.PLLFRACN\s*=\s*(\d+)\s*;' 'PLL1 FRACN'
+$iocFrac = Read-ClockNumber $ioc '(?m)^RCC\.PLLFRACN=(\d+)\s*$' 'CubeMX PLL1 FRACN'
+if ($pllFrac -ne 0 -or $iocFrac -ne 0) {
+    throw "SPI123 clock calculation requires PLL1 fractional mode disabled (generated FRACN=$pllFrac, CubeMX FRACN=$iocFrac)."
+}
 if ($pllM -eq 0 -or $pllQ -eq 0) { throw 'PLL1 M and Q divisors must be nonzero.' }
 $spi123Hz = ([decimal]$hseHz / $pllM) * $pllN / $pllQ
 if ($spi123Hz -ne 64000000) {
