@@ -42,8 +42,8 @@ foreach ($test in $nativeTests) {
                 if (-not $compiler) { throw 'TinyCC executable unavailable.' }
             }
         }
-        $implementation = Join-Path $projectRoot $test.Source
-        if (-not (Test-Path -LiteralPath $implementation -PathType Leaf)) { throw "implementation absent: $($test.Source)" }
+        # Let the compiler diagnose missing production headers/sources as well
+        # as C errors, so the native branch supports a real test-first run.
         $exe = Join-Path $env:TEMP "$name.exe"
         Push-Location $projectRoot
         try {
