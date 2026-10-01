@@ -26,7 +26,13 @@ Require $spi 'SPI_HandleTypeDef\s+hspi1\s*;' 'SPI1 handle is missing.'
 Require $spi 'void\s+MX_SPI1_Init\s*\(void\)' 'MX_SPI1_Init is missing.'
 Require $spi 'hspi1\.Instance\s*=\s*SPI1\s*;' 'SPI1 instance is incorrect.'
 Require $spi 'hspi1\.Init\.BaudRatePrescaler\s*=\s*SPI_BAUDRATEPRESCALER_16\s*;' 'SPI1 prescaler must be 16.'
+Require $spi 'hspi1\.Init\.CLKPolarity\s*=\s*SPI_POLARITY_LOW\s*;' 'SPI1 must use CPOL low.'
+Require $spi 'hspi1\.Init\.CLKPhase\s*=\s*SPI_PHASE_1EDGE\s*;' 'SPI1 must use first-edge sampling.'
+Require $spi 'spiHandle->Instance\s*==\s*SPI1[\s\S]{0,700}Spi123ClockSelection\s*=\s*RCC_SPI123CLKSOURCE_PLL\s*;' 'SPI1 must select the 64 MHz SPI123 PLL kernel.'
 Require $ioc '(?m)^SPI1\.BaudRatePrescaler=SPI_BAUDRATEPRESCALER_16\s*$' 'CubeMX SPI1 prescaler must be 16.'
+Require $ioc '(?m)^SPI1\.CLKPolarity=SPI_POLARITY_LOW\s*$' 'CubeMX SPI1 must use CPOL low.'
+Require $ioc '(?m)^SPI1\.CLKPhase=SPI_PHASE_1EDGE\s*$' 'CubeMX SPI1 must use first-edge sampling.'
+Require $ioc '(?m)^RCC\.SPI123Freq_Value=64000000\s*$' 'SPI123 kernel must be 64 MHz for a 4 MHz SPI1 clock.'
 Require $main 'MX_SPI1_Init\s*\(\s*\)' 'main.c must initialize SPI1.'
 
 Require $gpio 'HAL_GPIO_WritePin\s*\(\s*GPIOA\s*,\s*GPIO_PIN_4\s*,\s*GPIO_PIN_SET\s*\)' 'PA4 CS must start high.'
@@ -37,11 +43,12 @@ $spi1Pins = @{ PA5='SPI1_SCK'; PA6='SPI1_MISO'; PA7='SPI1_MOSI' }
 foreach ($pin in $spi1Pins.Keys) {
     Require $ioc "(?m)^$pin\.Signal=$($spi1Pins[$pin])\s*`$" "$pin SPI1 assignment is incorrect."
 }
-Require $spi 'GPIO_PIN_5\|GPIO_PIN_6\|GPIO_PIN_7[\s\S]{0,250}GPIO_AF5_SPI1' 'PA5/6/7 must use SPI1 AF5.'
+Require $spi 'GPIO_InitStruct\.Pin\s*=\s*(?=[^;]*\bGPIO_PIN_5\b)(?=[^;]*\bGPIO_PIN_6\b)(?=[^;]*\bGPIO_PIN_7\b)[^;]+;[\s\S]{0,350}GPIO_InitStruct\.Alternate\s*=\s*GPIO_AF5_SPI1\s*;[\s\S]{0,120}HAL_GPIO_Init\s*\(\s*GPIOA\s*,\s*&GPIO_InitStruct\s*\)' 'PA5/6/7 must be initialized on GPIOA with SPI1 AF5.'
 foreach ($pin in 0,1,3) {
     Require $ioc "(?m)^PE$pin\.Signal=GPIO_Input\s*`$" "PE$pin must be GPIO input."
     Forbid $ioc "(?m)^PE$pin\.Signal=GPIO_EXTI" "PE$pin must not use EXTI."
 }
+Require $gpio 'GPIO_InitStruct\.Pin\s*=\s*(?=[^;]*\bGPIO_PIN_0\b)(?=[^;]*\bGPIO_PIN_1\b)(?=[^;]*\bGPIO_PIN_3\b)[^;]+;[\s\S]{0,200}GPIO_InitStruct\.Mode\s*=\s*GPIO_MODE_INPUT\s*;[\s\S]{0,250}HAL_GPIO_Init\s*\(\s*GPIOE\s*,\s*&GPIO_InitStruct\s*\)' 'PE0/1/3 must be initialized as GPIOE inputs without EXTI.'
 Require $project 'ETHERCAT_BRINGUP_ONLY=1' 'Keil target must define ETHERCAT_BRINGUP_ONLY=1.'
 Require $project 'Core[\\/]Inc[\\/]ethercat' 'Keil target needs the EtherCAT include path.'
 Require $project 'lan9252_spi\.c' 'Keil target is missing LAN9252 SPI source.'
