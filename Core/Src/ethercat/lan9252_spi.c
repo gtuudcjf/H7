@@ -73,7 +73,8 @@ static LAN9252Status direct(LAN9252Context *ctx, uint16_t address,
 }
 static int valid_direct(LAN9252Context *ctx, uint16_t address, const void *data, size_t length)
 {
-    return valid_context(ctx) && data && length && length <= (size_t)0x10000u - address;
+    return valid_context(ctx) && data && length == 4u &&
+           !(address & 3u) && address < 0x4000u;
 }
 LAN9252Status LAN9252_ReadDirect(LAN9252Context *ctx, uint16_t address, uint8_t *data, size_t length)
 {

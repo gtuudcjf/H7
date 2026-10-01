@@ -62,9 +62,13 @@ typedef struct {
 
 /* Init drives CS idle when a deselect callback is supplied. All public calls
  * record their final status, with one timeout_count increment per failed call.
- * Zero lengths, NULL buffers, wraparound and out-of-range ESC accesses fail
- * before bus activity. ESC requests must fit wholly within CSR [0,0x1000) or
- * PRAM [0x1000,0x2000). Buffers may have any byte alignment. On failure a read
+ * Direct accesses require length == 4, a DWORD-aligned physical address below
+ * 0x4000, and thus zero SPI address-mode bits [15:14]. This API does not accept
+ * partial DWORDs or multi-register transfers (DS00001909A sections 10.2/10.2.6.1).
+ * Invalid lengths/addresses and NULL buffers fail before bus activity.
+ * ESC requests may have arbitrary nonzero byte lengths and must fit wholly
+ * within CSR [0,0x1000) or PRAM [0x1000,0x2000).
+ * Buffers may have any byte alignment. On failure a read
  * buffer may be partially updated; callers must discard it. A write may have
  * partially reached the device. Probe clears its result and retains fields
  * read before an error for diagnostics; it never writes ESC configuration.

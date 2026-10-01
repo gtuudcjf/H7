@@ -111,13 +111,51 @@ static void csr_write(const char *data, const char *command)
 }
 static void test_direct(void)
 {
-    uint8_t b[8] = {0xee};
+    uint8_t b[6] = {0xee,0,0,0,0,0xdd};
     reset();
-    frame("0b 12 34 00 00 00 00 00 00 00", "00 00 00 00 21 43 65 87 a9 cb");
-    result(LAN9252_ReadDirect(&ctx, 0x1234, b + 1, 6), LAN9252_OK, 0);
-    CHECK(!memcmp(b, "\xee\x21\x43\x65\x87\xa9\xcb\x00", 8));
-    reset(); frame("02 12 34 21 43 65 87 a9 cb", NULL);
-    result(LAN9252_WriteDirect(&ctx, 0x1234, b + 1, 6), LAN9252_OK, 0);
+    frame("0b 12 34 00 00 00 00 00", "00 00 00 00 21 43 65 87");
+    result(LAN9252_ReadDirect(&ctx, 0x1234, b + 1, 4), LAN9252_OK, 0);
+    CHECK(!memcmp(b, "\xee\x21\x43\x65\x87\xdd", 6));
+    reset(); frame("02 12 34 21 43 65 87", NULL);
+    result(LAN9252_WriteDirect(&ctx, 0x1234, b + 1, 4), LAN9252_OK, 0);
+    CHECK(!memcmp(b, "\xee\x21\x43\x65\x87\xdd", 6));
+    reset(); frame("0b 3f fc 00 00 00 00 00", "00 00 00 00 21 43 65 87");
+    result(LAN9252_ReadDirect(&ctx, 0x3ffc, b + 1, 4), LAN9252_OK, 0);
+    CHECK(!memcmp(b, "\xee\x21\x43\x65\x87\xdd", 6));
+    reset(); frame("02 3f fc 21 43 65 87", NULL);
+    result(LAN9252_WriteDirect(&ctx, 0x3ffc, b + 1, 4), LAN9252_OK, 0);
+}
+static void test_direct_rejects_invalid_transactions(void)
+{
+    static const size_t lengths[] = {1,0,2,3,5,6,8,(size_t)-1};
+    static const uint16_t addresses[] = {
+        0x1235,0x1236,0x1237,0x3ffd,0x3ffe,0x3fff,0x4000,0x8000,0xc000,0xfffc
+    };
+    uint8_t b[10]; unsigned i; int write;
+    /* Removing validation would issue SPI traffic for incomplete DWORDs,
+     * unaligned registers, or an encoded SPI address mode. */
+    for(write=0;write<2;++write) for(i=0;i<sizeof(lengths)/sizeof(lengths[0]);++i) {
+        LAN9252Status status;
+        reset();memset(b,0xa5,sizeof(b));
+        /* A valid wire fixture for the first regression makes old code return
+         * OK, proving the failure is API acceptance rather than fake setup. */
+        if(i==0) frame(write ? "02 12 34 a5" : "0b 12 34 00 00",
+                       write ? NULL : "00 00 00 00 a5");
+        status = write ? LAN9252_WriteDirect(&ctx,0x1234,b+1,lengths[i]) :
+                         LAN9252_ReadDirect(&ctx,0x1234,b+1,lengths[i]);
+        if(status!=LAN9252_ERR_ARGUMENT)
+            fprintf(stderr,"invalid Direct length %lu accepted: status=%d\n",(unsigned long)lengths[i],(int)status);
+        result(status,LAN9252_ERR_ARGUMENT,0);
+        CHECK(f.calls==0 && f.selects==0);
+        CHECK(!memcmp(b,"\xa5\xa5\xa5\xa5\xa5\xa5\xa5\xa5\xa5\xa5",10));
+    }
+    for(write=0;write<2;++write) for(i=0;i<sizeof(addresses)/sizeof(addresses[0]);++i) {
+        reset();memset(b,0xa5,sizeof(b));
+        result(write ? LAN9252_WriteDirect(&ctx,addresses[i],b+1,4) :
+                       LAN9252_ReadDirect(&ctx,addresses[i],b+1,4),LAN9252_ERR_ARGUMENT,0);
+        CHECK(f.calls==0 && f.selects==0);
+        CHECK(!memcmp(b,"\xa5\xa5\xa5\xa5\xa5\xa5\xa5\xa5\xa5\xa5",10));
+    }
 }
 static void test_csr(void)
 {
@@ -310,7 +348,7 @@ static void test_arguments(void)
 {
     uint8_t b[8]={0}; LAN9252Transport t; LAN9252ProbeResult p;
     reset(); result(LAN9252_ReadDirect(&ctx,0,b,0),LAN9252_ERR_ARGUMENT,0);
-    result(LAN9252_WriteDirect(&ctx,0,NULL,1),LAN9252_ERR_ARGUMENT,0);
+    result(LAN9252_WriteDirect(&ctx,0,NULL,4),LAN9252_ERR_ARGUMENT,0);
     result(LAN9252_ReadDirect(&ctx,0xffff,b,2),LAN9252_ERR_ARGUMENT,0);
     result(LAN9252_WriteDirect(&ctx,0,b,(size_t)-1),LAN9252_ERR_ARGUMENT,0);
     result(LAN9252_ReadEsc(&ctx,0xfff,b,2),LAN9252_ERR_ARGUMENT,0);
@@ -318,12 +356,12 @@ static void test_arguments(void)
     result(LAN9252_ReadEsc(&ctx,0x2000,b,1),LAN9252_ERR_ARGUMENT,0);
     result(LAN9252_WriteEsc(&ctx,0x1000,NULL,1),LAN9252_ERR_ARGUMENT,0);
     result(LAN9252_Probe(&ctx,NULL),LAN9252_ERR_ARGUMENT,0);
-    CHECK(LAN9252_ReadDirect(NULL,0,b,1)==LAN9252_ERR_ARGUMENT);
+    CHECK(LAN9252_ReadDirect(NULL,0,b,4)==LAN9252_ERR_ARGUMENT);
     CHECK(LAN9252_WriteEsc(NULL,0,b,1)==LAN9252_ERR_ARGUMENT);
     CHECK(LAN9252_Probe(NULL,&p)==LAN9252_ERR_ARGUMENT);
     CHECK(f.selects==0);
     t=ctx.transport;t.time_us=NULL;LAN9252_InitContext(&ctx,&t);
-    result(LAN9252_ReadDirect(&ctx,0,b,1),LAN9252_ERR_ARGUMENT,0);
+    result(LAN9252_ReadDirect(&ctx,0,b,4),LAN9252_ERR_ARGUMENT,0);
     LAN9252_InitContext(&ctx,NULL);
     result(LAN9252_ReadEsc(&ctx,0,b,1),LAN9252_ERR_ARGUMENT,0);
     LAN9252_InitContext(NULL,NULL);
@@ -405,6 +443,7 @@ static void test_diagnostics_and_bad_transports(void)
 }
 int main(void)
 {
+    test_direct_rejects_invalid_transactions();
     test_direct();test_csr();test_pram();test_probe();test_timeouts();
     test_transport_failures();test_arguments();
     test_delayed_progress_and_wrap();test_more_than_fifo_capacity();
