@@ -17,8 +17,15 @@ $spi = Read-Required 'Core/Src/spi.c'
 $header = Read-Required 'Core/Inc/spi.h'
 $gpio = Read-Required 'Core/Src/gpio.c'
 $main = Read-Required 'Core/Src/main.c'
+$halConfig = Read-Required 'Core/Inc/stm32h7xx_hal_conf.h'
 $ioc = Read-Required 'emptytest.ioc'
 $project = Read-Required 'MDK-ARM/emptytest.uvprojx'
+
+function Read-ClockNumber([string]$text, [string]$pattern, [string]$name) {
+    $match = [regex]::Match($text, $pattern)
+    if (-not $match.Success) { throw "Missing generated clock setting: $name." }
+    return [int64]$match.Groups[1].Value
+}
 
 Require $header 'extern\s+SPI_HandleTypeDef\s+hspi1\s*;' 'SPI1 handle is not exported.'
 Require $header 'void\s+MX_SPI1_Init\s*\(void\)' 'MX_SPI1_Init prototype is missing.'
@@ -33,6 +40,17 @@ Require $ioc '(?m)^SPI1\.BaudRatePrescaler=SPI_BAUDRATEPRESCALER_16\s*$' 'CubeMX
 Require $ioc '(?m)^SPI1\.CLKPolarity=SPI_POLARITY_LOW\s*$' 'CubeMX SPI1 must use CPOL low.'
 Require $ioc '(?m)^SPI1\.CLKPhase=SPI_PHASE_1EDGE\s*$' 'CubeMX SPI1 must use first-edge sampling.'
 Require $ioc '(?m)^RCC\.SPI123Freq_Value=64000000\s*$' 'SPI123 kernel must be 64 MHz for a 4 MHz SPI1 clock.'
+Require $main 'RCC_OscInitStruct\.PLL\.PLLSource\s*=\s*RCC_PLLSOURCE_HSE\s*;' 'PLL1 must use the external HSE oscillator.'
+Require $ioc '(?m)^RCC\.PLLSourceVirtual=RCC_PLLSOURCE_HSE\s*$' 'CubeMX PLL source must be HSE.'
+$hseHz = Read-ClockNumber $halConfig '(?m)^\s*#\s*define\s+HSE_VALUE\s+\(?\s*(\d+)' 'HSE_VALUE'
+$pllM = Read-ClockNumber $main 'RCC_OscInitStruct\.PLL\.PLLM\s*=\s*(\d+)\s*;' 'PLL1 M'
+$pllN = Read-ClockNumber $main 'RCC_OscInitStruct\.PLL\.PLLN\s*=\s*(\d+)\s*;' 'PLL1 N'
+$pllQ = Read-ClockNumber $main 'RCC_OscInitStruct\.PLL\.PLLQ\s*=\s*(\d+)\s*;' 'PLL1 Q'
+if ($pllM -eq 0 -or $pllQ -eq 0) { throw 'PLL1 M and Q divisors must be nonzero.' }
+$spi123Hz = ([decimal]$hseHz / $pllM) * $pllN / $pllQ
+if ($spi123Hz -ne 64000000) {
+    throw "SPI123 PLL clock must be 64 MHz: HSE_VALUE=$hseHz / M=$pllM * N=$pllN / Q=$pllQ gives $spi123Hz Hz."
+}
 Require $main 'MX_SPI1_Init\s*\(\s*\)' 'main.c must initialize SPI1.'
 
 Require $gpio 'HAL_GPIO_WritePin\s*\(\s*GPIOA\s*,\s*GPIO_PIN_4\s*,\s*GPIO_PIN_SET\s*\)' 'PA4 CS must start high.'
