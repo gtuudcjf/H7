@@ -17,7 +17,9 @@ foreach ($name in 'test_ethercat_h7_config','test_ethercat_identity','test_ether
 
 $nativeTests = @(
     @{ Name='test_lan9252_protocol'; Source='Core/Src/ethercat/lan9252_spi.c' },
-    @{ Name='test_ethercat_app'; Source='Core/Src/ethercat/ethercat_app_core.c' }
+    @{ Name='test_ethercat_app'; Source=@('Core/Src/ethercat/ethercat_app_core.c') },
+    @{ Name='test_lan9252_port'; Source=@('Core/Src/ethercat/lan9252_port.c','Core/Src/ethercat/ethercat_service.c','Core/Src/ethercat/ethercat_app_core.c'); Includes=@('Middlewares/Third_Party/EtherCAT_SSC/Inc') },
+    @{ Name='test_ethercat_service'; Source=@('Core/Src/ethercat/ethercat_service.c','Core/Src/ethercat/ethercat_app_core.c'); Includes=@('tests/stubs/ethercat') }
 )
 $compiler = $null
 foreach ($test in $nativeTests) {
@@ -49,7 +51,9 @@ foreach ($test in $nativeTests) {
         $exe = Join-Path $env:TEMP "$name.exe"
         Push-Location $projectRoot
         try {
-            & $compiler -Wall -Werror -I Core/Inc/ethercat "tests/$name.c" $test.Source -o $exe
+            $includeArgs = @()
+            foreach ($include in $test.Includes) { $includeArgs += @('-I', $include) }
+            & $compiler -Wall -Werror @includeArgs -I Core/Inc/ethercat "tests/$name.c" @($test.Source) -o $exe
             if ($LASTEXITCODE -ne 0) { throw "compile exit code $LASTEXITCODE" }
             & $exe
             if ($LASTEXITCODE -ne 0) { throw "test exit code $LASTEXITCODE" }

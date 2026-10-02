@@ -19,7 +19,8 @@ typedef enum {
     LAN9252_ERR_PDI,
     LAN9252_ERR_CSR_TIMEOUT,
     LAN9252_ERR_PRAM_TIMEOUT,
-    LAN9252_ERR_EEPROM
+    LAN9252_ERR_EEPROM,
+    LAN9252_ERR_SM_TIMEOUT
 } LAN9252Status;
 
 /* Synchronous full-duplex transport. NULL tx clocks zero bytes; NULL rx
