@@ -104,8 +104,10 @@ foreach ($unit in 'ecatappl', 'ecatslv', 'coeappl', 'ecatcoe') {
     $path = "Middlewares/Third_Party/EtherCAT_SSC/Src/$unit.c"
     $baseline = (& git -C $root show "2dbba1fd6b944284dfc1953be1491dbcdb034188:$path") -join "`n"
     if ($LASTEXITCODE -ne 0) { throw "Cannot read reviewed SSC baseline: $unit" }
-    $baseline = $baseline.TrimEnd("`n")
-    $current = (Get-Content -LiteralPath (Join-Path $root $path) -Raw).Replace("`r`n", "`n").TrimEnd("`n")
+    # Task 9 mechanically trims imported trailing whitespace/blank EOF lines.
+    # Compare the same normalized text so substantive vendor deltas stay exact.
+    $baseline = ($baseline -replace '(?m)[ \t]+$', '').TrimEnd("`n")
+    $current = ((Get-Content -LiteralPath (Join-Path $root $path) -Raw).Replace("`r`n", "`n") -replace '(?m)[ \t]+$', '').TrimEnd("`n")
     if ($unit -eq 'ecatcoe') {
         $expected = $baseline.Replace('#include "ecat_def.h"', "#include `"ecat_def.h`"`n#include `"el9800hw.h`"")
     } else {

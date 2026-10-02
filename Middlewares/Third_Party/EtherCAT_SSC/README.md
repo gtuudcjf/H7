@@ -160,3 +160,16 @@ only during active input/output exchange after valid PDO reception, and
 counts FreeRun application iterations rather than master cycles.
 Task 7 supplies the port implementations. Full firmware compilation/linkage
 follows that task and Keil integration in Task 8.
+
+Task 9 ARMCC compatibility patches: TMBX storage is explicitly four-byte
+aligned without changing its 128-byte wire size or packed fields. The HW
+pool also provides four-byte-aligned storage. SDO word pointers use the
+mailbox byte base plus checked even wire offsets (upload 12/16, normal
+download 16, SDOInfo first/count 14 and continuation 12); compile-time
+checks enforce the layout. This avoids ARMCC's incompatible __packed
+member pointers without suppressing diagnostics. Disabled segment helper
+bodies are excluded with SEGMENTED_SDO_SUPPORTED. Four redundant equality
+parentheses and an unreachable FreeRun break are removed in objdef.c.
+Imported C/header trailing whitespace and blank EOF lines are mechanically
+normalized; original notices and text are preserved. Real SDOInfo tests
+check count/first/continuation byte placement and response sentinels.

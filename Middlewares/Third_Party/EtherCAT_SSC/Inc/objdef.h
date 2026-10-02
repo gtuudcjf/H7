@@ -80,7 +80,7 @@ V5.01 : Start file change log
 #define     DEFTYPE_COMMAND             0x0025 /**< \brief COMMAND_PAR*/
 #define     DEFTYPE_PDOCOMPAR           0x0027 /**< \brief PDO_PARAMETER*/
 #define     DEFTYPE_ENUM                0x0028 /**< \brief DEFTYPE_ENUM */
-#define     DEFTYPE_SMPAR               0x0029 /**< \brief SM_SYNCHRONISATION*/ 
+#define     DEFTYPE_SMPAR               0x0029 /**< \brief SM_SYNCHRONISATION*/
 #define     DEFTYPE_RECORD              0x002A /**< \brief DEFTYPE_RECORD */
 #define     DEFTYPE_BACKUP              0x002B /**< \brief BACKUP_PARAMETER*/
 #define     DEFTYPE_MDP                 0x002C /**< \brief MODULAR_DEVICE_PROFILE*/

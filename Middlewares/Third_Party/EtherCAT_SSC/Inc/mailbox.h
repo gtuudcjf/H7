@@ -120,7 +120,7 @@ typedef struct MBX_STRUCT_PACKED_START
 {
     TMBXHEADER                      MbxHeader; /**< \brief Mailbox header*/
     UINT16                          Data[(MAX_MBX_DATA_SIZE >> 1)]; /**< \brief Mailbox data*/
-}MBX_STRUCT_PACKED_END
+}MBX_STRUCT_PACKED_END __attribute__((aligned(4)))
 TMBX;
 
 

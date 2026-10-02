@@ -231,7 +231,7 @@ void ResetALEventMask(UINT16 intMask)
 {
     UINT16 mask;
     HW_EscReadWord(mask, ESC_AL_EVENTMASK_OFFSET);
-    
+
     mask &= intMask;
 
     DISABLE_ESC_INT();
@@ -251,7 +251,7 @@ void SetALEventMask(UINT16 intMask)
 {
     UINT16 mask;
     HW_EscReadWord(mask, ESC_AL_EVENTMASK_OFFSET);
-    
+
     mask |= intMask;
 
     DISABLE_ESC_INT();
@@ -333,7 +333,7 @@ void DisableSyncManChannel(UINT8 channel)
         return;
     start = HW_GetTimer();
     HW_EscWriteWord(smStatus,Offset);
-    
+
     /*wait until SyncManager is disabled*/
     do
     {
@@ -373,7 +373,7 @@ void EnableSyncManChannel(UINT8 channel)
         return;
     start = HW_GetTimer();
     HW_EscWriteWord(smStatus,Offset);
-    
+
     /*wait until SyncManager is enabled*/
     do
     {
@@ -705,8 +705,8 @@ UINT16 StartInputHandler(void)
 
     u16ALEventMask = 0;
 
-    /* 
-        --- Check if SyncManager areas overlapping --- 
+    /*
+        --- Check if SyncManager areas overlapping ---
     */
     bEcatFirstOutputsReceived = FALSE;
 
@@ -729,7 +729,7 @@ UINT16 StartInputHandler(void)
 /*ECATCHANGE_END(V5.11) HW1*/
     /* store the address of the Sync Manager Channel 3 (Inputs)*/
     nEscAddrInputData = pSyncMan->PhysicalStartAddress;
-    
+
     /* get the number of input buffer used for calculating the address areas */
     if ( pSyncMan->Settings[SM_SETTING_CONTROL_OFFSET] & SM_SETTING_MODE_ONE_BUFFER_VALUE )
         nPdInputBuffer = 1;
@@ -756,7 +756,7 @@ UINT16 StartInputHandler(void)
         return ALSTATUSCODE_INVALIDSMOUTCFG;
     }
 
-    /* 
+    /*
         --- Check configured synchronisation ---
     */
 
@@ -819,7 +819,7 @@ UINT16 StartInputHandler(void)
 /*ECATCHANGE_END(V5.11) ESM2*/
             {
                 /* Sync0 is not supported but will be generated*/
-                return ALSTATUSCODE_DCINVALIDSYNCCFG;                   
+                return ALSTATUSCODE_DCINVALIDSYNCCFG;
     }
         }
 
@@ -902,7 +902,7 @@ UINT16 StartInputHandler(void)
             if (nPdOutputSize > 0)
             {
                 SyncType0x1C32 = SYNCTYPE_SM_SYNCHRON;
-                
+
                 if (nPdInputSize > 0)
                     SyncType0x1C33 = SYNCTYPE_SM2_SYNCHRON;
                 else
@@ -1045,7 +1045,7 @@ UINT16 StartInputHandler(void)
         if(cycleTimeSync1 >= cycleTimeSync0)
         {
             u16SmSync0Value = (UINT16)(cycleTimeSync1 / cycleTimeSync0);
-            
+
             if((cycleTimeSync1 % cycleTimeSync0) == 0)
             {
                 /* if the Sync1cycletime/Sync0cycletime ratio is even one additional tick */
@@ -1064,13 +1064,13 @@ UINT16 StartInputHandler(void)
             LatchInputSync0Value++;
 
     }
-    else 
+    else
     {
         if(SyncType0x1C32 == SYNCTYPE_DCSYNC0)
         {
             /* if SyncType of 0x1C32 is 2 the Sync0 event is trigger once during a SM cycle */
             u16SmSync0Value = 1;
-        }   
+        }
 
         if(SyncType0x1C33 != SYNCTYPE_DCSYNC1)
         {
@@ -1622,7 +1622,7 @@ void AL_ControlInd(UINT8 alControl, UINT16 alStatusCode)
         case SAFEOP_2_PREOP:
             /* stop the input handler (function is defined above) */
             APPL_StopInputHandler();
-           
+
             StopInputHandler();
 
             bApplEsmPending = FALSE;
@@ -1639,13 +1639,13 @@ void AL_ControlInd(UINT8 alControl, UINT16 alStatusCode)
 
             if (result != 0)
                 break;
-            
+
             stateTrans = SAFEOP_2_INIT;
 
         case SAFEOP_2_INIT:
             /* stop the input handler (function is defined above) */
             result = APPL_StopInputHandler();
-            
+
             StopInputHandler();
 
             bApplEsmPending = FALSE;
@@ -1680,7 +1680,7 @@ void AL_ControlInd(UINT8 alControl, UINT16 alStatusCode)
                         EnableSyncManChannel(PROCESS_DATA_OUT);
 /*ECATCHANGE_END(V5.11) HW1*/
                     }
-                    else 
+                    else
                     if(nPdInputSize > 0)
                     {
 /*ECATCHANGE_START(V5.11) HW1*/
@@ -1884,7 +1884,7 @@ void AL_ControlRes(void)
                         APPL_StopInputHandler();
 
                     StopInputHandler();
-                    
+
                     if(bLocalErrorFlag)
                     {
                         /*Set application specified error*/
@@ -2055,8 +2055,8 @@ void AL_ControlRes(void)
                                     }
                                 }
                             }
-                        }       
-                    }             
+                        }
+                    }
                 break;
             }//Switch - transition
         }
@@ -2093,8 +2093,8 @@ void DC_CheckWatchdog(void)
         /*If Sync0 watchdog is enabled and expired*/
         if((Sync0WdValue > 0) && (Sync0WdCounter >= Sync0WdValue))
         {
-                /*Sync0 watchdog expired*/		
-                bDcRunning = FALSE;      
+                /*Sync0 watchdog expired*/
+                bDcRunning = FALSE;
         }
         else
         {
@@ -2104,9 +2104,9 @@ void DC_CheckWatchdog(void)
             }
 
             bDcRunning = TRUE;
-					
+
         }
-				
+
 
         if(bDcRunning)
         {
@@ -2197,7 +2197,7 @@ void CheckIfEcatError(void)
       }
       /*ECATCHANGE_END(V5.11) ECAT4*/
    }
- 
+
    if(bDcSyncActive)
    {
        if(bEcatOutputUpdateRunning)
@@ -2213,7 +2213,7 @@ void CheckIfEcatError(void)
                AL_ControlInd(STATE_SAFEOP, ALSTATUSCODE_SYNCERROR);
                return;
            }
-        
+
        }
    }
 }
@@ -2221,7 +2221,7 @@ void CheckIfEcatError(void)
 /**
  \param    alStatus: requested state
  \param    alStatusCode: value for the AL-Status register
- 
+
  \brief    This function changes the state of the EtherCAT slave if the requested state
              is lower than the actual state, otherwise the error condition will be reset.
 *////////////////////////////////////////////////////////////////////////////////////////
@@ -2278,7 +2278,7 @@ void ECAT_StateChange(UINT8 alStatus, UINT16 alStatusCode)
             else
             {
                 /*State transition succeed*/
-                 
+
                 switch(nEcatStateTrans)
                 {
                     case INIT_2_PREOP:
@@ -2313,7 +2313,7 @@ void ECAT_StateChange(UINT8 alStatus, UINT16 alStatusCode)
             /* Local error has happened, we change the state if necessary */
             bLocalErrorFlag = TRUE;
             u16LocalErrorCode = alStatusCode;
-    
+
             if ( (alStatus & STATE_MASK) < (nAlStatus & STATE_MASK) )
             {
                 AL_ControlInd(alStatus, alStatusCode);
@@ -2332,7 +2332,7 @@ void ECAT_StateChange(UINT8 alStatus, UINT16 alStatusCode)
                     EnableSyncManChannel(PROCESS_DATA_OUT);
 /*ECATCHANGE_END(V5.11) HW1*/
                 }
-                else 
+                else
                     if (nPdInputSize > 0)
                 {
                     /* we have to enable the input process data SyncManger (default: SM3),
@@ -2464,7 +2464,7 @@ void ECAT_Main(void)
         ALEventReg &= ~((AL_CONTROL_EVENT) | (SM_CHANGE_EVENT));
 
         AL_ControlInd((UINT8)EscAlControl, 0); /* in AL_ControlInd the state transition will be checked and done */
-        
+
         /* SM-Change-Event was handled too */
     }
 
@@ -2482,7 +2482,7 @@ void ECAT_Main(void)
     {
         AL_ControlRes();
     }
-	
+
     /*The order of mailbox event processing was changed to prevent race condition errors.
         The SM1 activate Byte (Register 0x80E) was read before reading AL Event register.
         1. Handle Mailbox Read event
@@ -2551,4 +2551,3 @@ void ECAT_Main(void)
 
 
 /** @} */
-

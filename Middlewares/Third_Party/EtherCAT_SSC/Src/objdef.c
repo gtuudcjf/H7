@@ -202,8 +202,7 @@ UINT32 OBJ_GetObjectLength( UINT16 index, UINT8 subindex, OBJCONST TOBJECT OBJME
     {
         if ( objCode == OBJCODE_VAR )
             return 0;
-        else if ((objCode == OBJCODE_ARR)
-            )
+        else if (objCode == OBJCODE_ARR)
         {
 
             /* we have to get the maxSubindex from the actual value of subindex 0,
@@ -257,8 +256,7 @@ UINT32 OBJ_GetObjectLength( UINT16 index, UINT8 subindex, OBJCONST TOBJECT OBJME
             /* for single access subindex 0 is transmitted as UINT8 */
             return 1;
         }
-        else if((objCode == OBJCODE_ARR)
-            )
+        else if (objCode == OBJCODE_ARR)
         {
             return (BIT2BYTE(pObjEntry->pEntryDesc[1].BitLength));
         }
@@ -306,9 +304,9 @@ UINT16    OBJ_GetNoOfObjects(UINT8 listType)
     /* the variable listFlags contains the mask used for the ObjAccess in the Entry-Desc
        see the structure TSDOINFOENTRYDESC in sdoserv.h, listType = 0 indicates that
        all objects has to be counted */
-    
+
     UINT16 listFlags = 0x0020 << listType;
-    
+
     /* set pObjEntry to the beginning of the object dictionary */
     OBJCONST TOBJECT OBJMEM * pObjEntry = (OBJCONST TOBJECT OBJMEM *) COE_GetObjectDictionary();
     UINT16 n = 0;
@@ -443,7 +441,7 @@ UINT16    OBJ_GetObjectList(UINT16 listType, UINT16 *pIndex, UINT16 size, UINT16
                         Subindex 0xff returns the description of the whole object ( the name of
                         the object ).
                         Subindex 0x00 returns the description of the subindex 0 and so on.
- \param     pObjEntry Is a handle to the dictionary object ( for faster access ) or NULL.						
+ \param     pObjEntry Is a handle to the dictionary object ( for faster access ) or NULL.
  \param    pData        Is the memory field for the description string or NULL ( if the size of
                         string is unknown ):
 
@@ -528,7 +526,7 @@ UINT16 OBJ_GetDesc( UINT16 index, UINT8 subindex, OBJCONST TOBJECT OBJMEM * pObj
             {
                 UCHAR OBJMEM         TmpDescr[13];
                 OBJSTRCPY(TmpDescr,aSubindexDesc,SIZEOF(TmpDescr));
-                
+
                 OBJ_CopyNumberToString( &TmpDescr[9], subindex );
                 MBXSTRCPY( pData, TmpDescr, SIZEOF(TmpDescr) );
             }
@@ -556,8 +554,7 @@ OBJCONST TSDOINFOENTRYDESC OBJMEM * OBJ_GetEntryDesc(OBJCONST TOBJECT OBJMEM * p
     OBJCONST TSDOINFOENTRYDESC OBJMEM *pEntry;
     UINT8 objCode = (pObjEntry->ObjDesc.ObjFlags & OBJFLAGS_OBJCODEMASK) >> OBJFLAGS_OBJCODESHIFT;
 
-    if ((objCode == OBJCODE_ARR)
-        )
+    if (objCode == OBJCODE_ARR)
     {
         /* object is an array */
         if ( Subindex == 0 )
@@ -628,8 +625,7 @@ UINT16 OBJ_GetEntryOffset(UINT8 subindex, OBJCONST TOBJECT OBJMEM * pObjEntry)
     for (i = 1; i <= subindex; i++)
     {
         /* get the entry description */
-        if ((objCode == OBJCODE_ARR)
-           )
+        if (objCode == OBJCODE_ARR)
             pEntry = &pObjEntry->pEntryDesc[1];
         else
         {
@@ -712,7 +708,7 @@ UINT16 OBJ_GetEntryOffset(UINT8 subindex, OBJCONST TOBJECT OBJMEM * pObjEntry)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 /**
- \param     index                 index of the SyncManager Parameter object 
+ \param     index                 index of the SyncManager Parameter object
  \param     NewSyncType           New value for the Sync Type (SubIndex 1)
 
  \return    result                Result of the value validation
@@ -726,20 +722,19 @@ UINT8 CheckSyncTypeValue(UINT16 index, UINT16 NewSyncType)
     {
     case SYNCTYPE_FREERUN:
         return 0; //free run sync mode is always accepted
-        break;
 
     case SYNCTYPE_SM_SYNCHRON:
-        if ((index == 0x1C32) 
-            && (nPdOutputSize > 0) 
+        if ((index == 0x1C32)
+            && (nPdOutputSize > 0)
             && ((sSyncManOutPar.u16SyncTypesSupported & SYNCTYPE_SYNCHRONSUPP) > 0))
         {
             /*SyncManager sync mode is supported and output process data is configured*/
             return 0;
         }
         else
-        if ((index == 0x1C33) 
+        if ((index == 0x1C33)
             && ((sSyncManInPar.u16SyncTypesSupported & SYNCTYPE_SYNCHRONSUPP) > 0)
-            && (nPdOutputSize == 0) 
+            && (nPdOutputSize == 0)
             && (nPdInputSize > 0))
             {
                 /*SyncManager sync mode is supported and input only shall be configured*/
@@ -748,7 +743,7 @@ UINT8 CheckSyncTypeValue(UINT16 index, UINT16 NewSyncType)
         break;
 
     case SYNCTYPE_SM2_SYNCHRON:
-        if ((index == 0x1C33) 
+        if ((index == 0x1C33)
             && ((sSyncManInPar.u16SyncTypesSupported & SYNCTYPE_SYNCHRONSUPP) > 0)
             && (nPdOutputSize > 0))
             {
@@ -780,7 +775,7 @@ UINT8 CheckSyncTypeValue(UINT16 index, UINT16 NewSyncType)
             return 0;
         }
         break;
-    } //switch 
+    } //switch
 /*ECATCHANGE_END(V5.11) ESM7*/
     return ABORTIDX_VALUE_EXCEEDED;
 
@@ -1037,7 +1032,7 @@ UINT8 OBJ_Read( UINT16 index, UINT8 subindex, UINT32 objSize, OBJCONST TOBJECT O
                                     TmpValue = SWAPWORD(pVarPtr[0]);
 
                                     /*Clear pData if the first bits within the WORD memory will be copied*/
-                                    if ((bitOffset & 0x0F) == 0) 
+                                    if ((bitOffset & 0x0F) == 0)
                                     {
                                         pData[0] = 0;
                                     }
@@ -1045,7 +1040,7 @@ UINT8 OBJ_Read( UINT16 index, UINT8 subindex, UINT32 objSize, OBJCONST TOBJECT O
 /* ECATCHANGE_START(V5.11) SDO7*/
                                     pData[0] = SWAPWORD(pData[0]);
 
-                                    if (bCompleteAccess) 
+                                    if (bCompleteAccess)
                                     {
                                         /*shifting is not required for Complete access because the bits are set to the correct offset by the master*/
                                         pData[0] |= TmpValue & bitMask;
@@ -1144,7 +1139,7 @@ UINT8 OBJ_Read( UINT16 index, UINT8 subindex, UINT32 objSize, OBJCONST TOBJECT O
 
 /*ECATCHANGE_START(V5.11) SDO2*/
                                 pData += BIT2WORD((pEntry->BitLength & ~0xF));
-                                
+
                                 if((pEntry->BitLength & 0xF) != 0)
                                 {
                                     /*current entry has an odd word length => clear last byte of next word*/
@@ -1174,7 +1169,7 @@ UINT8 OBJ_Read( UINT16 index, UINT8 subindex, UINT32 objSize, OBJCONST TOBJECT O
                                     *pData &= 0xFF;
                                 }
 /*ECATCHANGE_END(V5.11) SDO2*/
-                                
+
                                 break;
                             default:
                                 /* other data types are not supported from this example */
@@ -1191,7 +1186,7 @@ UINT8 OBJ_Read( UINT16 index, UINT8 subindex, UINT32 objSize, OBJCONST TOBJECT O
                     UINT8 cnt = 0;
 
                     /*If this entry is the first in the 16Bit block clear the memory*/
-                    if ((bitOffset & 0x0F) == 0) 
+                    if ((bitOffset & 0x0F) == 0)
                     {
                         *pData = 0;
                     }
@@ -1202,7 +1197,7 @@ UINT8 OBJ_Read( UINT16 index, UINT8 subindex, UINT32 objSize, OBJCONST TOBJECT O
                     {
                         /* we have reached the UINT16 border */
                         pData++;
-                        
+
                         /*Clear new buffer*/
                         *pData = 0;
                     }
@@ -1218,7 +1213,7 @@ UINT8 OBJ_Read( UINT16 index, UINT8 subindex, UINT32 objSize, OBJCONST TOBJECT O
                     }
 
 
-                    
+
 
                     /* we don't have read access */
                     if ( (pEntry->ObjAccess & ACCESS_READ) == 0 )
@@ -1488,7 +1483,7 @@ UINT8 OBJ_Write( UINT16 index, UINT8 subindex, UINT32 dataSize, OBJCONST TOBJECT
                             TmpValue &= ~bitMask;
 
 /* ECATCHANGE_START(V5.11) SDO7*/
-                            if (bCompleteAccess) 
+                            if (bCompleteAccess)
                             {
                                 /*shifting is not required for Complete access because the bits are set to the correct offset by the master*/
                                 TmpValue |= (SWAPWORD(pData[0]) & bitMask);
@@ -1586,7 +1581,7 @@ UINT8 OBJ_Write( UINT16 index, UINT8 subindex, UINT32 dataSize, OBJCONST TOBJECT
 
                             /* in this example the objects are defined in that way,
                                that the 32 bit type are always starting at an exact WORD offset */
-                            if(bClearSubindex0Required && 
+                            if(bClearSubindex0Required &&
                                 ((pVarPtr[0] != pData[0])
                                 || (pVarPtr[1] != pData[1])))
                             {
@@ -1702,6 +1697,3 @@ UINT8 OBJ_Write( UINT16 index, UINT8 subindex, UINT32 dataSize, OBJCONST TOBJECT
     return 0;
 }
 /** @} */
-
-
-

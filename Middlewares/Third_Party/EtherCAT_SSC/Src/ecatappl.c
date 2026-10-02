@@ -186,7 +186,7 @@ void PDO_InputMapping(void)
 /////////////////////////////////////////////////////////////////////////////////////////
 /**
 \brief    This function will copies the outputs from the ESC memory to the local memory
-          to the hardware. This function is only called in case of an SM2 
+          to the hardware. This function is only called in case of an SM2
           (output process data) event.
 *////////////////////////////////////////////////////////////////////////////////////////
 void PDO_OutputMapping(void)
@@ -226,7 +226,7 @@ void ECAT_CheckTimer(void)
 /*ECATCHANGE_START(V5.11) ECAT6*/
 /////////////////////////////////////////////////////////////////////////////////////////
 /**
- \brief    This function is called from the PDI_Isr and is used to calculate the bus cycle time 
+ \brief    This function is called from the PDI_Isr and is used to calculate the bus cycle time
   *////////////////////////////////////////////////////////////////////////////////////////
 void HandleBusCycleCalculation(void)
 {
@@ -245,7 +245,7 @@ void HandleBusCycleCalculation(void)
 
             sSyncManInPar.u32CycleTime  = 0;
             sSyncManInPar.u16GetCycleTime = 0;
-            
+
             u16BusCycleCntMs = 0;
             bCycleTimeMeasurementStarted = TRUE;
             StartTimerCnt = (UINT32) HW_GetTimer();
@@ -340,7 +340,7 @@ void PDI_Isr(void)
             ECAT_Application();
         }
 
-    if ( bEcatInputUpdateRunning 
+    if ( bEcatInputUpdateRunning
 /*ECATCHANGE_START(V5.11) ESM7*/
        && ((sSyncManInPar.u16SyncType == SYNCTYPE_SM_SYNCHRON) || (sSyncManInPar.u16SyncType == SYNCTYPE_SM2_SYNCHRON))
 /*ECATCHANGE_END(V5.11) ESM7*/
@@ -371,9 +371,9 @@ void PDI_Isr(void)
 
 void Sync0_Isr(void)
 {
-	
+
      Sync0WdCounter = 0;
-	
+
     if(bDcSyncActive)
     {
 
@@ -404,7 +404,7 @@ void Sync0_Isr(void)
 
            } // if (u16SmSync0Counter > u16SmSync0Value)
 
-           
+
            if ((nPdOutputSize == 0) && (nPdInputSize > 0))
            {
               /* Input only with DC, check if the last input data was read*/
@@ -442,7 +442,7 @@ void Sync0_Isr(void)
         /* Application is synchronized to SYNC0 event*/
         ECAT_Application();
 
-        if ( bEcatInputUpdateRunning 
+        if ( bEcatInputUpdateRunning
            && (LatchInputSync0Value > 0) && (LatchInputSync0Value == LatchInputSync0Counter) ) /* Inputs shall be latched on a specific Sync0 event */
         {
             /* EtherCAT slave is at least in SAFE-OPERATIONAL, update inputs */
@@ -463,7 +463,7 @@ void Sync1_Isr(void)
 {
     Sync1WdCounter = 0;
 
-        if ( bEcatInputUpdateRunning 
+        if ( bEcatInputUpdateRunning
             && (sSyncManInPar.u16SyncType == SYNCTYPE_DCSYNC1)
             && (LatchInputSync0Value == 0)) /* Inputs are latched on Sync1 (LatchInputSync0Value == 0), if LatchInputSync0Value > 0 inputs are latched with Sync0 */
         {
@@ -623,9 +623,9 @@ void MainLoop(void)
 *////////////////////////////////////////////////////////////////////////////////////////
 void ECAT_Application(void)
 {
-    
+
         APPL_Application();
-    
+
 /* PDO Input mapping is called from the specific trigger ISR */
 }
 
@@ -633,4 +633,3 @@ void ECAT_Application(void)
 
 
 /** @} */
-

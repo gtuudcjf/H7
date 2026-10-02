@@ -288,9 +288,9 @@ V5.01 : Start file change log
 #define    ALSTATUSCODE_EE_ERROR                       0x0051 /**< \brief EEPROM Error*/
 #define    ALSTATUSCODE_EXT_HARDWARE_NOT_READY         0x0052 /**< \brief External hardware not ready. This AL Status Code should be used if the EtherCAT-Slave refused the state transition due to an external connection to another device or signal is missing*/
 #define    ALSTATUSCODE_MODULE_ID_LIST_NOT_MATCH       0x0070 /**< \brief Detected Module Ident List (0xF030) and Configured Module Ident List (0xF050) does not match*/
-                                                              
 
-                                                              
+
+
 /*---------------------------------------------
 -    Configured Sync Type (0x1C32.1 / 0x1C33.1)
 -----------------------------------------------*/
@@ -361,7 +361,7 @@ V5.01 : Start file change log
 PROTO    BOOL                           bEcatOutputUpdateRunning;  /**< \brief Indicates the OP state, will be set in StartOutputHandler
                                                                                 and reset in StopOutputHandler*/
 
-PROTO    BOOL                            bEcatInputUpdateRunning;  /**< \brief Indicates the SAFEOP or OP state, will be set in StartInputHandler 
+PROTO    BOOL                            bEcatInputUpdateRunning;  /**< \brief Indicates the SAFEOP or OP state, will be set in StartInputHandler
                                                                                 and reset in Stop InputHandler*/
 
 PROTO    BOOL                           bEcatFirstOutputsReceived; /**< \brief Indicates if outputs were received (SM2-event)
@@ -427,7 +427,7 @@ PROTO UINT16                            nMaxEscAddress; /**< \brief Max supporte
 PROTO UINT8                             nAlStatus; /**< \brief Contains the actual AL Status, will be written in AL_ControlInd*/
 
 
-PROTO UINT16                            EcatWdValue; /**< \brief Contains the value of the watchdog in 100us, will be written in StartInputHandler. 
+PROTO UINT16                            EcatWdValue; /**< \brief Contains the value of the watchdog in 100us, will be written in StartInputHandler.
                                                                     In case that the ESC watchdog feature is used this variable just indicates if the watchdog is enabled or disabled*/
 PROTO    UINT16                         nEscAddrOutputData; /**< \brief Contains the SM address for the output process data*/
 PROTO    UINT16                         nEscAddrInputData; /**< \brief Contains the SM address for the input process data*/

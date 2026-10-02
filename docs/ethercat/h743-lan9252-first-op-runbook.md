@@ -127,3 +127,27 @@ INIT/PREOP/SAFEOP/OP 的应用通信能力参见 [Beckhoff 状态机说明](http
 7. **如果 `last_driver_error != LAN9252_OK`**，这是被锁存的 SPI/端口故障：服务停止 SSC MainLoop，不能只靠插回网线恢复。保存原始故障，修复供电/SPI原因后，明确 MCU reset 或在串行主循环上下文显式调用 `EtherCAT_Init()` 才会重新探测/初始化；不要从 ISR、并发调试调用或自动不断重试。正常固件只启动时 init 一次，没有后台自动清错。
 
 验收记录至少包括两轮 1 ms 的持续时间、网卡驱动分类、所有计数基线/终值、AL 状态与 code、拔线及恢复时间、是否发生 SPI 锁存故障、回环序列、PC4 实测证据。Realtek demo 结果标记为功能实验；正式实时/DC/电机 EtherCAT 联动属于后续独立设计与验证。
+
+## 7. Task 9 构建交接记录（2026-10-02）
+
+实际 `D:/Keil_v5/UV4/UV4.exe`、target `emptytest`、ARMCC
+`5.06 update 5 (build 528)` 全量 rebuild：0 errors、0 warnings。
+固定 `ETHERCAT_BRINGUP_ONLY=1`；生成
+`MDK-ARM/emptytest/emptytest.hex`，SHA256：
+`2A52DE7608C1978D014CC9F1497F301CB230C0D9942FAFC2C888FD4B66994D63`。
+烧录前应再次核对该文件散列与对应源码提交；构建记录不构成烧录授权。
+
+主机 EtherCAT 套件 8 项全部通过（0 failed、0 pending，1622 个 native
+检查/行为用例）；电机回归套件 8 项通过。map 确认 core/port/app/service
+和 SSC 实际链接，`MotorControl_Start/Init` 已移除，没有动态分配调用。
+RO 41828 字节、RW+ZI 9496 字节（含 1024 字节栈和原有未使用的 512
+字节 heap 保留区）；24 个静态 mailbox block 共 3072 字节。
+链接器栈估计 584 字节含未解析函数指针；实际 transport callback 最深
+184 字节，保守相加 768 字节，另预留约 104 字节 FP 异常帧及对齐。
+这些是静态分析估计，运行时栈水位仍需实板验证。
+
+可复查完整编译错误 RED/GREEN、警告归零、存储对齐/访问指令、map、
+USER CODE 与全局 diff 记录：
+`.superpowers/sdd/2026-10-01-h743-lan9252-first-op/task-9-report.md`
+（本机验证记录）。本次未执行 CubeMX 重生成、TwinCAT ESI 导入、EEPROM
+写入、烧录或实板 OP/稳定性测试；后续按本手册逐项验收。

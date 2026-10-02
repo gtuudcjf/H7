@@ -127,6 +127,41 @@ int main(int argc, char **argv)
         Request(0x1600, 2, SDOSERVICE_INITIATEUPLOADREQ, 0); Abort(ABORT_SUBINDEX_NOT_EXISTING);
         variable.pNext = NULL;
     }
+    /* Actual SDO-Info wire offsets: counts at 14, first indexes at 14,
+       continuation indexes at 12. Catch pointer arithmetic/packing drift. */
+    {
+        TMBX request;
+        TSDOINFORMATION *info = (TSDOINFORMATION *)&request;
+        const unsigned char counts[10] = {2,0, 0,0, 0,0, 0,0, 0,0};
+        CHECK(sizeof(TMBX) == 128 && ((uintptr_t)&request & 3) == 0);
+        memset(&request, 0xa5, sizeof(request));
+        info->MbxHeader.Length = 8;
+        info->SdoHeader.InfoHead = SDOINFOSERVICE_OBJDICTIONARYLIST_Q;
+        info->SdoHeader.Data.List.ListType = 0;
+        sends = 0;
+        CHECK(SDOS_SdoInfoInd(info) == 0 && sends == 1);
+        CHECK(response.MbxHeader.Length == 18);
+        CHECK(memcmp((unsigned char *)&response + 14, counts, 10) == 0);
+        CHECK(((unsigned char *)&response)[24] == 0xa5);
+        u16SendMbxSize = 16;
+        memset(&request, 0xa5, sizeof(request));
+        info->MbxHeader.Length = 8;
+        info->SdoHeader.InfoHead = SDOINFOSERVICE_OBJDICTIONARYLIST_Q;
+        info->SdoHeader.Data.List.ListType = 1;
+        nSdoInfoFragmentsLeft = 0;
+        CHECK(SDOS_SdoInfoInd(info) == 0);
+        CHECK(nSdoInfoFragmentsLeft == 1 && response.MbxHeader.Length == 10);
+        CHECK(((unsigned char *)&response)[14] == 0x18 && ((unsigned char *)&response)[15] == 0x10);
+        CHECK(((unsigned char *)&response)[16] == 0xa5);
+        /* Continuation reuses the saved request header, as COE_ContinueInd does. */
+        memset(&request, 0xa5, sizeof(request));
+        memcpy(&request, aSdoInfoHeader, sizeof(aSdoInfoHeader));
+        CHECK(SDOS_SdoInfoInd(info) == 0);
+        CHECK(nSdoInfoFragmentsLeft == 0 && response.MbxHeader.Length == 8);
+        CHECK(((unsigned char *)&response)[12] == 0x00 && ((unsigned char *)&response)[13] == 0x20);
+        CHECK(((unsigned char *)&response)[14] == 0xa5);
+        u16SendMbxSize = 128;
+    }
     CHECK(VirtualFree(pages, 0, MEM_RELEASE));
     printf("SSC real object access: %u checks passed\n", checks);
     return 0;

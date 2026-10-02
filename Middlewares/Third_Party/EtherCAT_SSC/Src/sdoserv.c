@@ -93,6 +93,7 @@ V4.00 SDO 4: SDOs with size greater than 65535 were not handled correctly, that 
 ---------------------------------------------------------------------------------------*/
 
 #include "ecat_def.h"
+#include <stddef.h>
 
 #include "ecatslv.h"
 
@@ -108,6 +109,20 @@ V4.00 SDO 4: SDOs with size greater than 65535 were not handled correctly, that 
 
 extern OBJCONST TOBJECT OBJMEM asObjDef[];
 extern UINT16 OBJ_GetDesc( UINT16 index, UINT8 subindex, OBJCONST TOBJECT OBJMEM * pObjEntry, UINT16 MBXMEM * pData );
+
+/* All mailbox callers use aligned TMBX storage or the four-byte-aligned HW
+   pool. Use its byte base and verified even wire offsets, rather than an
+   ARMCC __packed member pointer, for natural UINT16 object-access APIs. */
+#define SDO_MBX_WORDS(buffer, offset) ((UINT16 MBXMEM *) ((UINT8 MBXMEM *) (buffer) + (offset)))
+typedef struct { UINT8 byte; TMBX mailbox; } TSdoMailboxAlignment;
+typedef char TSdoMailboxLayoutCheck[(sizeof(TMBX) == 128 &&
+    offsetof(TSdoMailboxAlignment, mailbox) == 4 &&
+    offsetof(TSDOINFORMATION, CoeHeader) == 6 &&
+    offsetof(TINITSDOUPLOADEXPRESMBX, Data) == 12 &&
+    offsetof(TINITSDOUPLOADNORMRESMBX, Data) == 16 &&
+    offsetof(TINITSDODOWNLOADNORMREQMBX, Data) == 16 &&
+    MBX_HEADER_SIZE + SIZEOF_SDOINFO == 12 &&
+    MBX_HEADER_SIZE + SIZEOF_SDOINFOLISTSTRUCT == 14) ? 1 : -1];
 extern OBJCONST TSDOINFOENTRYDESC OBJMEM * OBJ_GetEntryDesc(OBJCONST TOBJECT OBJMEM * pObjEntry, UINT8 Subindex);
 extern OBJCONST TSDOINFOOBJDESC OBJMEM * OBJ_GetObjDesc(OBJCONST TOBJECT OBJMEM * pObjEntry);
 
@@ -174,8 +189,10 @@ OBJCONST TOBJECT OBJMEM * VARMEM        pSdoSegObjEntry;
 ------    module internal function declarations
 ------
 ---------------------------------------------------------------------------------------*/
+#if SEGMENTED_SDO_SUPPORTED
 static UINT8 SdoDownloadSegmentInd(TDOWNLOADSDOSEGREQMBX MBXMEM * pSdoInd);
 static UINT8 SdoUploadSegmentInd(TUPLOADSDOSEGREQMBX MBXMEM * pSdoInd);
+#endif
 /*---------------------------------------------------------------------------------------
 ------
 ------    Functions
@@ -194,6 +211,7 @@ static UINT8 SdoUploadSegmentInd(TUPLOADSDOSEGREQMBX MBXMEM * pSdoInd);
             function sends a response by itself.
 *////////////////////////////////////////////////////////////////////////////////////////
 
+#if SEGMENTED_SDO_SUPPORTED
 static UINT8 SdoDownloadSegmentInd( TDOWNLOADSDOSEGREQMBX MBXMEM * pSdoInd )
 {
     UINT8 abort = 0;
@@ -268,7 +286,7 @@ static UINT8 SdoDownloadSegmentInd( TDOWNLOADSDOSEGREQMBX MBXMEM * pSdoInd )
                 UINT16 i = 0;
 
                 if ((nSdoSegBytesToHandle & 0x1) == 0x01)
-                {	
+                {
                     // Data0 will be copied to an odd address of pSdoSegData, Data1 to an even address (Segment 2, 4, ...)
                     // Read Data0
                     pSdoSegData[(nSdoSegBytesToHandle >> 1)] &= ~SEGHDATA_MASK;
@@ -280,7 +298,7 @@ static UINT8 SdoDownloadSegmentInd( TDOWNLOADSDOSEGREQMBX MBXMEM * pSdoInd )
                 {	// Data0 will be copied to an even address of pSdoSegData, Data1 to an odd address (Segment 1, 3,...)
                     // Read Data0 and Data1
                     pSdoSegData[( nSdoSegBytesToHandle >> 1)] = ((pSdoInd->SdoHeader.SegHeader >> SEGDATASHIFT) &~SEGHDATA_MASK) | ((pSdoInd->SdoHeader.Data[0] << 8) & SEGHDATA_MASK);
-                    
+
                     // Copy Data2 - DataN
                     for (i = 1; i <((bytesToSave + 1)  >> 1); i++)
                     {
@@ -355,7 +373,7 @@ static UINT8 SdoDownloadSegmentInd( TDOWNLOADSDOSEGREQMBX MBXMEM * pSdoInd )
             nSdoSegService    = 0;
         }
     }
-    else 
+    else
     {
         /* the Abort-Response will be sent in SDOS_SdoInd*/
         bSdoSegFollows = FALSE;
@@ -398,7 +416,7 @@ static UINT8 SdoUploadSegmentInd( TUPLOADSDOSEGREQMBX MBXMEM * pSdoInd )
     else
     {
         /* maxData contains the maximum data to be sent with a SDO-Upload Segment response */
-         
+
         UINT32 size = 0;
         UINT16 maxData;
         {
@@ -433,21 +451,21 @@ static UINT8 SdoUploadSegmentInd( TUPLOADSDOSEGREQMBX MBXMEM * pSdoInd )
             MBXMEMCPY( pSdoSegRes->SdoHeader.Data, &pSdoSegData[(nSdoSegBytesToHandle >> 1) + 1], size - 1);
         }
         else
-        {	
+        {
             UINT16 i = 0;
             UINT32 nIndexOffset = nSdoSegBytesToHandle >> 1;
             // Data starts at even byte number (Segment 1,3, ...): Data0 is at low byte, Data1 lies at an odd address
             // Write Data0
             pSdoSegRes->SdoHeader.SegHeader |= ((pSdoSegData[(nSdoSegBytesToHandle >> 1)] << SEGDATASHIFT) & SEGHDATA_MASK);
             // Copy Data1 - DataN
-            
+
             for (i = 0; i < (size >> 1);i++)
             {
                 pSdoSegRes->SdoHeader.Data[i] = ((pSdoSegData[i + nIndexOffset] & SEGHDATA_MASK) >> 8) | ((pSdoSegData[i + nIndexOffset + 1] & ~SEGHDATA_MASK) << 8);
                     // (If size is even, one byte too much is copied. But, that is not a problem.)
             }
         }
-        
+
         /* the SDO Upload Segment header depends if there is still data to be sent */
         pSdoSegRes->CoeHeader &= ~COEHEADER_COESERVICEMASK;
         pSdoSegRes->CoeHeader |= ((UINT16)COESERVICE_SDORESPONSE) << COEHEADER_COESERVICESHIFT;
@@ -491,7 +509,7 @@ static UINT8 SdoUploadSegmentInd( TUPLOADSDOSEGREQMBX MBXMEM * pSdoInd )
 /////////////////////////////////////////////////////////////////////////////////////////
 /**
  \param    abort                 Result of the SDO access
- \param    command		         SDO command index 
+ \param    command		         SDO command index
  \param    completeAccess        Indicates if complete access was requested
  \param    dataSize              Available data buffer in the response
  \param    objLength             Complete size of the object
@@ -500,6 +518,7 @@ static UINT8 SdoUploadSegmentInd( TUPLOADSDOSEGREQMBX MBXMEM * pSdoInd )
  \brief    This function is called when a SDO response shall be sent
 *////////////////////////////////////////////////////////////////////////////////////////
 
+#endif /* SEGMENTED_SDO_SUPPORTED */
 void SdoRes(UINT8 abort, UINT8 command, UINT8 completeAccess, UINT16 dataSize, UINT32 objLength, TINITSDOMBX MBXMEM *pSdoRes)
 {
     /* for an upload segment response the toggle bit was overwritten */
@@ -669,7 +688,7 @@ UINT8 SDOS_SdoInd(TINITSDOMBX MBXMEM *pSdoInd)
                         /* Expedited Upload */
                         bTransferType = 1;
                         /* pData is the pointer where the object data has to be copied for the response */
-                        pData = ((TINITSDOUPLOADEXPRESMBX MBXMEM *) pSdoInd)->Data;
+                        pData = SDO_MBX_WORDS(pSdoInd, offsetof(TINITSDOUPLOADEXPRESMBX, Data));
                         /* initialize the 4 data bytes of the SDO upload response because the requested object data
                            could be less than 4 */
                         pData[0] = 0;
@@ -684,7 +703,7 @@ UINT8 SDOS_SdoInd(TINITSDOMBX MBXMEM *pSdoInd)
                             segTransfer = 1;
                         else
                             /* Normal Upload */
-                            pData = ((TINITSDOUPLOADNORMRESMBX MBXMEM *) pSdoInd)->Data;
+                            pData = SDO_MBX_WORDS(pSdoInd, offsetof(TINITSDOUPLOADNORMRESMBX, Data));
                     }
                 }
                 else
@@ -730,7 +749,7 @@ UINT8 SDOS_SdoInd(TINITSDOMBX MBXMEM *pSdoInd)
                     }
 
                     /* pData is the pointer to the downloaded object data */
-                    pData = (UINT16 MBXMEM *) ((TINITSDODOWNLOADNORMREQMBX MBXMEM *) pSdoInd)->Data;
+                    pData = SDO_MBX_WORDS(pSdoInd, offsetof(TINITSDODOWNLOADNORMREQMBX, Data));
                     /* the received dataSize will be checked in the object specific functions called from
                        OBJ_Write (in objdef.c) */
                     dataSize = downloadSize;
@@ -866,7 +885,7 @@ UINT8 SDOS_SdoInd(TINITSDOMBX MBXMEM *pSdoInd)
                             bSdoInWork = TRUE;
                             /* we have to store the buffer and the response header */
                             pSdoResStored = pSdoInd;
-                            
+
                             /*update command field*/
                             pSdoResStored->SdoHeader.Sdo[SDOHEADER_COMMANDOFFSET] &= ~SDOHEADER_COMMANDMASK;
                             pSdoResStored->SdoHeader.Sdo[SDOHEADER_COMMANDOFFSET]    |= (sdoHeader & (SDOHEADER_COMPLETEACCESS | SDOHEADER_COMMAND));
@@ -976,26 +995,26 @@ void SDOS_SdoRes(UINT8 abort, UINT32 objLength, UINT16 MBXMEM *pData)
                 nSdoSegService            = SDOSERVICE_UPLOADSEGMENTREQ;
                 pSdoSegData                = (UINT16 VARMEM *) pData;
                 /* the first segment shall be copied */
-                MBXMEMCPY(((TINITSDOUPLOADNORMRESMBX MBXMEM *) pSdoResStored)->Data, pData, dataSize);
+                MBXMEMCPY(SDO_MBX_WORDS(pSdoResStored, offsetof(TINITSDOUPLOADNORMRESMBX, Data)), pData, dataSize);
                 nSdoSegBytesToHandle = dataSize;
             }
             else
             if ( (objLength <= 4) && (objLength > 0) )
             {
                 /* Expedited response */
-                if ( pData != ((TINITSDOUPLOADEXPRESMBX MBXMEM *) pSdoResStored)->Data )
+                if ( pData != SDO_MBX_WORDS(pSdoResStored, offsetof(TINITSDOUPLOADEXPRESMBX, Data)) )
                 {
                     /* the data is not in the response buffer yet, it shall be copied */
-                    MBXMEMCPY(((TINITSDOUPLOADEXPRESMBX MBXMEM *) pSdoResStored)->Data, pData, objLength);
+                    MBXMEMCPY(SDO_MBX_WORDS(pSdoResStored, offsetof(TINITSDOUPLOADEXPRESMBX, Data)), pData, objLength);
                 }
             }
             else
             {
                 /* Normal response */
-                if ( pData != ((TINITSDOUPLOADNORMRESMBX MBXMEM *) pSdoResStored)->Data )
+                if ( pData != SDO_MBX_WORDS(pSdoResStored, offsetof(TINITSDOUPLOADNORMRESMBX, Data)) )
                 {
                     /* the data is not in the response buffer yet, it shall be copied */
-                    MBXMEMCPY(((TINITSDOUPLOADNORMRESMBX MBXMEM *) pSdoResStored)->Data, pData, objLength);
+                    MBXMEMCPY(SDO_MBX_WORDS(pSdoResStored, offsetof(TINITSDOUPLOADNORMRESMBX, Data)), pData, objLength);
                 }
             }
         }
@@ -1068,7 +1087,7 @@ UINT8 SDOS_SdoInfoInd( TSDOINFORMATION MBXMEM *pSdoInfoInd )
                     UINT16 n = OBJ_GetNoOfObjects(i);
 
                     /* copy the number of objects of the list type in the SDO Information response */
-                    ((UINT16 MBXMEM *) &pSdoInfoInd->CoeHeader)[(SIZEOF_SDOINFOLISTSTRUCT>>1)+i] = SWAPWORD(n);
+                    SDO_MBX_WORDS(pSdoInfoInd, MBX_HEADER_SIZE + SIZEOF_SDOINFOLISTSTRUCT)[i] = SWAPWORD(n);
                 }
 
                 /* size of the mailbox service response */
@@ -1088,7 +1107,7 @@ UINT8 SDOS_SdoInfoInd( TSDOINFORMATION MBXMEM *pSdoInfoInd )
                         size = u16SendMbxSize - SIZEOF_SDOINFO - MBX_HEADER_SIZE;
                     }
                     /* initialize pData with the pointer where the fragment has to be copied */
-                    pData = &((UINT16 MBXMEM *) &pSdoInfoInd->CoeHeader)[SIZEOF_SDOINFO>>1];
+                    pData = SDO_MBX_WORDS(pSdoInfoInd, MBX_HEADER_SIZE + SIZEOF_SDOINFO);
                     /* initialize index with the next index to be sent */
                     index = nSdoInfoIndex;
                     /* decrement the number of fragments to be sent */
@@ -1106,14 +1125,14 @@ UINT8 SDOS_SdoInfoInd( TSDOINFORMATION MBXMEM *pSdoInfoInd )
                         size = u16SendMbxSize - SIZEOF_SDOINFOLISTSTRUCT - MBX_HEADER_SIZE;
                     }
                     /* initialize pData with the pointer where the fragment has to be copied */
-                    pData = &((UINT16 MBXMEM *) &pSdoInfoInd->CoeHeader)[SIZEOF_SDOINFOLISTSTRUCT>>1];
+                    pData = SDO_MBX_WORDS(pSdoInfoInd, MBX_HEADER_SIZE + SIZEOF_SDOINFOLISTSTRUCT);
                     /*Check if List need to be send in fragments*/
                     if( (n<<1) > size)
                     {
                         /*number of Bytes to transmit don't fit into one mailbox datagram*/
 
                         /*calculate number of fragments which need to be send
-                        total number of bytes - bytes which will be transmitted with the current response plus the fragment size - 1 (to round up) divided by the size of the following fragments 
+                        total number of bytes - bytes which will be transmitted with the current response plus the fragment size - 1 (to round up) divided by the size of the following fragments
                         */
                         UINT16 Fragsize = size + 2;
                         nSdoInfoFragmentsLeft = (((n<<1)-size + (Fragsize-1)) /Fragsize);
@@ -1300,5 +1319,3 @@ UINT8 SDOS_SdoInfoInd( TSDOINFORMATION MBXMEM *pSdoInfoInd )
 }
 
 /** @} */
-
-

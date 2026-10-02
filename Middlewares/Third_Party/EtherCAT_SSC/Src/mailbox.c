@@ -326,7 +326,7 @@ UINT16 MBX_StartMailboxHandler(void)
             {
                 result = ALSTATUSCODE_NOMEMORY;
             }
-           
+
             APPL_FreeMailboxBuffer(psWriteMbx);
         }
         else
@@ -704,7 +704,7 @@ void MBX_CheckAndCopyMailbox( void )
 
     /* get the size of the received mailbox command and acknowledge the event*/
     HW_EscReadWord(mbxLen,u16EscAddrReceiveMbx);
-    
+
     /* the size has to be swapped here, all other bytes of the mailbox service will be swapped later */
     mbxLen = SWAPWORD(mbxLen);
 
@@ -851,14 +851,14 @@ UINT8 MBX_CopyToSendMailbox( TMBX MBXMEM *pMbx )
             if(BytesLeft < 2)
             {
                 /*The last 2Bytes are overlapping the already written buffer*/
-                                
+
                 /*Get the valid 16Bit address*/
                 UINT32 LastDataAddress = ((mbxSize + MBX_HEADER_SIZE)/2)*2;
-            
+
                 /*Copy the buffer to overwrite*/
                 MEMCPY((UINT16 *)&u16dummy,(((UINT8 *)pMbx) + LastDataAddress),(2 - BytesLeft));
             }
-            
+
             HW_EscWriteWord(u16dummy,(u16EscAddrSendMbx + u16SendMbxSize - 2));
         }
         }
@@ -930,5 +930,3 @@ void MBX_Main(void)
 }
 
 /** @} */
-
-

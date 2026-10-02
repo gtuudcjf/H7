@@ -55,7 +55,7 @@ V5.01 : Start file change log
 #define     SDOHEADER_SIZEINDICATOR             ((UINT8) 0x01) /**< \brief Size Indicator size of data in Data Set Size specified*/
 #define     SDOHEADER_TRANSFERTYPE              ((UINT8) 0x02) /**< \brief Transfer Type<br>1: Expedited<br>0: Normal*/
 #define     SDOHEADER_DATASETSIZE               ((UINT8) 0x0C) /**< \brief Data Set Size (used for Expedited transfer)*/
-#define     SDOHEADER_COMPLETEACCESS            ((UINT8) 0x10) /**< \brief Complete Access indication<br>0: Only specified entry will be transferred<br>1: Whole object (with or without Subindex0) will be transferred)*/ 
+#define     SDOHEADER_COMPLETEACCESS            ((UINT8) 0x10) /**< \brief Complete Access indication<br>0: Only specified entry will be transferred<br>1: Whole object (with or without Subindex0) will be transferred)*/
 #define     SDOHEADER_COMMAND                   ((UINT8) 0xE0) /**< \brief SDO Command*/
 #define     SDOHEADERSHIFT_SIZEINDICATOR        ((UINT8) 0) /**< \brief Shift for Size Indicator*/
 #define     SDOHEADERSHIFT_TRANSFERTYPE         ((UINT8) 1) /**< \brief Shift for Transfer Type*/

@@ -176,6 +176,3 @@ UINT8 COE_ContinueInd(TMBX MBXMEM * pMbx)
 }
 
 /** @} */
-
-
-

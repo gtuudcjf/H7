@@ -51,9 +51,9 @@ V5.10.1 : Start file change log
 /////////////////////////////////////////////////////////////////////////////////////////
 /**
  \return   0 if successful or greater 0 in case of an error
- 
+
  \param    wordaddr      Word address of the EEPROM data to be read
- 
+
  \brief    This function shall copy EEPROM data to the ESC EEPROM data register (0x508:0x50F/0x50B).
  \brief    The EEPROM data starting at the specified word address and the length specified with "EEPROM_READ_SIZE".
  \brief    The data shall be copied to the ESC EEPROM buffer (ESC offset 0x508)
@@ -112,7 +112,7 @@ PROTO void MainLoop(void);
 
 /////////////////////////////////////////////////////////////////////////////////////////
 /**
-\param    alStatus       requested AL Status 
+\param    alStatus       requested AL Status
 \param    alStatusCode   requested AL Status Code
 
 \brief    This function shall be called by the application to trigger state transition in case
