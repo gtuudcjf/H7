@@ -5,7 +5,7 @@ $root = Split-Path -Parent $PSScriptRoot
 function Read-Required([string]$relative) {
     $path = Join-Path $root $relative
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing required file: $relative" }
-    return Get-Content -LiteralPath $path -Raw
+    return Get-Content -LiteralPath $path -Raw -Encoding UTF8
 }
 function Require([string]$text, [string]$pattern, [string]$message) {
     if ($text -notmatch $pattern) { throw $message }
@@ -21,6 +21,90 @@ $main = Read-Required 'Core/Src/main.c'
 $halConfig = Read-Required 'Core/Inc/stm32h7xx_hal_conf.h'
 $ioc = Read-Required 'emptytest.ioc'
 $project = Read-Required 'MDK-ARM/emptytest.uvprojx'
+$mainHeader = Read-Required 'Core/Inc/main.h'
+
+# These checks catch a motor call leaking into the selected bring-up branch,
+# omitted startup steps, callbacks bypassing the gate, and missing Keil units.
+function Function-Body([string]$text, [string]$name) {
+    $match = [regex]::Match($text, "\b$name\s*\([^;{}]*\)\s*\{")
+    if (-not $match.Success) { throw "Missing function definition: $name" }
+    $start = $match.Index + $match.Length
+    $depth = 1
+    for ($position = $start; $position -lt $text.Length; $position++) {
+        if ($text[$position] -eq '{') { $depth++ }
+        if ($text[$position] -eq '}') { $depth-- }
+        if ($depth -eq 0) { return $text.Substring($start, $position - $start) }
+    }
+    throw "Unbalanced function: $name"
+}
+function Preprocess-Main([int]$mode) {
+    $compiler = 'D:/Keil_v5/ARM/ARMCLANG/bin/armclang.exe'
+    if (-not (Test-Path -LiteralPath $compiler -PathType Leaf)) { throw 'ARM preprocessor unavailable; safety branch check cannot be skipped.' }
+    $arguments = @('--target=arm-arm-none-eabi', '-mcpu=cortex-m7', '-E', '-P', "-DETHERCAT_BRINGUP_ONLY=$mode")
+    [xml]$xml = $project
+    $controls = $xml.Project.Targets.Target.TargetOption.TargetArmAds.Cads.VariousControls
+    foreach ($define in ([string]$controls.Define -split ',')) {
+        if ($define -and $define -notmatch '^ETHERCAT_BRINGUP_ONLY') { $arguments += "-D$define" }
+    }
+    foreach ($include in ([string]$controls.IncludePath -split ';')) {
+        $path = if ([IO.Path]::IsPathRooted($include)) { $include } else { Join-Path (Join-Path $root 'MDK-ARM') $include }
+        $arguments += @('-I', [IO.Path]::GetFullPath($path))
+    }
+    $output = & $compiler @arguments (Join-Path $root 'Core/Src/main.c')
+    if ($LASTEXITCODE -ne 0) { throw "Main preprocessing failed for mode $mode" }
+    return $output -join "`n"
+}
+
+if (-not $HardwareOnly) {
+    Require $mainHeader '#ifndef\s+ETHERCAT_BRINGUP_ONLY\s*\r?\n#define\s+ETHERCAT_BRINGUP_ONLY\s+1\b' 'Bring-up must be the header default.'
+    Require $main 'USER CODE BEGIN SysInit[\s\S]*?#if\s+ETHERCAT_BRINGUP_ONLY[\s\S]*?#else[\s\S]*?USER CODE END SysInit' 'Generated peripheral initialization must remain inside the USER CODE safety gate.'
+    Require $main 'USER CODE BEGIN 2[\s\S]*?#endif[\s\S]*?USER CODE END 2' 'Startup gate must close inside USER CODE 2.'
+    $active = Preprocess-Main 1
+    $entry = Function-Body $active 'main'
+    Require $entry 'MX_GPIO_Init\s*\(\s*\)\s*;[\s\S]*?HAL_GPIO_WritePin\s*\([^;]*0x0010[^;]*GPIO_PIN_RESET\s*\)[\s\S]*?HAL_GPIO_WritePin\s*\([^;]*0x0010[^;]*GPIO_PIN_SET\s*\)[\s\S]*?MX_SPI1_Init\s*\(\s*\)[\s\S]*?EtherCAT_Init\s*\(\s*\)' 'Active bring-up order must be GPIO, DRV low, CS high, SPI1, EtherCAT.'
+    Require $main 'HAL_GPIO_WritePin\s*\(\s*DRV_ENA_GPIO_Port\s*,\s*DRV_ENA_Pin\s*,\s*GPIO_PIN_RESET\s*\)' 'Bring-up must explicitly keep DRV enable low.'
+    Require $main 'HAL_GPIO_WritePin\s*\(\s*LAN9252_CS_GPIO_Port\s*,\s*LAN9252_CS_Pin\s*,\s*GPIO_PIN_SET\s*\)' 'Bring-up must explicitly keep LAN9252 CS high before SPI1.'
+    Require $entry 'while\s*\(\s*1\s*\)[\s\S]*?EtherCAT_Service\s*\(\s*\)' 'Active bring-up loop must service EtherCAT.'
+    Forbid $active '\b(?:MotorControl_|MotorTelemetry_|BissEncoder_)\w*\s*\(' 'Active main or IRQ callbacks can reach a motor/encoder/telemetry path.'
+    Forbid $entry '\bMX_(?:ADC\d|TIM\d|SPI[234]|USART\d_UART|USB_DEVICE)_Init\s*\(|\bHAL_(?:ADC|TIM|UART|SPI)_\w*Start\w*\s*\(' 'Bring-up starts unnecessary or motor peripherals.'
+    Forbid $entry 'Error_Handler\s*\(' 'LAN9252 failure must remain diagnosable rather than enter Error_Handler.'
+    $allowedCalls = @('MPU_Config','HAL_Init','SystemClock_Config','MX_GPIO_Init','HAL_GPIO_WritePin','MX_SPI1_Init','EtherCAT_Init','EtherCAT_GetDiagnostics','EtherCAT_Service','while')
+    foreach ($call in [regex]::Matches($entry, '\b([A-Za-z_]\w*)\s*\(')) {
+        if ($call.Groups[1].Value -notin $allowedCalls) { throw "Unexpected call in active bring-up main: $($call.Groups[1].Value)" }
+    }
+    Require $active 'volatile\s+EtherCATStatus\s+ethercat_init_status' 'Debugger init-status symbol is missing.'
+    Require $active 'EtherCATDiagnostics\s*\*\s*volatile\s+ethercat_diagnostics' 'Debugger live-diagnostics pointer is missing.'
+    $legacy = Function-Body (Preprocess-Main 0) 'main'
+    Require $legacy 'MX_GPIO_Init\s*\([\s\S]*?MX_ADC1_Init\s*\([\s\S]*?MX_SPI2_Init\s*\([\s\S]*?MX_SPI3_Init\s*\([\s\S]*?MX_SPI4_Init\s*\([\s\S]*?MX_TIM6_Init\s*\([\s\S]*?MX_TIM8_Init\s*\([\s\S]*?MX_USART1_UART_Init\s*\([\s\S]*?MX_USB_DEVICE_Init\s*\([\s\S]*?BissEncoder_Init\s*\([\s\S]*?MotorControl_Init\s*\([\s\S]*?MotorControl_SetOpenLoopCommand\s*\([\s\S]*?MotorControl_SetCurrentCommand\s*\([\s\S]*?MotorControl_SetEncoderCurrentCommand\s*\([\s\S]*?MotorControl_SetSpeedCommand\s*\([\s\S]*?MotorControl_SetPositionCommand\s*\([\s\S]*?MotorControl_SetSpeedPiGains\s*\([\s\S]*?MotorControl_Start\s*\([\s\S]*?MotorTelemetry_Init\s*\([\s\S]*?MotorControl_Service\s*\([\s\S]*?MotorTelemetry_Service\s*\(' 'Original motor startup/service order must stay available only in mode 0.'
+    Forbid $legacy 'EtherCAT_(?:Init|Service)\s*\(' 'Legacy motor branch must not acquire EtherCAT startup/service.'
+    foreach ($file in (Get-ChildItem (Join-Path $root 'Core/Src/ethercat') -Filter '*.c')) {
+        Forbid (Get-Content $file.FullName -Raw -Encoding UTF8) 'MotorControl_|MotorTelemetry_|TIM8\s*->\s*CCR|DRV_ENA|motor_.*target' "EtherCAT source reaches motor output: $($file.Name)"
+    }
+    $usbReceive = Function-Body (Read-Required 'USB_DEVICE/App/usbd_cdc_if.c') 'CDC_Receive_FS'
+    Forbid $usbReceive 'Motor|Command|Parse' 'USB RX must not dispatch motor commands.'
+    Require $gpio 'HAL_GPIO_WritePin\s*\(\s*GPIOC\s*,\s*GPIO_PIN_1\|GPIO_PIN_4\|GPIO_PIN_5\s*,\s*GPIO_PIN_RESET\s*\)[\s\S]*?HAL_GPIO_Init\s*\(\s*GPIOC' 'DRV PC4 must be latched low before output setup.'
+    Require $mainHeader '#define\s+DRV_ENA_Pin\s+GPIO_PIN_4\s*\r?\n#define\s+DRV_ENA_GPIO_Port\s+GPIOC' 'DRV enable safety pin must remain PC4.'
+    Require $ioc '(?m)^PC4\.Signal=GPIO_Output\s*$' 'CubeMX must retain DRV PC4 as an output.'
+    Require $ioc '(?m)^ProjectManager\.KeepUserCode=true\s*$' 'CubeMX must preserve the USER CODE safety gate.'
+    [xml]$keil = $project
+    $groups = $keil.Project.Targets.Target.Groups.Group
+    $expectedGroups = @{
+        'Application/User/EtherCAT' = @('lan9252_spi.c','lan9252_board.c','lan9252_port.c','ethercat_service.c','ethercat_app_core.c','ethercat_app.c')
+        'Middlewares/EtherCAT_SSC' = @('coeappl.c','ecatappl.c','ecatcoe.c','ecatslv.c','mailbox.c','objdef.c','sdoserv.c')
+    }
+    foreach ($name in $expectedGroups.Keys) {
+        $group = @($groups | Where-Object { $_.GroupName -eq $name })
+        if ($group.Count -ne 1) { throw "Keil must contain exactly one $name group." }
+        foreach ($unit in $expectedGroups[$name]) {
+            $files = @($group[0].Files.File | Where-Object { $_.FileName -eq $unit })
+            if ($files.Count -ne 1) { throw "Keil must contain exactly one $unit in $name." }
+            $expectedDirectory = if ($name -eq 'Application/User/EtherCAT') { '../Core/Src/ethercat/' } else { '../Middlewares/Third_Party/EtherCAT_SSC/Src/' }
+            if (([string]$files[0].FilePath).Replace('\','/') -ne "$expectedDirectory$unit") { throw "Wrong Keil source path: $unit" }
+        }
+    }
+    Require $project 'Middlewares[\\/]Third_Party[\\/]EtherCAT_SSC[\\/]Inc' 'Keil needs SSC headers.'
+    Forbid $project '407 LAN9252|STM32F407|Ethercat[\\/]Inc' 'Reference F407 source/include path must not enter Keil.'
+}
 
 function Read-ClockNumber([string]$text, [string]$pattern, [string]$name) {
     $match = [regex]::Match($text, $pattern)

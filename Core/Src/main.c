@@ -27,10 +27,14 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#if ETHERCAT_BRINGUP_ONLY
+#include "ethercat_service.h"
+#else
 #include "biss_encoder.h"
 #include "motor_control.h"
 #include "motor_telemetry.h"
 #include "motor_params.h"
+#endif
 
 /* USER CODE END Includes */
 
@@ -52,6 +56,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+#if ETHERCAT_BRINGUP_ONLY
+/* 调试器查看：init 状态仅表示本次初始化结果，实时 AL 状态在诊断结构中。 */
+volatile EtherCATStatus ethercat_init_status = ETHERCAT_STATUS_UNINITIALIZED;
+const EtherCATDiagnostics * volatile ethercat_diagnostics;
+#else
 /*
  * 快速控制周期必须与 TIM8 更新事件周期严格一致：
  * 240 MHz / (2 * (11999 + 1)) = 10 kHz，因此 dt = 1 / 10 kHz = 100 us。
@@ -86,6 +95,7 @@ static const MotorControlConfig motor_config = {
   .frequency_slew_hz_per_s = 20.0f,
   .voltage_slew_pu_per_s = 5.0f
 };
+#endif
 
 /* USER CODE END PV */
 
@@ -128,7 +138,17 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  /* 条件边界保存在 USER CODE 中，CubeMX 重生成的外设调用仍属于电机分支。 */
+#if ETHERCAT_BRINGUP_ONLY
+  MX_GPIO_Init();
+  /* 先确认功率级关闭、软件片选空闲，再启动 SPI1。 */
+  HAL_GPIO_WritePin(DRV_ENA_GPIO_Port, DRV_ENA_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LAN9252_CS_GPIO_Port, LAN9252_CS_Pin, GPIO_PIN_SET);
+  MX_SPI1_Init();
+  /* 驱动错误保留诊断并返回，禁止转入永久 Error_Handler。 */
+  ethercat_init_status = EtherCAT_Init();
+  ethercat_diagnostics = EtherCAT_GetDiagnostics();
+#else
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -202,7 +222,7 @@ int main(void)
   }
   MotorTelemetry_Init(&huart1, MOTOR_TELEMETRY_UART_ENABLED,
                       MOTOR_TELEMETRY_USB_ENABLED);
-
+#endif
 
   /* USER CODE END 2 */
 
@@ -213,6 +233,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+#if ETHERCAT_BRINGUP_ONLY
+    EtherCAT_Service();
+#else
     /*
      * 处理编码器标定请求和停机后的 Flash 保存。该服务无忙等，但可能执行
      * Flash 擦写，所以只能放在主循环，禁止移动到 TIM8/ADC/SPI 中断。
@@ -221,6 +244,7 @@ int main(void)
      */
     MotorControl_Service();
     MotorTelemetry_Service();
+#endif
   }
   /* USER CODE END 3 */
 }
@@ -285,6 +309,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+#if !ETHERCAT_BRINGUP_ONLY
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   MotorTelemetry_OnUartComplete(huart);
@@ -355,6 +380,7 @@ void HAL_SPI_AbortCpltCallback(SPI_HandleTypeDef *hspi)
     BissEncoder_OnAbortComplete();
   }
 }
+#endif
 
 /* USER CODE END 4 */
 

@@ -41,7 +41,13 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-
+/* 首次 EtherCAT 联调默认关闭全部电机启动路径。Keil 也必须显式保持为 1。 */
+#ifndef ETHERCAT_BRINGUP_ONLY
+#define ETHERCAT_BRINGUP_ONLY 1
+#endif
+#if (ETHERCAT_BRINGUP_ONLY != 0) && (ETHERCAT_BRINGUP_ONLY != 1)
+#error ETHERCAT_BRINGUP_ONLY_must_be_0_or_1
+#endif
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
