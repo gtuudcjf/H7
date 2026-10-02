@@ -88,6 +88,15 @@ exact submillisecond scheduling guarantee.
 
 ## Required Task 7 hardware interface
 
+Task 6 binds `ecatappl.c`, `ecatslv.c`, and `coeappl.c` to the project-owned
+`ethercat_app.h`, replacing their three example application includes.
+The fixed application dictionary is mandatory; `coeappl.c` registers it
+unconditionally while retaining the registration result/error handling.
+`ecatcoe.c` includes `el9800hw.h` so its active mailbox allocator call has
+the real pointer-returning declaration in each independent translation unit.
+These are the only Task 6 vendor source deltas. No warning suppression or
+forced include is required to compile these changed units with ARMClang.
+
 `Inc/el9800hw.h` directly declares the interface using SSC types, and does
 not depend on an unfinished port header. Task 7 implements these declarations
 over `lan9252_port`; its implementations should include this header to avoid
@@ -142,8 +151,12 @@ fault handling, feature aborts, ordinary SDO reads/writes, and preserved
 SDOInfo fragmentation through the bounded pool interface. Polling extraction
 does not verify the rest of `MainLoop` or firmware linkage.
 
-The vendor application include `el9800appl.h` in three sources is an explicit
-Task 6 integration point. Task 6 replaces it with the actual H743 application
-header/dictionary; it is not copied from the F407 example. Task 7 supplies
-the port implementations. Full firmware compilation/linkage follows those
-tasks and Keil integration in Task 8.
+The real application tests compile the full `coeappl.c`, `objdef.c`, and
+`sdoserv.c` with the actual H743 dictionary and PDO adapter. They exercise
+identity/mapping values and widths through OBJ_Read and SDO uploads,
+read-only map/assignment enforcement, writable ControlWord, unaligned
+two/six-byte wire mapping, and start/stop/error/fault resets. Counting runs
+only during active input/output exchange after valid PDO reception, and
+counts FreeRun application iterations rather than master cycles.
+Task 7 supplies the port implementations. Full firmware compilation/linkage
+follows that task and Keil integration in Task 8.

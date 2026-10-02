@@ -189,7 +189,7 @@ V4.00 ECAT 7: The return values for the AL-StatusCode were changed to UINT16
 
 
 
-#include "el9800appl.h"
+#include "ethercat_app.h"
 
 /*--------------------------------------------------------------------------------------
 ------

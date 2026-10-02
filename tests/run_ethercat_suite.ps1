@@ -32,6 +32,8 @@ foreach ($test in $nativeTests) {
         if (-not $compiler) {
             $found = Get-Command tcc.exe -ErrorAction SilentlyContinue
             if ($found) { $compiler = $found.Source }
+            $cachedCompiler = Join-Path $env:TEMP 'h7_vofa_tcc/tcc/tcc.exe'
+            if (-not $compiler -and (Test-Path -LiteralPath $cachedCompiler -PathType Leaf)) { $compiler = $cachedCompiler }
             if (-not $compiler) {
                 $archive = Join-Path $env:TEMP 'codex_position_tcc_20260922/tcc32.zip'
                 $toolDirectory = Join-Path $env:TEMP 'h7_vofa_tcc'

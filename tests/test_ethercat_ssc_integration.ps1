@@ -99,6 +99,27 @@ if (-not (Test-Path -LiteralPath (Join-Path $ssc 'README.md'))) { throw 'SSC imp
 if ($hw -match 'lan9252_port\.h') { throw 'SSC hardware declarations must be usable before the Task 7 port header exists.' }
 $appl = Get-Content -LiteralPath (Join-Path $ssc 'Src/ecatappl.c') -Raw
 
+# Limit Task 6 to the reviewed application bindings and ARM compile fixes.
+foreach ($unit in 'ecatappl', 'ecatslv', 'coeappl', 'ecatcoe') {
+    $path = "Middlewares/Third_Party/EtherCAT_SSC/Src/$unit.c"
+    $baseline = (& git -C $root show "2dbba1fd6b944284dfc1953be1491dbcdb034188:$path") -join "`n"
+    if ($LASTEXITCODE -ne 0) { throw "Cannot read reviewed SSC baseline: $unit" }
+    $baseline = $baseline.TrimEnd("`n")
+    $current = (Get-Content -LiteralPath (Join-Path $root $path) -Raw).Replace("`r`n", "`n").TrimEnd("`n")
+    if ($unit -eq 'ecatcoe') {
+        $expected = $baseline.Replace('#include "ecat_def.h"', "#include `"ecat_def.h`"`n#include `"el9800hw.h`"")
+    } else {
+        $expected = $baseline.Replace('#include "el9800appl.h"', '#include "ethercat_app.h"')
+        if ([regex]::Matches($current, '#include "ethercat_app.h"').Count -ne 1) { throw "SSC $unit must bind the real application exactly once." }
+        if ($unit -eq 'coeappl') {
+            $expected = $expected -replace '    if\(ApplicationObjDic != NULL\)\n    \{\n        result = AddObjectsToObjDictionary\(\(TOBJECT OBJMEM \*\) ApplicationObjDic\);\n    \}', '    result = AddObjectsToObjDictionary((TOBJECT OBJMEM *) ApplicationObjDic);'
+        }
+    }
+    if ($current -cne $expected) {
+        throw "Task 6 SSC change outside the reviewed bindings/compile fixes: $unit"
+    }
+}
+
 # Execute the real polling bodies without linking the application/port that
 # later tasks own. The ESC and clock are the only simulated boundaries.
 function Get-CFunction([string]$source, [string]$name) {
@@ -163,4 +184,9 @@ foreach ($native in 'mailbox', 'objects') {
     & $nativeExe
     if ($LASTEXITCODE -ne 0) { throw "SSC $native test exit code $LASTEXITCODE" }
 }
+$appExe = Join-Path $testDirectory 'ssc_application.exe'
+& $compiler -Wall -Werror -DETHERCAT_APP_SSC_TEST -I (Join-Path $ssc 'Inc') -I (Join-Path $ssc 'Src') -I (Join-Path $root 'Core/Inc/ethercat') (Join-Path $PSScriptRoot 'test_ethercat_app.c') (Join-Path $root 'Core/Src/ethercat/ethercat_app_core.c') (Join-Path $root 'Core/Src/ethercat/ethercat_app.c') -o $appExe
+if ($LASTEXITCODE -ne 0) { throw "SSC application test compile exit code $LASTEXITCODE" }
+& $appExe
+if ($LASTEXITCODE -ne 0) { throw "SSC application test exit code $LASTEXITCODE" }
 Write-Output 'EtherCAT SSC integration contract passed'

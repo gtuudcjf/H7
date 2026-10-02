@@ -112,7 +112,7 @@ V4.00 ECAT 1: The handling of the Sync Manager Parameter was included according 
 #define _OBJD_
 
 /*Add Application specific Objects*/
-#include "el9800appl.h"
+#include "ethercat_app.h"
 
 
 #undef _OBJD_
@@ -723,10 +723,7 @@ UINT16 COE_ObjDictionaryInit(void)
 
     if(result != 0)
         return result;
-    if(ApplicationObjDic != NULL)
-    {
-        result = AddObjectsToObjDictionary((TOBJECT OBJMEM *) ApplicationObjDic);
-    }
+    result = AddObjectsToObjDictionary((TOBJECT OBJMEM *) ApplicationObjDic);
 
     return result;
 }

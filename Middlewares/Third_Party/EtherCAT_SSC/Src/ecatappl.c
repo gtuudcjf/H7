@@ -125,7 +125,7 @@ V4.00 APPL 6: The main function was split in MainInit and MainLoop
 #undef _APPL_INTERFACE_
 /* ECATCHANGE_END(V5.11) ECAT11*/
 
-#include "el9800appl.h"
+#include "ethercat_app.h"
 
 /* H743 patch: independent baseline for the monotonic microsecond timer. */
 static UINT32 sscTimerBaseline;

@@ -31,6 +31,7 @@ V4.08 MBX 1: If the switch MAILBOX_QUEUE was set, we have to put all SDO Info Re
 ---------------------------------------------------------------------------------------*/
 
 #include "ecat_def.h"
+#include "el9800hw.h"
 
 
 #include "sdoserv.h"
