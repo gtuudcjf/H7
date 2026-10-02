@@ -606,7 +606,8 @@ UINT8 SDOS_SdoInd(TINITSDOMBX MBXMEM *pSdoInd)
     /* H743 patch: this generated reference removed its feature guards.
      * Reject disabled Complete Access before entering the object dictionary. */
 #if !COMPLETE_ACCESS_SUPPORTED
-    if (sdoHeader & SDOHEADER_COMPLETEACCESS)
+    if ((command == SDOSERVICE_INITIATEUPLOADREQ || command == SDOSERVICE_INITIATEDOWNLOADREQ)
+        && (sdoHeader & SDOHEADER_COMPLETEACCESS))
     {
         SdoRes(ABORTIDX_COMPLETE_ACCESS_NOT_SUPPORTED, command, 0, 0, 0, pSdoInd);
         return 0;
@@ -635,6 +636,16 @@ UINT8 SDOS_SdoInd(TINITSDOMBX MBXMEM *pSdoInd)
 
         if ( pObjEntry )
         {
+            /* H743 patch: record descriptors are bounded by configured
+             * subindices. Validate before the length helper indexes them.
+             * PDO mapping entries remain accessible while SI0 is cleared. */
+            UINT8 objCode = (pObjEntry->ObjDesc.ObjFlags & OBJFLAGS_OBJCODEMASK) >> OBJFLAGS_OBJCODESHIFT;
+            UINT8 maxConfiguredSubindex = (pObjEntry->ObjDesc.ObjFlags & OBJFLAGS_MAXSUBINDEXMASK) >> OBJFLAGS_MAXSUBINDEXSHIFT;
+            if (subindex > maxConfiguredSubindex || (objCode == OBJCODE_VAR && subindex != 0))
+            {
+                abort = ABORTIDX_SUBINDEX_NOT_EXISTING;
+                break;
+            }
             /* transferType contains the information if the SDO Download Request or the SDO Upload Response
                can be an expedited service (SDO data length <= 4, that means the data is stored in the
                 SDO-Header completely */
@@ -728,6 +739,11 @@ UINT8 SDOS_SdoInd(TINITSDOMBX MBXMEM *pSdoInd)
                         segTransfer = 1;
                 }
             }
+
+            /* H743 patch: reject short/long single-entry writes before any
+             * generic or custom object handler can consume the payload. */
+            if (command == SDOSERVICE_INITIATEDOWNLOADREQ && dataSize != objLength)
+                abort = dataSize < objLength ? ABORTIDX_PARAM_LENGTH_TOO_SHORT : ABORTIDX_PARAM_LENGTH_TOO_LONG;
 
             if ( sdoHeader & SDOHEADER_COMPLETEACCESS )
             {

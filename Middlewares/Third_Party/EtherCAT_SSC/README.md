@@ -46,6 +46,22 @@ changes, and converts a single-entry handler's deferred `ABORTIDX_WORKING`
 result into the same unsupported-access abort. SDOInfo fragmentation retains
 the vendor continuation path and uses mailbox pool buffers.
 
+Single-entry SDO validates the configured subindex before reading a record
+descriptor or calculating its length; missing subindices abort `0x06090011`.
+Downloads must match the entry's byte width before generic or custom writes:
+short and long transfers abort `0x06070013` and `0x06070012`, respectively.
+`objdef.c` also validates direct single-entry writes at its public boundary.
+Configured PDO mapping entries remain writable while subindex zero is
+cleared. The Complete Access check applies only to initiation commands;
+both segment toggle values retain the unsupported-segment abort.
+
+`mailbox.c` drains every entry in both queues on stop, releases a separately
+retained CoE response without freeing retained-pointer aliases twice, clears
+write/retained pointers, and resets CoE continuation state before restart.
+`objdef.c` uses pointer-width `uintptr_t` for the existing odd-address ENUM
+alignment check and masked-address reconstruction; byte ESC storage is not
+used as an address-sized integer.
+
 The same generated-reference issue affected synchronization:
 `coeappl.c` now advertises SM/DC/subcycle support only under its feature
 flags. `ecatslv.c` selects FreeRun for both PDO directions when AL events
@@ -118,7 +134,10 @@ tests/test_ethercat_ssc_integration.ps1`. It checks the import/configuration
 contracts and executes real SyncManager bodies, the real `MainLoop` timer
 block, the real synchronization selection and object initialization, and
 the full SDO dispatcher against fake ESC/clock/dictionary/mailbox
-boundaries. Focused tests prove wrap, backlog, finite stalled-clock polling,
+boundaries. Additional tests compile the actual full mailbox/CoE and SDO/
+object-access sources, track fixed-pool stop/restart ownership, and guard a
+bounded descriptor table with an inaccessible page. Focused tests prove
+wrap, backlog, finite stalled-clock polling,
 fault handling, feature aborts, ordinary SDO reads/writes, and preserved
 SDOInfo fragmentation through the bounded pool interface. Polling extraction
 does not verify the rest of `MainLoop` or firmware linkage.

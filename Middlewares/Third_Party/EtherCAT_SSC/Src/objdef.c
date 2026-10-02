@@ -887,14 +887,14 @@ UINT8 OBJ_Read( UINT16 index, UINT8 subindex, UINT32 objSize, OBJCONST TOBJECT O
             p = (CHAR **) pVarPtr;
             pVarPtr = (UINT16 MBXMEM *)p[subindex-1];
 
-            if((((UINT16)pVarPtr) & 0x1) == 0x1)
+            if((((uintptr_t)pVarPtr) & 0x1U) == 0x1U)
             {
                 /*enum is stored at an odd address*/
                 UINT16 cnt = 0;
 
                 //get last even WORD address
 /*ECATCHANGE_START(V5.11) SDO3*/
-                pVarPtr = (UINT16 MBXMEM *)(((MEM_ADDR)pVarPtr)& ~(MEM_ADDR)0x1);
+                pVarPtr = (UINT16 MBXMEM *)(((uintptr_t)pVarPtr) & ~(uintptr_t)0x1U);
 /*ECATCHANGE_END(V5.11) SDO3*/
 
                 for(cnt = 0; cnt < (size / 2);cnt++)
@@ -1315,6 +1315,14 @@ UINT8 OBJ_Write( UINT16 index, UINT8 subindex, UINT32 dataSize, OBJCONST TOBJECT
         /* we check the write access for single accesses here, a complete write access
            is allowed if at least one entry is writable (in this case the values for the
             read only entries shall be ignored) */
+        /* H743 patch: protect bounded record descriptors and enforce width
+         * before invoking either a generic or an object-specific writer. */
+        UINT32 expectedSize;
+        if (subindex > maxConfiguredSubindex)
+            return ABORTIDX_SUBINDEX_NOT_EXISTING;
+        expectedSize = OBJ_GetObjectLength(index, subindex, pObjEntry, 0);
+        if (dataSize != expectedSize)
+            return dataSize < expectedSize ? ABORTIDX_PARAM_LENGTH_TOO_SHORT : ABORTIDX_PARAM_LENGTH_TOO_LONG;
         /* we get the corresponding entry description */
         pEntry = OBJ_GetEntryDesc(pObjEntry, subindex);
 

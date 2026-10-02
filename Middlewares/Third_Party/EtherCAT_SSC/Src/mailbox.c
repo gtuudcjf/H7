@@ -372,7 +372,14 @@ void MBX_StopMailboxHandler(void)
     if (psReadMbx != NULL && psReadMbx != psRepeatMbx && psReadMbx != psStoreMbx)
         APPL_FreeMailboxBuffer(psReadMbx);
 
+    /* H743 patch: a failed send can retain a separate CoE response outside
+     * either queue. Release it before COE_Init discards its pointer. */
+    if (pCoeSendStored != NULL && pCoeSendStored != psRepeatMbx
+        && pCoeSendStored != psStoreMbx && pCoeSendStored != psReadMbx)
+        APPL_FreeMailboxBuffer(pCoeSendStored);
+    COE_Init();
 
+    psWriteMbx = NULL;
     psRepeatMbx = NULL;
     psReadMbx = NULL;
     psStoreMbx = NULL;
@@ -397,7 +404,6 @@ void MBX_StopMailboxHandler(void)
         if (pMbx)
         {
             APPL_FreeMailboxBuffer(pMbx);
-            pMbx = NULL;
         }
     } while (pMbx != NULL);
     do
@@ -406,7 +412,6 @@ void MBX_StopMailboxHandler(void)
         if (pMbx)
         {
             APPL_FreeMailboxBuffer(pMbx);
-            pMbx = NULL;
         }
     } while (pMbx != NULL);
 

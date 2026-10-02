@@ -156,4 +156,11 @@ $selection
 if ($LASTEXITCODE -ne 0) { throw "SSC SDO test compile exit code $LASTEXITCODE" }
 & $sdoExe
 if ($LASTEXITCODE -ne 0) { throw "SSC SDO test exit code $LASTEXITCODE" }
+foreach ($native in 'mailbox', 'objects') {
+    $nativeExe = Join-Path $testDirectory "ssc_$native.exe"
+    & $compiler -Wall -Werror -I (Join-Path $ssc 'Inc') -I (Join-Path $ssc 'Src') -I (Join-Path $root 'Core/Inc/ethercat') (Join-Path $PSScriptRoot "test_ethercat_ssc_$native.c") -o $nativeExe
+    if ($LASTEXITCODE -ne 0) { throw "SSC $native test compile exit code $LASTEXITCODE" }
+    & $nativeExe
+    if ($LASTEXITCODE -ne 0) { throw "SSC $native test exit code $LASTEXITCODE" }
+}
 Write-Output 'EtherCAT SSC integration contract passed'
