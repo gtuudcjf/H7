@@ -500,10 +500,8 @@ UINT16 OBJ_GetDesc( UINT16 index, UINT8 subindex, OBJCONST TOBJECT OBJMEM * pObj
                     strSize = OBJSTRLEN( (OBJCONST CHAR OBJMEM *) pSubDesc );
                     if ( pData && strSize )
                         OBJTOMBXSTRCPY( pData, pSubDesc, strSize );
-/* ECATCHANGE_START(V5.11) SDO6*/
-                    else
-                        strSize = 0;
-/* ECATCHANGE_END(V5.11) SDO6*/
+                    /* H743 patch: a size-only query must retain the same
+                     * name length as the copy form for mailbox fit checks. */
 
                     break;
                 }

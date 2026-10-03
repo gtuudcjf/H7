@@ -71,6 +71,7 @@ int main(void)
     CHECK(MBX_StartMailboxHandler() == 0);
     buffers[0] = HW_AllocMailboxBuffer(128);
     memset(buffers[0], 0, 128);
+    buffers[0]->MbxHeader.Length = 10;
     buffers[0]->MbxHeader.Flags[0] = MBX_TYPE_COE << MBX_SHIFT_TYPE;
     ((TCOEMBX *)buffers[0])->CoeHeader = COESERVICE_SDOREQUEST << COEHEADER_COESERVICESHIFT;
     CHECK(PutInMbxQueue(buffers[0], &sMbxReceiveQueue) == 0);

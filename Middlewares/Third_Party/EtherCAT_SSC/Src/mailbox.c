@@ -132,6 +132,7 @@ V4.07 ECAT 1: The sources for SPI and MCI were merged (in ecat_def.h<br>
 /* ECATCHANGE_END(V5.11) ECAT10*/
 
 #include "ecatcoe.h"
+#include "sdoserv.h"
 
 /*--------------------------------------------------------------------------------------
 ------
@@ -301,6 +302,11 @@ UINT16 MBX_StartMailboxHandler(void)
     /* store the address of the send mailbox */
     u16EscAddrSendMbx = pSyncMan->PhysicalStartAddress;
 
+    /* H743 patch: reject impossible capacities before subtraction or I/O. */
+    if (u16ReceiveMbxSize < MIN_MBX_SIZE || u16ReceiveMbxSize > MAX_MBX_SIZE
+        || u16SendMbxSize < MIN_MBX_SIZE || u16SendMbxSize > MAX_MBX_SIZE)
+        return ALSTATUSCODE_INVALIDMBXCFGINPREOP;
+
     // HBu 02.05.06: it should be checked if there are overlaps in the sync manager areas
     if ((u16EscAddrReceiveMbx + u16ReceiveMbxSize) > u16EscAddrSendMbx && (u16EscAddrReceiveMbx < (u16EscAddrSendMbx + u16SendMbxSize)))
     {
@@ -425,6 +431,23 @@ void MBX_StopMailboxHandler(void)
  \brief    corresponding XXXX_ServiceInd-function
 *////////////////////////////////////////////////////////////////////////////////////////
 
+/* Length excludes the six-byte header. Subtract only after checking capacity,
+ * and never add an untrusted payload length (0xffff can otherwise wrap). */
+static BOOL MBX_PayloadFits(UINT16 payload, UINT16 capacity)
+{
+    return capacity >= MBX_HEADER_SIZE
+        && payload <= (capacity - MBX_HEADER_SIZE)
+        && payload <= (MAX_MBX_SIZE - MBX_HEADER_SIZE);
+}
+
+static void MBX_InvalidSizeResponse(TMBX MBXMEM *pMbx)
+{
+    pMbx->MbxHeader.Length = 4;
+    pMbx->MbxHeader.Flags[MBX_OFFS_TYPE] &= ~MBX_MASK_TYPE;
+    pMbx->Data[0] = SWAPWORD(MBXSERVICE_MBXERRORCMD);
+    pMbx->Data[1] = SWAPWORD(MBXERR_INVALIDSIZE);
+}
+
 UINT8 MailboxServiceInd(TMBX MBXMEM *pMbx)
 {
     UINT8 result;
@@ -463,7 +486,7 @@ void MBX_MailboxWriteInd(TMBX MBXMEM *pMbx)
     UINT8 mbxCounter = pMbx->MbxHeader.Flags[MBX_OFFS_COUNTER] >> MBX_SHIFT_COUNTER;
     UINT16 MbxLen = SWAPWORD(pMbx->MbxHeader.Length);
 
-    if(MbxLen > MAX_MBX_SIZE)
+    if(!MBX_PayloadFits(MbxLen, u16ReceiveMbxSize))
     {
         /* Mailbox error response: size specified in mailbox header too large*/
         pMbx->MbxHeader.Length     = 4;
@@ -642,6 +665,29 @@ UINT8 MBX_MailboxSendReq( TMBX MBXMEM * pMbx, UINT8 flags )
 {
     UINT8 result = 0;
 
+    /* H743 patch: replace an invalid response with a visible bounded error,
+     * before it can enter the busy queue. This consumes the original request
+     * through the usual send/repeat ownership, with no fragment continuation. */
+    if (!MBX_PayloadFits(pMbx->MbxHeader.Length, u16SendMbxSize))
+    {
+        MBX_InvalidSizeResponse(pMbx);
+        if (flags & COE_SERVICE)
+        {
+            nSdoInfoFragmentsLeft = 0;
+            u8MailboxSendReqStored &= ~COE_SERVICE;
+        }
+        flags = 0;
+        if (!MBX_PayloadFits(4, u16SendMbxSize))
+        {
+            /* An impossible SM cannot even carry an error. Consume/release
+             * rather than returning a busy result for indefinite CoE retry. */
+            if (psWriteMbx == pMbx)
+                psWriteMbx = NULL;
+            APPL_FreeMailboxBuffer(pMbx);
+            return 0;
+        }
+    }
+
     /* HBu 06.02.06: in INIT-state a mailbox send request shall be refused */
     if ( (nAlStatus & STATE_MASK) == STATE_INIT )
         return ERROR_INVALIDSTATE;
@@ -701,12 +747,14 @@ UINT8 MBX_MailboxSendReq( TMBX MBXMEM * pMbx, UINT8 flags )
 void MBX_CheckAndCopyMailbox( void )
 {
     UINT16 mbxLen;
+    BOOL validLength;
 
     /* get the size of the received mailbox command and acknowledge the event*/
     HW_EscReadWord(mbxLen,u16EscAddrReceiveMbx);
 
     /* the size has to be swapped here, all other bytes of the mailbox service will be swapped later */
     mbxLen = SWAPWORD(mbxLen);
+    validLength = MBX_PayloadFits(mbxLen, u16ReceiveMbxSize);
 
 /* ECATCHANGE_START(V5.11) MBX2*/
     if(bNoMbxMemoryAvailable == TRUE)
@@ -723,15 +771,15 @@ void MBX_CheckAndCopyMailbox( void )
             pMbx->MbxHeader.Flags[MBX_OFFS_TYPE]        &= ~(MBX_MASK_TYPE);
             pMbx->Data[0]                        = SWAPWORD(MBXSERVICE_MBXERRORCMD);
             pMbx->Data[1]                        = SWAPWORD(MBXERR_NOMOREMEMORY);
-            MBX_MailboxSendReq(pMbx, 0);
-
-            APPL_FreeMailboxBuffer(pMbx);
+            if (MBX_MailboxSendReq(pMbx, 0) != 0)
+                APPL_FreeMailboxBuffer(pMbx);
         }
+        return; /* The error buffer is now owned by send/queue/repeat. */
     }
 /* ECATCHANGE_END(V5.11) MBX2*/
     /* the length of the mailbox data is in the first two bytes of the mailbox,
        so the length of the mailbox header has to be added */
-    mbxLen += MBX_HEADER_SIZE;
+    mbxLen = validLength ? (mbxLen + MBX_HEADER_SIZE) : MBX_HEADER_SIZE;
 
     /* in this example there are only two mailbox buffers available in the firmware (one for processing and
        one to stored the last sent response for a possible repeat request), so a
@@ -753,12 +801,8 @@ void MBX_CheckAndCopyMailbox( void )
         /* received mailbox command can be processed, reset flag */
         bReceiveMbxIsLocked = FALSE;
 
-        /* if the read mailbox size is too big for the buffer, set the copy size to the maximum buffer size, otherwise
-           memory could be overwritten,
-           the evaluation of the mailbox size will be done in the mailbox protocols called from MBX_WriteMailboxInd */
-
-        if (mbxLen > u16ReceiveMbxSize)
-            mbxLen = u16ReceiveMbxSize;
+        /* Invalid payloads copy only the header; MBX_MailboxWriteInd produces
+         * the bounded error without dispatching or echoing the payload. */
 
         psWriteMbx = (TMBX MBXMEM *) APPL_AllocMailboxBuffer(u16ReceiveMbxSize);
 
@@ -808,6 +852,9 @@ void MBX_CheckAndCopyMailbox( void )
 
 UINT8 MBX_CopyToSendMailbox( TMBX MBXMEM *pMbx )
 {
+    /* Final physical boundary, including queued and repeat copies. */
+    if (!MBX_PayloadFits(pMbx->MbxHeader.Length, u16SendMbxSize))
+        return MBXERR_INVALIDSIZE;
     if ( (nAlStatus & STATE_MASK) == STATE_INIT)
     {
         /* the mailbox is disabled if the slave is in the INIT state */
@@ -852,8 +899,8 @@ UINT8 MBX_CopyToSendMailbox( TMBX MBXMEM *pMbx )
             {
                 /*The last 2Bytes are overlapping the already written buffer*/
 
-                /*Get the valid 16Bit address*/
-                UINT32 LastDataAddress = ((mbxSize + MBX_HEADER_SIZE)/2)*2;
+                /* Preserve the SM's last valid bytes, also for odd SM sizes. */
+                UINT32 LastDataAddress = u16SendMbxSize - 2;
 
                 /*Copy the buffer to overwrite*/
                 MEMCPY((UINT16 *)&u16dummy,(((UINT8 *)pMbx) + LastDataAddress),(2 - BytesLeft));

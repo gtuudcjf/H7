@@ -609,9 +609,9 @@ void SdoRes(UINT8 abort, UINT8 command, UINT8 completeAccess, UINT16 dataSize, U
 UINT8 SDOS_SdoInd(TINITSDOMBX MBXMEM *pSdoInd)
 {
     UINT8 abort = 0;
-    UINT8 sdoHeader = pSdoInd->SdoHeader.Sdo[SDOHEADER_COMMANDOFFSET] & SDOHEADER_COMMANDMASK;
+    UINT8 sdoHeader;
     /* the SDO-command is in bit 5-7 of the first SDO-Byte */
-    UINT8 command = (sdoHeader & SDOHEADER_COMMAND);
+    UINT8 command;
     /* mbxSize contains the size of the mailbox (CoE-Header (2 Bytes) + SDO-Header (8 Bytes) + SDO-Data (if the data length is greater than 4)) */
     UINT16 mbxSize = SWAPWORD(pSdoInd->MbxHeader.Length);
     UINT16 index;
@@ -621,6 +621,13 @@ UINT8 SDOS_SdoInd(TINITSDOMBX MBXMEM *pSdoInd)
     UINT8 bCompleteAccess = 0;
     UINT32 objLength = 0;
     UINT32 dataSize = 0;
+
+    /* H743 patch: require the complete single-entry SDO request header
+     * before reading command/index/size or producing an abort response. */
+    if (mbxSize < EXPEDITED_FRAME_SIZE)
+        return MBXERR_SIZETOOSHORT;
+    sdoHeader = pSdoInd->SdoHeader.Sdo[SDOHEADER_COMMANDOFFSET] & SDOHEADER_COMMANDMASK;
+    command = sdoHeader & SDOHEADER_COMMAND;
 
     /* H743 patch: this generated reference removed its feature guards.
      * Reject disabled Complete Access before entering the object dictionary. */
@@ -1041,10 +1048,15 @@ UINT8 SDOS_SdoInfoInd( TSDOINFORMATION MBXMEM *pSdoInfoInd )
 {
     UINT8 abort = 0;
     /* the variable opCode contains the requested SDO Information type */
-    UINT8 opCode = (UINT8) ((pSdoInfoInd->SdoHeader.InfoHead & INFOHEAD_OPCODE_MASK) >> INFOHEAD_OPCODE_SHIFT);
+    UINT8 opCode;
     OBJCONST TOBJECT OBJMEM * pObjEntry;
     UINT16 index;
     UINT8 flags = COE_SERVICE;
+
+    /* H743 patch: the opcode itself is inside the SDOInfo header. */
+    if (pSdoInfoInd->MbxHeader.Length < SIZEOF_SDOINFO)
+        return MBXERR_SIZETOOSHORT;
+    opCode = (UINT8) ((pSdoInfoInd->SdoHeader.InfoHead & INFOHEAD_OPCODE_MASK) >> INFOHEAD_OPCODE_SHIFT);
 
     /* it has to be checked if the mailbox protocol is correct, the sent mailbox data length has to
        great enough for the service header of the requested SDO Information type */
@@ -1063,6 +1075,11 @@ UINT8 SDOS_SdoInfoInd( TSDOINFORMATION MBXMEM *pSdoInfoInd )
     {
     case SDOINFOSERVICE_OBJDICTIONARYLIST_Q:
         /* an object list is requested, check if the list type is supported */
+        if (SWAPWORD(pSdoInfoInd->SdoHeader.Data.List.ListType) > INFO_LIST_TYPE_MAX)
+        {
+            abort = ABORTIDX_COMMAND_SPECIFIER_UNKNOWN;
+            break;
+        }
         if ( SWAPWORD(pSdoInfoInd->SdoHeader.Data.List.ListType) <= INFO_LIST_TYPE_MAX )
         {
             UINT16 size = 0;

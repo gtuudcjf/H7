@@ -62,6 +62,22 @@ write/retained pointers, and resets CoE continuation state before restart.
 alignment check and masked-address reconstruction; byte ESC storage is not
 used as an address-sized integer.
 
+Final review length fixes (2026-10-03) validate mailbox payloads against both
+the configured SM capacity minus the six-byte header and the 128-byte pool
+allocation, before addition/copy/dispatch and at the physical send boundary.
+CoE/SDO/SDOInfo headers are checked before field access; unsupported SDOInfo
+list types return a bounded error. Oversized responses become INVALIDSIZE
+mailbox errors through existing queue/repeat ownership, cancelling their CoE
+continuation; impossible error capacities release the request without I/O.
+The no-memory error transfers ownership to the send path, and the last-word
+trigger preserves terminal bytes at exact/odd SM ends. Record-name size-only
+and copy queries now agree, so names that cannot fit SM34 are omitted while
+the advertised minimum 34/default 128-byte mailbox sizes remain unchanged.
+`ecatcoe.c` includes `ecatslv.h` for the existing byte-order macros.
+`tests/test_ethercat_ssc_lengths.c` exercises the real mailbox/CoE/SDOInfo,
+dictionary and application chain using protected pool blocks and bounded ESC
+accesses; no protocol dispatcher or mailbox sender is substituted.
+
 The same generated-reference issue affected synchronization:
 `coeappl.c` now advertises SM/DC/subcycle support only under its feature
 flags. `ecatslv.c` selects FreeRun for both PDO directions when AL events

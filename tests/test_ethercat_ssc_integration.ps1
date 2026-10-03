@@ -109,7 +109,16 @@ foreach ($unit in 'ecatappl', 'ecatslv', 'coeappl', 'ecatcoe') {
     $baseline = ($baseline -replace '(?m)[ \t]+$', '').TrimEnd("`n")
     $current = ((Get-Content -LiteralPath (Join-Path $root $path) -Raw).Replace("`r`n", "`n") -replace '(?m)[ \t]+$', '').TrimEnd("`n")
     if ($unit -eq 'ecatcoe') {
-        $expected = $baseline.Replace('#include "ecat_def.h"', "#include `"ecat_def.h`"`n#include `"el9800hw.h`"")
+        $expected = $baseline.Replace('#include "ecat_def.h"', "#include `"ecat_def.h`"`n#include `"el9800hw.h`"`n#include `"ecatslv.h`"")
+        # Final review length fix: validate before interpreting the CoE header.
+        $expected = $expected.Replace("    UINT8 result = 0;`n", @"
+    UINT8 result = 0;
+
+    /* H743 patch: do not interpret an absent/partial CoE header. */
+    if (SWAPWORD(pCoeMbx->MbxHeader.Length) < COE_HEADER_SIZE)
+        return MBXERR_SIZETOOSHORT;
+
+"@)
     } else {
         $expected = $baseline.Replace('#include "el9800appl.h"', '#include "ethercat_app.h"')
         if ([regex]::Matches($current, '#include "ethercat_app.h"').Count -ne 1) { throw "SSC $unit must bind the real application exactly once." }
@@ -186,6 +195,11 @@ foreach ($native in 'mailbox', 'objects') {
     & $nativeExe
     if ($LASTEXITCODE -ne 0) { throw "SSC $native test exit code $LASTEXITCODE" }
 }
+$lengthExe = Join-Path $testDirectory 'ssc_lengths.exe'
+& $compiler -Wall -Werror -I (Join-Path $ssc 'Inc') -I (Join-Path $ssc 'Src') -I (Join-Path $root 'Core/Inc/ethercat') (Join-Path $PSScriptRoot 'test_ethercat_ssc_lengths.c') (Join-Path $root 'Core/Src/ethercat/ethercat_app.c') (Join-Path $root 'Core/Src/ethercat/ethercat_app_core.c') -o $lengthExe
+if ($LASTEXITCODE -ne 0) { throw "SSC length-chain test compile exit code $LASTEXITCODE" }
+& $lengthExe
+if ($LASTEXITCODE -ne 0) { throw "SSC length-chain test exit code $LASTEXITCODE" }
 $appExe = Join-Path $testDirectory 'ssc_application.exe'
 & $compiler -Wall -Werror -DETHERCAT_APP_SSC_TEST -I (Join-Path $ssc 'Inc') -I (Join-Path $ssc 'Src') -I (Join-Path $root 'Core/Inc/ethercat') (Join-Path $PSScriptRoot 'test_ethercat_app.c') (Join-Path $root 'Core/Src/ethercat/ethercat_app_core.c') (Join-Path $root 'Core/Src/ethercat/ethercat_app.c') -o $appExe
 if ($LASTEXITCODE -ne 0) { throw "SSC application test compile exit code $LASTEXITCODE" }

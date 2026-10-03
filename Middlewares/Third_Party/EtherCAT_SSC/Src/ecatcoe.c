@@ -32,6 +32,7 @@ V4.08 MBX 1: If the switch MAILBOX_QUEUE was set, we have to put all SDO Info Re
 
 #include "ecat_def.h"
 #include "el9800hw.h"
+#include "ecatslv.h"
 
 
 #include "sdoserv.h"
@@ -97,6 +98,10 @@ void COE_Init(void)
 UINT8 COE_ServiceInd(TCOEMBX MBXMEM *pCoeMbx)
 {
     UINT8 result = 0;
+
+    /* H743 patch: do not interpret an absent/partial CoE header. */
+    if (SWAPWORD(pCoeMbx->MbxHeader.Length) < COE_HEADER_SIZE)
+        return MBXERR_SIZETOOSHORT;
 
     switch ((pCoeMbx->CoeHeader & COEHEADER_COESERVICEMASK) >> COEHEADER_COESERVICESHIFT)
     {
