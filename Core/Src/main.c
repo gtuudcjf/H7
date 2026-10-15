@@ -29,6 +29,7 @@
 /* USER CODE BEGIN Includes */
 #if ETHERCAT_BRINGUP_ONLY
 #include "ethercat_service.h"
+#include "lan9252_board.h"
 #else
 #include "biss_encoder.h"
 #include "motor_control.h"
@@ -148,6 +149,8 @@ int main(void)
   /* 驱动错误保留诊断并返回，禁止转入永久 Error_Handler。 */
   ethercat_init_status = EtherCAT_Init();
   ethercat_diagnostics = EtherCAT_GetDiagnostics();
+  /* 仅测试模式启动时执行一次只读对照；不覆盖原初始化结果、不自动清错。 */
+  LAN9252_BoardRunSpiDiagnostics();
 #else
   /* USER CODE END SysInit */
 

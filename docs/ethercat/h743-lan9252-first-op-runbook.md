@@ -130,6 +130,9 @@ INIT/PREOP/SAFEOP/OP 的应用通信能力参见 [Beckhoff 状态机说明](http
 
 ## 7. 最终软件修复构建交接记录（2026-10-03）
 
+以下散列属于 10 月 3 日的构建。10 月 7 日新增只读 SPI 对照诊断后，
+当前 HEX 已变化；请按第 8 节重新构建/使用新产物，不拿下面旧散列验收诊断固件。
+
 实际 `D:/Keil_v5/UV4/UV4.exe`、target `emptytest`、ARMCC
 `5.06 update 5 (build 528)` 全量 rebuild：0 errors、0 warnings。
 固定 `ETHERCAT_BRINGUP_ONLY=1`；生成
@@ -155,3 +158,45 @@ USER CODE 与全局 diff 记录：
 `.superpowers/sdd/2026-10-01-h743-lan9252-first-op/software-final-fix-report.md`
 （本机验证记录）。当前项目/选项的用户编辑已逐字节保留。本次未执行 CubeMX 重生成、TwinCAT ESI 导入、EEPROM
 写入、烧录或实板 OP/稳定性测试；后续按本手册逐项验收。
+
+## 8. BYTE_TEST 全 FF 时的只读 SPI 对照（2026-10-07）
+
+本诊断经用户同意加入，只在 `ETHERCAT_BRINGUP_ONLY=1` 的启动路径执行一次，
+位于原 `EtherCAT_Init()`、诊断指针赋值之后，主循环开始之前。
+它只读取 LAN9252 的 BYTE_TEST (`0x0064`)，不写 ESC/EEPROM、不控制电机，
+不覆盖原初始化状态、不清除锁存故障、不改变原驱动的收发实现或 SPI 参数。
+电机模式 0 不调用它；测试结束可移除 main 中这一次调用，保留正常初始化。
+
+诊断有独立的有限 HAL 超时（每次 5 ms），用于对照帧形状，不是生产驱动
+1 ms 微秒预算的等价测量。HAL 结果为 0 OK、1 ERROR、2 BUSY、3 TIMEOUT。
+`0xffffffff` 表示对应调用未执行，不是超时。失败后也会拉高 CS。
+
+### 操作步骤
+
+1. 退出旧调试会话；保持电机不连接、功率级关闭，确认测试模式仍为 1。
+2. Rebuild，明确由操作者下载新固件（本次代码修改/编译没有代替操作者烧录）。
+3. 删除之前在 SPI/初始化内部的测试断点。进入调试后 Run 约 1 秒，再 Stop；
+   不在 CS 低期间单步、不通过 Watch 调用函数，也不必精确停在某行。
+4. Watch 添加 **`g_lan9252_spi_debug`**，直接展开这个全局结构；不是指针。
+5. `done=1` 后查看 `passed_mask`、三个子结构的 `value/value_valid`、
+   `hal_status[0..1]`、`hal_error[0..1]`、`hal_calls` 和 `tx/rx[0..7]`。
+   同时保留原 `ethercat_init_status`、`ethercat_diagnostics` 作为基线。
+6. 截图后停止，不凭单次对照就修改 EEPROM、放宽探测或启动电机。
+
+| 子结构 | 命令/传输 | 数据在 rx 中的位置 |
+|---|---|---|
+| `fast_split` | `0B 00 64 00` + 4 个零，CS 保持低，分两次 HAL 收发 | `[4..7]` |
+| `fast_single` | 相同 8 字节，一次 HAL 收发 | `[4..7]` |
+| `normal_single` | `03 00 64` + 4 个零，7 字节一次 HAL 收发 | `[3..6]` |
+
+正确的四字节数据为 `21 43 65 87`，组合值为 `0x87654321`。
+命令阶段的 rx 不参与解析；普通读取的 rx[7] 不传输，预填为 `0xCC`。
+`value_valid=1` 仅表示 HAL 调用成功、组合值可观察，不保证值正确；HAL 失败时
+不解析 value，必须先看有效标志。`passed_mask` 只有在有效且值匹配时置位：
+bit0 为分段快读、bit1 为整帧快读、bit2 为整帧普通读；全部成功为 7。
+
+若分段失败、整帧成功，是分段/外设关开/帧间时序的线索，不是根因证明；
+三种按固定顺序各执行一次，启动准备时间也可能影响结果，必要时在稳定供电后
+重新复位重复验证。若全 FF 且 HAL_OK，仍需检查片选波形、物理连线、LAN9252
+供电/复位/接口状态；主机测试不验证这些实物条件。若诊断通过而原 init 失败，
+原状态依旧保持失败是刻意设计，不能据 `passed_mask` 宣称已初始化或已进入 OP。

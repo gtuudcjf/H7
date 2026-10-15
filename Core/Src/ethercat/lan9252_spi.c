@@ -2,6 +2,9 @@
 #include "lan9252_regs.h"
 #include <string.h>
 
+volatile LAN9252FirstFault g_lan9252_first_fault;
+static uint32_t diagnostic_esc_address = UINT32_C(0xffffffff);
+
 static uint32_t load32(const uint8_t *p)
 {
     return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
@@ -45,30 +48,55 @@ static int expired(LAN9252Context *ctx, uint32_t start, uint32_t timeout)
     return (uint32_t)(now(ctx) - start) >= timeout;
 }
 static LAN9252Status transfer_until(LAN9252Context *ctx, const uint8_t *tx,
-                                  uint8_t *rx, size_t length, uint32_t start)
+                                  uint8_t *rx, size_t length, uint32_t start,
+                                  uint32_t *reason)
 {
     LAN9252Status status;
     uint32_t elapsed = (uint32_t)(now(ctx) - start);
-    if (elapsed >= LAN9252_DIRECT_TIMEOUT_US) return LAN9252_ERR_DIRECT_TIMEOUT;
+    if (elapsed >= LAN9252_DIRECT_TIMEOUT_US) {
+        *reason = 1;
+        return LAN9252_ERR_DIRECT_TIMEOUT;
+    }
     status = ctx->transport.transfer(ctx->transport.context, tx, rx, length,
                                     LAN9252_DIRECT_TIMEOUT_US - elapsed);
-    if (status != LAN9252_OK)
+    if (status != LAN9252_OK) {
+        *reason = 2;
         return status == LAN9252_ERR_DIRECT_TIMEOUT ? status : LAN9252_ERR_IO;
-    return expired(ctx, start, LAN9252_DIRECT_TIMEOUT_US) ? LAN9252_ERR_DIRECT_TIMEOUT : LAN9252_OK;
+    }
+    if (expired(ctx, start, LAN9252_DIRECT_TIMEOUT_US)) {
+        *reason = 3;
+        return LAN9252_ERR_DIRECT_TIMEOUT;
+    }
+    return LAN9252_OK;
 }
 static LAN9252Status direct(LAN9252Context *ctx, uint16_t address,
                            uint8_t *rx, const uint8_t *tx, size_t length)
 {
     uint8_t header[4];
     uint32_t start = now(ctx);
+    uint32_t phase = 1, reason = 0;
     LAN9252Status status;
     header[0] = rx ? LAN9252_SPI_FAST_READ : LAN9252_SPI_WRITE;
     header[1] = (uint8_t)(address >> 8); header[2] = (uint8_t)address; header[3] = 0;
     ctx->transport.select(ctx->transport.context);
-    status = transfer_until(ctx, header, NULL, rx ? 4u : 3u, start);
-    if (status == LAN9252_OK) status = transfer_until(ctx, tx, rx, length, start);
+    status = transfer_until(ctx, header, NULL, rx ? 4u : 3u, start, &reason);
+    if (status == LAN9252_OK) {
+        phase = 2;
+        status = transfer_until(ctx, tx, rx, length, start, &reason);
+    }
     /* One exit after select, including header/data failure and late completion. */
     ctx->transport.deselect(ctx->transport.context);
+    if (status != LAN9252_OK && !g_lan9252_first_fault.valid) {
+        g_lan9252_first_fault.address = address;
+        g_lan9252_first_fault.esc_address = diagnostic_esc_address;
+        g_lan9252_first_fault.command = header[0];
+        g_lan9252_first_fault.phase = phase;
+        g_lan9252_first_fault.reason = reason;
+        g_lan9252_first_fault.status = (uint32_t)status;
+        g_lan9252_first_fault.elapsed_us = (uint32_t)(now(ctx) - start);
+        g_lan9252_first_fault.budget_us = LAN9252_DIRECT_TIMEOUT_US;
+        g_lan9252_first_fault.valid = 1; /* Publish last; no extra SPI access. */
+    }
     return status;
 }
 static int valid_direct(LAN9252Context *ctx, uint16_t address, const void *data, size_t length)
@@ -187,10 +215,14 @@ static LAN9252Status pram(LAN9252Context *ctx, uint16_t address,
 static LAN9252Status esc(LAN9252Context *ctx, uint16_t address,
                          uint8_t *rx, const uint8_t *tx, size_t length)
 {
+    LAN9252Status status;
     size_t end = address < LAN9252_PRAM_START ? LAN9252_PRAM_START : LAN9252_PRAM_END;
     if (!valid_context(ctx) || (!rx && !tx) || !length || address >= end || length > end - address)
         return LAN9252_ERR_ARGUMENT;
-    return address < LAN9252_PRAM_START ? csr(ctx,address,rx,tx,length) : pram(ctx,address,rx,tx,length);
+    diagnostic_esc_address = address;
+    status = address < LAN9252_PRAM_START ? csr(ctx,address,rx,tx,length) : pram(ctx,address,rx,tx,length);
+    diagnostic_esc_address = UINT32_C(0xffffffff);
+    return status;
 }
 LAN9252Status LAN9252_ReadEsc(LAN9252Context *ctx, uint16_t address, uint8_t *data, size_t length)
 {

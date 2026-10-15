@@ -28,7 +28,7 @@ typedef enum {
  * bus errors and ERR_DIRECT_TIMEOUT for a timeout. It must not control CS.
  * time_us must keep advancing during polling and wrap naturally at 32 bits.
  * A blocking HAL adapter may document its minimum timeout granularity; the
- * H743 board adapter permits <1 ms extra wait for sub-ms remaining budgets,
+ * H743 board adapter permits <2 ms extra wait for its compensated Tick guard,
  * plus execution/interrupt overhead, and reports late completion as timeout.
  * Calls on the same controller must be serialized by the caller (no ISR use).
  */
@@ -57,6 +57,19 @@ typedef struct {
     uint16_t esc_build;
     uint16_t al_status;
 } LAN9252ProbeResult;
+
+/* First failed physical SPI access since MCU startup. Diagnostic only: never
+ * cleared by InitContext or a later success. Read only when valid == 1.
+ * phase: 1 command/header, 2 data. reason: 1 deadline before transport,
+ * 2 transport failure, 3 deadline after successful transport.
+ * esc_address is the logical ESC request, or 0xffffffff for a direct probe.
+ * The separate board HAL snapshot is absent for driver-only deadlines. */
+typedef struct {
+    uint32_t valid;
+    uint32_t address, esc_address, command, phase, reason, status;
+    uint32_t elapsed_us, budget_us;
+} LAN9252FirstFault;
+extern volatile LAN9252FirstFault g_lan9252_first_fault;
 
 /* Microsecond deadlines, always below half the timebase wrap interval. */
 #define LAN9252_DIRECT_TIMEOUT_US UINT32_C(1000)

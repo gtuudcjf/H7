@@ -441,6 +441,43 @@ static void test_diagnostics_and_bad_transports(void)
     f.fail_call=1;f.failure=LAN9252_ERR_BYTE_TEST;
     result(LAN9252_ReadDirect(&ctx,0x64,b,4),LAN9252_ERR_IO,0);
 }
+static void test_first_fault_snapshot(void)
+{
+    uint8_t b[4] = {0};
+    memset((void *)&g_lan9252_first_fault, 0, sizeof(g_lan9252_first_fault));
+    reset(); frame("0b 03 04 00 00 00 00 00", NULL);
+    f.fail_call = 2; f.failure = LAN9252_ERR_DIRECT_TIMEOUT;
+    result(LAN9252_ReadDirect(&ctx, 0x0304, b, 4), LAN9252_ERR_DIRECT_TIMEOUT, 1);
+    CHECK(g_lan9252_first_fault.valid == 1 && g_lan9252_first_fault.address == 0x0304);
+    CHECK(g_lan9252_first_fault.command == 0x0b && g_lan9252_first_fault.phase == 2);
+    CHECK(g_lan9252_first_fault.reason == 2 && g_lan9252_first_fault.status == 3);
+    /* Reinitialization and later failures must not erase the first fault. */
+    reset(); frame("02 00 50 00 00 00 00", NULL); f.fail_call = 1;
+    result(LAN9252_WriteDirect(&ctx, 0x50, b, 4), LAN9252_ERR_IO, 0);
+    CHECK(g_lan9252_first_fault.address == 0x0304 && g_lan9252_first_fault.phase == 2);
+    memset((void *)&g_lan9252_first_fault, 0, sizeof(g_lan9252_first_fault));
+    reset(); frame("02 00 50 00 00 00 00", NULL); f.fail_call = 1;
+    result(LAN9252_WriteDirect(&ctx, 0x50, b, 4), LAN9252_ERR_IO, 0);
+    CHECK(g_lan9252_first_fault.command == 2 && g_lan9252_first_fault.phase == 1);
+    CHECK(g_lan9252_first_fault.address == 0x50 && g_lan9252_first_fault.status == 2);
+    memset((void *)&g_lan9252_first_fault, 0, sizeof(g_lan9252_first_fault));
+    reset(); frame("0b 00 64 00 00 00 00 00", NULL); f.late_call = 1;
+    result(LAN9252_ReadDirect(&ctx, 0x64, b, 4), LAN9252_ERR_DIRECT_TIMEOUT, 1);
+    CHECK(g_lan9252_first_fault.reason == 3 && g_lan9252_first_fault.phase == 1);
+    memset((void *)&g_lan9252_first_fault, 0, sizeof(g_lan9252_first_fault));
+    reset(); frame("0b 00 64 00 00 00 00 00", NULL);
+    f.step = 1000; f.late_call = 99; /* Before header; no transport call. */
+    result(LAN9252_ReadDirect(&ctx, 0x64, b, 4), LAN9252_ERR_DIRECT_TIMEOUT, 1);
+    CHECK(f.calls == 0 && g_lan9252_first_fault.reason == 1);
+    CHECK(g_lan9252_first_fault.phase == 1 && g_lan9252_first_fault.budget_us == 1000);
+    CHECK(g_lan9252_first_fault.esc_address == 0xffffffffU);
+    memset((void *)&g_lan9252_first_fault, 0, sizeof(g_lan9252_first_fault));
+    reset(); frame("0b 03 04 00 00 00 00 00", NULL);
+    f.fail_call = 1; f.failure = LAN9252_ERR_DIRECT_TIMEOUT;
+    result(LAN9252_ReadEsc(&ctx, 0x0220, b, 2), LAN9252_ERR_DIRECT_TIMEOUT, 1);
+    CHECK(g_lan9252_first_fault.address == 0x0304);
+    CHECK(g_lan9252_first_fault.esc_address == 0x0220);
+}
 int main(void)
 {
     test_direct_rejects_invalid_transactions();
@@ -448,6 +485,7 @@ int main(void)
     test_transport_failures();test_arguments();
     test_delayed_progress_and_wrap();test_more_than_fifo_capacity();
     test_diagnostics_and_bad_transports();
+    test_first_fault_snapshot();
     printf("test_lan9252_protocol: PASS (%u behavior cases)\n",cases);
     return 0;
 }

@@ -2,7 +2,12 @@
 #define TEST_LAN9252_HAL_H
 #include <stdint.h>
 typedef enum { HAL_OK, HAL_ERROR, HAL_BUSY, HAL_TIMEOUT } HAL_StatusTypeDef;
-typedef struct { uint32_t ErrorCode; } SPI_HandleTypeDef;
+typedef struct { volatile uint32_t CR1, CR2, CFG1, CFG2, SR; } SPI_TypeDef;
+typedef struct {
+    SPI_TypeDef *Instance;
+    uint32_t ErrorCode, State;
+    uint16_t TxXferCount, RxXferCount;
+} SPI_HandleTypeDef;
 typedef struct { volatile uint32_t CTRL, CYCCNT, LAR; } DWT_Type;
 typedef struct { volatile uint32_t DEMCR; } CoreDebug_Type;
 extern DWT_Type test_dwt;

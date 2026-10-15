@@ -68,13 +68,15 @@ if (-not $HardwareOnly) {
     Forbid $active '\b(?:MotorControl_|MotorTelemetry_|BissEncoder_)\w*\s*\(' 'Active main or IRQ callbacks can reach a motor/encoder/telemetry path.'
     Forbid $entry '\bMX_(?:ADC\d|TIM\d|SPI[234]|USART\d_UART|USB_DEVICE)_Init\s*\(|\bHAL_(?:ADC|TIM|UART|SPI)_\w*Start\w*\s*\(' 'Bring-up starts unnecessary or motor peripherals.'
     Forbid $entry 'Error_Handler\s*\(' 'LAN9252 failure must remain diagnosable rather than enter Error_Handler.'
-    $allowedCalls = @('MPU_Config','HAL_Init','SystemClock_Config','MX_GPIO_Init','HAL_GPIO_WritePin','MX_SPI1_Init','EtherCAT_Init','EtherCAT_GetDiagnostics','EtherCAT_Service','while')
+    $allowedCalls = @('MPU_Config','HAL_Init','SystemClock_Config','MX_GPIO_Init','HAL_GPIO_WritePin','MX_SPI1_Init','EtherCAT_Init','EtherCAT_GetDiagnostics','LAN9252_BoardRunSpiDiagnostics','EtherCAT_Service','while')
     foreach ($call in [regex]::Matches($entry, '\b([A-Za-z_]\w*)\s*\(')) {
         if ($call.Groups[1].Value -notin $allowedCalls) { throw "Unexpected call in active bring-up main: $($call.Groups[1].Value)" }
     }
     Require $active 'volatile\s+EtherCATStatus\s+ethercat_init_status' 'Debugger init-status symbol is missing.'
     Require $active 'EtherCATDiagnostics\s*\*\s*volatile\s+ethercat_diagnostics' 'Debugger live-diagnostics pointer is missing.'
     $legacy = Function-Body (Preprocess-Main 0) 'main'
+    Require $entry 'EtherCAT_Init\s*\(\s*\)[\s\S]*?EtherCAT_GetDiagnostics\s*\(\s*\)[\s\S]*?LAN9252_BoardRunSpiDiagnostics\s*\(\s*\)[\s\S]*?while' 'SPI comparison must run once after the original probe, outside the service loop.'
+    Forbid $legacy 'LAN9252_BoardRunSpiDiagnostics\s*\(' 'Motor mode must not run the lab SPI comparison.'
     Require $legacy 'MX_GPIO_Init\s*\([\s\S]*?MX_ADC1_Init\s*\([\s\S]*?MX_SPI2_Init\s*\([\s\S]*?MX_SPI3_Init\s*\([\s\S]*?MX_SPI4_Init\s*\([\s\S]*?MX_TIM6_Init\s*\([\s\S]*?MX_TIM8_Init\s*\([\s\S]*?MX_USART1_UART_Init\s*\([\s\S]*?MX_USB_DEVICE_Init\s*\([\s\S]*?BissEncoder_Init\s*\([\s\S]*?MotorControl_Init\s*\([\s\S]*?MotorControl_SetOpenLoopCommand\s*\([\s\S]*?MotorControl_SetCurrentCommand\s*\([\s\S]*?MotorControl_SetEncoderCurrentCommand\s*\([\s\S]*?MotorControl_SetSpeedCommand\s*\([\s\S]*?MotorControl_SetPositionCommand\s*\([\s\S]*?MotorControl_SetSpeedPiGains\s*\([\s\S]*?MotorControl_Start\s*\([\s\S]*?MotorTelemetry_Init\s*\([\s\S]*?MotorControl_Service\s*\([\s\S]*?MotorTelemetry_Service\s*\(' 'Original motor startup/service order must stay available only in mode 0.'
     Forbid $legacy 'EtherCAT_(?:Init|Service)\s*\(' 'Legacy motor branch must not acquire EtherCAT startup/service.'
     foreach ($file in (Get-ChildItem (Join-Path $root 'Core/Src/ethercat') -Filter '*.c')) {
@@ -120,10 +122,15 @@ Require $spi 'hspi1\.Instance\s*=\s*SPI1\s*;' 'SPI1 instance is incorrect.'
 Require $spi 'hspi1\.Init\.BaudRatePrescaler\s*=\s*SPI_BAUDRATEPRESCALER_16\s*;' 'SPI1 prescaler must be 16.'
 Require $spi 'hspi1\.Init\.CLKPolarity\s*=\s*SPI_POLARITY_LOW\s*;' 'SPI1 must use CPOL low.'
 Require $spi 'hspi1\.Init\.CLKPhase\s*=\s*SPI_PHASE_1EDGE\s*;' 'SPI1 must use first-edge sampling.'
+$spi1Init = Function-Body $spi 'MX_SPI1_Init'
+Require $spi1Init 'hspi1\.Init\.MasterKeepIOState\s*=\s*SPI_MASTER_KEEP_IO_STATE_ENABLE\s*;[\s\S]*?HAL_SPI_Init\s*\(\s*&hspi1\s*\)' 'SPI1 must retain IO state before HAL init so split LAN9252 frames survive HAL close/reopen.'
+Forbid $spi1Init 'hspi1\.Init\.MasterKeepIOState\s*=\s*SPI_MASTER_KEEP_IO_STATE_DISABLE\b' 'SPI1 must not release IO between split LAN9252 transfers.'
 Require $spi 'spiHandle->Instance\s*==\s*SPI1[\s\S]{0,700}Spi123ClockSelection\s*=\s*RCC_SPI123CLKSOURCE_PLL\s*;' 'SPI1 must select the 64 MHz SPI123 PLL kernel.'
 Require $ioc '(?m)^SPI1\.BaudRatePrescaler=SPI_BAUDRATEPRESCALER_16\s*$' 'CubeMX SPI1 prescaler must be 16.'
 Require $ioc '(?m)^SPI1\.CLKPolarity=SPI_POLARITY_LOW\s*$' 'CubeMX SPI1 must use CPOL low.'
 Require $ioc '(?m)^SPI1\.CLKPhase=SPI_PHASE_1EDGE\s*$' 'CubeMX SPI1 must use first-edge sampling.'
+Require $ioc '(?m)^SPI1\.MasterKeepIOState=SPI_MASTER_KEEP_IO_STATE_ENABLE\s*$' 'CubeMX must preserve SPI1 IO retention when code is regenerated.'
+Require $ioc '(?m)^SPI1\.IPParameters=(?:[^,\r\n]+,)*MasterKeepIOState(?:,[^\r\n]*)?\s*$' 'CubeMX must track the SPI1 IO-retention parameter.'
 Require $ioc '(?m)^RCC\.SPI123Freq_Value=64000000\s*$' 'SPI123 kernel must be 64 MHz for a 4 MHz SPI1 clock.'
 Require $main 'RCC_OscInitStruct\.PLL\.PLLSource\s*=\s*RCC_PLLSOURCE_HSE\s*;' 'PLL1 must use the external HSE oscillator.'
 Require $ioc '(?m)^RCC\.PLLSourceVirtual=RCC_PLLSOURCE_HSE\s*$' 'CubeMX PLL source must be HSE.'
