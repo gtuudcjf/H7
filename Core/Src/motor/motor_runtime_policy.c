@@ -50,3 +50,9 @@ float MotorRuntimePolicy_ClampSpeedIq(float iq_a, float limit_a)
     }
     return iq_a;
 }
+
+bool MotorRuntimePolicy_FaultResetAllowed(MotorControlMode mode, bool fault_latched)
+{
+    return (mode == MOTOR_CONTROL_FAULT) ||
+           ((mode == MOTOR_CONTROL_STOPPED) && fault_latched);
+}

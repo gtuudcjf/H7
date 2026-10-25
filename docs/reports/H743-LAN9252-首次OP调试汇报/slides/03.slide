@@ -1,0 +1,67 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>阶段结论：完整链路已打通，从站进入 OP</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>结论先行</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '16px 40px', gap: '12px' }}>
+        <Box style={{ width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: '24px', fontWeight: 'bold', color: '#1A2230' }}>本阶段打通的数据通路（自左向右）</Text>
+            <Box style={{ background: '#E8EFF8', padding: '6px 14px', borderRadius: '4px' }}>
+                <Text style={{ fontSize: '18px', color: '#1E4FA8' }}>2026-10-15 实板实测</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '100%', height: '104px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '0 16px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box style={{ width: '200px', height: '68px', background: '#1E4FA8', borderRadius: '6px', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '21px', fontWeight: 'bold', color: '#FFFFFF' }}>PC 主站网口</Text>
+            </Box>
+            <Text style={{ fontSize: '30px', fontWeight: 'bold', color: '#3D7BD9' }}>→</Text>
+            <Box style={{ width: '190px', height: '68px', background: '#1E4FA8', borderRadius: '6px', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '21px', fontWeight: 'bold', color: '#FFFFFF' }}>LAN9252 ESC</Text>
+            </Box>
+            <Text style={{ fontSize: '30px', fontWeight: 'bold', color: '#3D7BD9' }}>→</Text>
+            <Box style={{ width: '150px', height: '68px', background: '#1E4FA8', borderRadius: '6px', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '21px', fontWeight: 'bold', color: '#FFFFFF' }}>SPI1 4 MHz</Text>
+            </Box>
+            <Text style={{ fontSize: '30px', fontWeight: 'bold', color: '#3D7BD9' }}>→</Text>
+            <Box style={{ width: '190px', height: '68px', background: '#1E4FA8', borderRadius: '6px', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '21px', fontWeight: 'bold', color: '#FFFFFF' }}>H743 协议栈</Text>
+            </Box>
+            <Text style={{ fontSize: '30px', fontWeight: 'bold', color: '#3D7BD9' }}>→</Text>
+            <Box style={{ width: '190px', height: '68px', background: '#3D7BD9', borderRadius: '6px', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '21px', fontWeight: 'bold', color: '#FFFFFF' }}>周期输入数据</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '100%', height: '230px', flexDirection: 'row', gap: '13px' }}>
+            <Box style={{ width: '290px', height: '230px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '18px 20px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: '20px', color: '#4A5568' }}>InfoData.State</Text>
+                <Text style={{ fontSize: '76px', fontWeight: 'bold', color: '#1E4FA8', lineHeight: '1' }}>8</Text>
+                <Text style={{ fontSize: '18px', color: '#8B97A8' }}>AL 状态 = OP，主站请求与当前状态一致</Text>
+            </Box>
+            <Box style={{ width: '290px', height: '230px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '18px 20px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: '20px', color: '#4A5568' }}>WcState</Text>
+                <Text style={{ fontSize: '76px', fontWeight: 'bold', color: '#1E4FA8', lineHeight: '1' }}>0</Text>
+                <Text style={{ fontSize: '18px', color: '#8B97A8' }}>过程数据工作计数正常，无丢帧指示</Text>
+            </Box>
+            <Box style={{ width: '290px', height: '230px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '18px 20px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: '20px', color: '#4A5568' }}>CycleCounter</Text>
+                <Text style={{ fontSize: '76px', fontWeight: 'bold', color: '#1E4FA8', lineHeight: '1' }}>2127</Text>
+                <Text style={{ fontSize: '18px', color: '#8B97A8' }}>有效应用迭代计数，非总线周期频率计</Text>
+            </Box>
+            <Box style={{ width: '290px', height: '230px', background: '#E8EFF8', border: '1px solid #3D7BD9', borderRadius: '6px', padding: '18px 20px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: '20px', color: '#4A5568' }}>主站错误数</Text>
+                <Text style={{ fontSize: '76px', fontWeight: 'bold', color: '#1E4FA8', lineHeight: '1' }}>0</Text>
+                <Text style={{ fontSize: '18px', color: '#8B97A8' }}>错误栏为 0，仍有 1 条未展开警告待补录</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '100%', height: '100px', background: '#0E3F8C', borderRadius: '6px', padding: '0 24px', flexDirection: 'row', alignItems: 'center', gap: '16px' }}>
+            <Box style={{ width: '8px', height: '60px', background: '#FFC107' }} />
+            <Text style={{ fontSize: '23px', color: '#FFFFFF', lineHeight: '1.5' }}>
+                OP 已经在实板上实现，但不等于长期稳定性、1 ms 实时性能或电机 EtherCAT 控制已经验收
+            </Text>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：TwinCAT 3 Box 1 Online 最终截图（2026-10-15）</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>03 / 14</Text>
+    </Box>
+</Slide>

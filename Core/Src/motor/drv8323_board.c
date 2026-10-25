@@ -10,6 +10,10 @@
 #include "drv8323.h"
 #include "main.h"
 #include "spi.h"
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+#include "motor_safety.h"
+volatile Drv8323StartupDiagnostics g_drv8323_startup_diagnostics;
+#endif
 
 /*
  * 单电机板只有一个驱动芯片，因此板级对象保持为文件内静态实例。
@@ -34,8 +38,49 @@ HAL_StatusTypeDef Drv8323Board_Init(void)
 
 HAL_StatusTypeDef Drv8323Board_EnableForPwm(void)
 {
+    HAL_StatusTypeDef status;
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    g_drv8323_startup_diagnostics.active = 1U;
+    ++g_drv8323_startup_diagnostics.session;
+    g_drv8323_startup_diagnostics.configure_status = 0xFFFFFFFFU;
+    g_drv8323_startup_diagnostics.attempted_mask = 0U;
+    g_drv8323_startup_diagnostics.valid_mask = 0U;
+    g_drv8323_startup_diagnostics.permission_lost = 0U;
+    for (uint32_t address = 0U; address < 7U; ++address) {
+        g_drv8323_startup_diagnostics.reg[address] = 0xFFFFU;
+        g_drv8323_startup_diagnostics.read_status[address] = 0xFFFFFFFFU;
+    }
+#endif
     /* 将板级资源转交给通用驱动执行唤醒及寄存器配置。 */
-    return Drv8323_EnableAndConfigure6Pwm(&drv8323);
+    status = Drv8323_EnableAndConfigure6Pwm(&drv8323);
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    g_drv8323_startup_diagnostics.configure_status = (uint32_t)status;
+    if (status == HAL_OK) {
+        /* Foreground only: ADC/calibration/phase PWM have not started.
+         * Read once, stop at the first transport failure, never repair/retry.
+         * A failed diagnostic does not replace the original configure result. */
+        for (uint32_t address = 0U; address < 7U; ++address) {
+            uint16_t value;
+            HAL_StatusTypeDef read_status;
+            if (!MotorSafety_OutputPermitted()) break;
+            g_drv8323_startup_diagnostics.attempted_mask |= 1UL << address;
+            read_status = Drv8323_ReadRegister(&drv8323, (uint8_t)address, &value);
+            g_drv8323_startup_diagnostics.read_status[address] = (uint32_t)read_status;
+            if (read_status != HAL_OK) break;
+            g_drv8323_startup_diagnostics.reg[address] = value;
+            g_drv8323_startup_diagnostics.valid_mask |= 1UL << address;
+        }
+        /* The independent guard can revoke while a blocking read is running.
+         * Preserve the existing fail-closed startup check after the added I/O. */
+        if (!MotorSafety_OutputPermitted()) {
+            g_drv8323_startup_diagnostics.permission_lost = 1U;
+            Drv8323_Disable(&drv8323);
+            status = HAL_ERROR;
+        }
+    }
+    g_drv8323_startup_diagnostics.active = 0U;
+#endif
+    return status;
 }
 
 void Drv8323Board_Disable(void)

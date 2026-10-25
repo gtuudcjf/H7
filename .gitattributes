@@ -1,0 +1,7 @@
+# Preserve binary project artifacts without line-ending conversion or text diff.
+*.pdf binary
+*.docx binary
+*.pptx binary
+*.bin binary
+*.tpzip binary
+*.zip binary

@@ -15,6 +15,9 @@
 #include <stdint.h>
 #include <stddef.h>
 #include "ethercat_identity.h"
+#if ETHERCAT_MOTOR_CONTROL
+#include "ethercat_motor_sizes.h"
+#endif
 #include <string.h>
 
 /*-----------------------------------------------------------------------------------------

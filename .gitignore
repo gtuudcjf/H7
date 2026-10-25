@@ -3,9 +3,27 @@
 
 # Keil build outputs and per-user UI state.
 MDK-ARM/emptytest/
+MDK-ARM/motor_speed/
+MDK-ARM/motor_build_*.uvprojx
+MDK-ARM/motor_build_*.uvoptx
+MDK-ARM/DebugConfig/motor_build_*.dbgconf
+MDK-ARM/RTE/_motor_build_*/
+MDK-ARM/ethercat_motor.uvoptx
+MDK-ARM/ethercat_motor.uvguix.*
+MDK-ARM/ethercat_openangle.uvoptx
 MDK-ARM/*.log
 MDK-ARM/*.lst
 MDK-ARM/*.uvguix.*
 
 # J-Link debugger log written during on-target sessions.
 MDK-ARM/JLinkLog.txt
+
+# Local experiment recordings, offline verification outputs and Python caches.
+/*.mp4
+/tmp/
+/plc_verify_*/
+__pycache__/
+*.py[cod]
+
+# Local slide authoring command logs (keep slides and exported presentations).
+**/.slidep/

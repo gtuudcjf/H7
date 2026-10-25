@@ -1,0 +1,79 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: 0, fontFamily: 'Microsoft YaHei, SimHei, sans-serif' }}>
+    <Box style={{ height: 72, background: '#1E4FA8', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#FFFFFF' }}>04 关键问题与排查（二）</Text>
+        <Text style={{ fontSize: 20, color: '#BFD3EE' }}>电流保护 · 起动工况 · 运行时限</Text>
+    </Box>
+    <Box style={{ height: 588, paddingTop: 24, paddingBottom: 16, paddingLeft: 40, paddingRight: 40 }}>
+        <Box style={{ height: 46, background: '#F0F5FC', borderLeft: '6px solid #1E4FA8', paddingLeft: 22, paddingRight: 22, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 21, color: '#1A2230' }}>后三个问题都做了对照实验：先隔离变量，再决定是修参数还是保留问题</Text>
+        </Box>
+        <Box style={{ height: 8 }} />
+        <Box style={{ flexDirection: 'row', height: 440, gap: 24 }}>
+            <Box style={{ width: 700, height: '100%', gap: 16 }}>
+                <Box style={{ flex: 1, background: '#F7F9FC', border: '1px solid #D6DCE5', borderLeft: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 16, paddingBottom: 16, paddingLeft: 22, paddingRight: 22, gap: 8 }}>
+                    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <Box style={{ width: 40, height: 40, background: '#1E4FA8', borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>4</Text>
+                        </Box>
+                        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#0E3F8C' }}>启动后触发电流保护及异常读数</Text>
+                    </Box>
+                    <Text style={{ fontSize: 19, color: '#4A5568' }}>出现 MotorFault=7、BridgeFault=8；未接电机也观察到换算电流尖峰。增加 RAM 冻结记录与 DRV8323 启动寄存器读回。</Text>
+                </Box>
+                <Box style={{ flex: 1, background: '#F7F9FC', border: '1px solid #D6DCE5', borderLeft: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 16, paddingBottom: 16, paddingLeft: 22, paddingRight: 22, gap: 8 }}>
+                    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <Box style={{ width: 40, height: 40, background: '#1E4FA8', borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>5</Text>
+                        </Box>
+                        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#0E3F8C' }}>通电但不转或左右振动</Text>
+                    </Box>
+                    <Text style={{ fontSize: 19, color: '#4A5568' }}>新增独立对齐参数 0.5 A，控制策略与电流环两处对齐给定都用它；运行仍为 0.8 A，+6 / +12 下随后观察到旋转。</Text>
+                </Box>
+                <Box style={{ flex: 1, background: '#F7F9FC', border: '1px solid #D6DCE5', borderLeft: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 16, paddingBottom: 16, paddingLeft: 22, paddingRight: 22, gap: 8 }}>
+                    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <Box style={{ width: 40, height: 40, background: '#1E4FA8', borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>6</Text>
+                        </Box>
+                        <Text style={{ fontSize: 23, fontWeight: 'bold', color: '#0E3F8C' }}>能转但运行时间过短</Text>
+                    </Box>
+                    <Text style={{ fontSize: 19, color: '#4A5568' }}>BridgeFault=12 经代码确认是运行时限关断；运动由 3 秒改 6 秒、会话由 5 秒改 10 秒，并让看门狗共用配置。</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: 476, height: '100%', gap: 16 }}>
+                <Box style={{ height: 252, background: '#FFFFFF', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 16, paddingBottom: 16, paddingLeft: 16, paddingRight: 16, gap: 10 }}>
+                    <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#0E3F8C' }}>无相 PWM 基线的分频对照</Text>
+                    <Table
+                        style={{ width: '100%', height: 146 }}
+                        defaultTextStyle={{ fontSize: 16, textAlign: 'center', color: '#1A2230' }}
+                        defaultCellStyle={{ border: { left: { width: 1, color: '#D6DCE5' }, right: { width: 1, color: '#D6DCE5' }, top: { width: 1, color: '#D6DCE5' }, bottom: { width: 1, color: '#D6DCE5' } } }}
+                        cells={[
+                            [
+                                { text: '基线', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#1E4FA8' } } },
+                                { text: '超 0.6 A 样本', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#1E4FA8' } } },
+                                { text: '换算相电流峰值', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#1E4FA8' } } },
+                            ],
+                            ['DIV1', '158 次（15.83%）', '约 1.795 A'],
+                            [
+                                { text: 'DIV2', cellStyle: { background: { color: '#F7F9FC' } } },
+                                { text: '105 次（10.52%）', cellStyle: { background: { color: '#F7F9FC' } } },
+                                { text: '约 1.900 A', cellStyle: { background: { color: '#F7F9FC' } } },
+                            ],
+                        ]}
+                    />
+                    <Text style={{ fontSize: 15, color: '#8B97A8' }}>两组均为 998 个样本，取自相 PWM 未开启的基线窗口</Text>
+                </Box>
+                <Box style={{ height: 172, background: '#F0F5FC', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 20, paddingRight: 20, gap: 12 }}>
+                    <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#0E3F8C' }}>判断与取舍</Text>
+                    <Text style={{ fontSize: 19, color: '#4A5568' }}>对照没有证明异常已消除，换算峰值也不等同于真实绕组电流。恢复旧「任一相超过 10 A 连续两次」保护，0.6 A 仅作诊断门槛。</Text>
+                </Box>
+            </Box>
+        </Box>
+        <Box style={{ height: 8 }} />
+        <Box style={{ height: 46, background: '#0E3F8C', borderRadius: 8, paddingLeft: 28, paddingRight: 28, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#FFFFFF' }}>采样准确性、真实相电流与保护有效性继续保留待查，本轮不宣称已修复</Text>
+        </Box>
+    </Box>
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>STM32H743-VOFA 电机控制平台</Text>
+        <Text style={{ fontSize: 16, color: '#1E4FA8' }}>07 / 11</Text>
+    </Box>
+</Slide>

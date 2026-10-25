@@ -1,0 +1,44 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: 0, fontFamily: 'Microsoft YaHei, SimHei, sans-serif' }}>
+    <Box style={{ flexDirection: 'row', height: '100%' }}>
+        <Box style={{ width: 520, height: '100%', background: '#0E3F8C', paddingTop: 72, paddingBottom: 72, paddingLeft: 48, paddingRight: 48, justifyContent: 'space-between' }}>
+            <Box style={{ gap: 18 }}>
+                <Text style={{ fontSize: 18, color: '#9DBBE8' }}>STM32H743 · LAN9252 · TwinCAT 3</Text>
+                <Text style={{ fontSize: 60, fontWeight: 'bold', color: '#FFFFFF' }}>电机联调</Text>
+                <Text style={{ fontSize: 60, fontWeight: 'bold', color: '#FFFFFF' }}>阶段汇报</Text>
+                <Text style={{ fontSize: 22, color: '#BFD3EE' }}>Mode 2 · 虚拟电角度 + 电流闭环</Text>
+            </Box>
+            <Box style={{ gap: 14 }}>
+                <Box style={{ width: 96, height: 4, background: '#3D7BD9' }} />
+                <Text style={{ fontSize: 18, color: '#9DBBE8' }}>工作周期 2026.10.20 — 2026.10.23</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: 760, height: '100%', background: '#FFFFFF', paddingTop: 72, paddingBottom: 72, paddingLeft: 56, paddingRight: 56, justifyContent: 'space-between' }}>
+            <Box style={{ gap: 26 }}>
+                <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1E4FA8' }}>本阶段核心结论</Text>
+                <Box style={{ background: '#F0F5FC', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 26, paddingBottom: 26, paddingLeft: 28, paddingRight: 28, gap: 14 }}>
+                    <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#0E3F8C' }}>已把 TwinCAT 指令接入 H743 电机执行链路</Text>
+                    <Text style={{ fontSize: 22, color: '#4A5568' }}>并在正速度给定 +6 / +12 下实际观察到电机旋转</Text>
+                </Box>
+                <Box style={{ flexDirection: 'row', gap: 20 }}>
+                    <Box style={{ flex: 1, background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 18, paddingRight: 18, gap: 8 }}>
+                        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E4FA8' }}>+6 / +12</Text>
+                        <Text style={{ fontSize: 18, color: '#8B97A8' }}>正给定已起转</Text>
+                    </Box>
+                    <Box style={{ flex: 1, background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 18, paddingRight: 18, gap: 8 }}>
+                        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E4FA8' }}>10</Text>
+                        <Text style={{ fontSize: 18, color: '#8B97A8' }}>极对数 p</Text>
+                    </Box>
+                    <Box style={{ flex: 1, background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 18, paddingRight: 18, gap: 8 }}>
+                        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E4FA8' }}>6 s</Text>
+                        <Text style={{ fontSize: 18, color: '#8B97A8' }}>运动时限上限</Text>
+                    </Box>
+                </Box>
+            </Box>
+            <Box style={{ gap: 10 }}>
+                <Text style={{ fontSize: 22, color: '#1A2230' }}>汇报人：奇点</Text>
+                <Text style={{ fontSize: 20, color: '#4A5568' }}>汇报对象：指导教师</Text>
+                <Text style={{ fontSize: 18, color: '#8B97A8' }}>平台：STM32H743-VOFA 电机控制平台</Text>
+            </Box>
+        </Box>
+    </Box>
+</Slide>

@@ -1,0 +1,89 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>移植结构：自下而上的六层与各自职责</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>系统组成与软件移植</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '14px 40px', gap: '10px' }}>
+        <Box style={{ width: '1190px', height: '40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: '20px', fontWeight: 'bold', color: '#1A2230' }}>参考：仓库 STM32F407 + LAN9252 SPI 示例（SSC 5.11），替换平台相关部分</Text>
+            <Box style={{ background: '#E8EFF8', padding: '6px 14px', borderRadius: '4px' }}>
+                <Text style={{ fontSize: '17px', color: '#1E4FA8' }}>原参考目录保持只读</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '1190px', height: '62px', flexDirection: 'row', border: '1px solid #E5E7EB', borderRadius: '4px' }}>
+            <Box style={{ width: '210px', height: '62px', background: '#0E3F8C', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '20px', fontWeight: 'bold', color: '#FFFFFF' }}>H743 板级适配</Text>
+            </Box>
+            <Box style={{ width: '320px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#1E4FA8' }}>lan9252_board.c</Text>
+            </Box>
+            <Box style={{ width: '660px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#4A5568' }}>HAL 收发、DWT 计时、CS 控制回调与 HAL 故障快照</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '1190px', height: '62px', flexDirection: 'row', border: '1px solid #E5E7EB', borderRadius: '4px' }}>
+            <Box style={{ width: '210px', height: '62px', background: '#1E4FA8', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '20px', fontWeight: 'bold', color: '#FFFFFF' }}>LAN9252 协议</Text>
+            </Box>
+            <Box style={{ width: '320px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#1E4FA8' }}>lan9252_spi.c</Text>
+            </Box>
+            <Box style={{ width: '660px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#4A5568' }}>Direct、CSR、PRAM 访问，探测与访问预算</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '1190px', height: '62px', flexDirection: 'row', border: '1px solid #E5E7EB', borderRadius: '4px' }}>
+            <Box style={{ width: '210px', height: '62px', background: '#1E4FA8', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '20px', fontWeight: 'bold', color: '#FFFFFF' }}>SSC 硬件接口</Text>
+            </Box>
+            <Box style={{ width: '320px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#1E4FA8' }}>lan9252_port.c</Text>
+            </Box>
+            <Box style={{ width: '660px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#4A5568' }}>HW_EscRead/Write、事件与计时接口、静态邮箱池、首错锁存</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '1190px', height: '62px', flexDirection: 'row', border: '1px solid #E5E7EB', borderRadius: '4px' }}>
+            <Box style={{ width: '210px', height: '62px', background: '#1E4FA8', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '20px', fontWeight: 'bold', color: '#FFFFFF' }}>SSC 核心</Text>
+            </Box>
+            <Box style={{ width: '320px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#1E4FA8' }}>EtherCAT_SSC/Src</Text>
+            </Box>
+            <Box style={{ width: '660px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#4A5568' }}>AL 状态机、SM、邮箱、CoE 与对象字典访问</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '1190px', height: '62px', flexDirection: 'row', border: '1px solid #E5E7EB', borderRadius: '4px' }}>
+            <Box style={{ width: '210px', height: '62px', background: '#1E4FA8', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '20px', fontWeight: 'bold', color: '#FFFFFF' }}>最小应用</Text>
+            </Box>
+            <Box style={{ width: '320px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#1E4FA8' }}>ethercat_app.c / app_core.c</Text>
+            </Box>
+            <Box style={{ width: '660px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#4A5568' }}>固定 PDO、回环语义与安全复位</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '1190px', height: '62px', flexDirection: 'row', border: '1px solid #E5E7EB', borderRadius: '4px' }}>
+            <Box style={{ width: '210px', height: '62px', background: '#3D7BD9', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '20px', fontWeight: 'bold', color: '#FFFFFF' }}>服务集成</Text>
+            </Box>
+            <Box style={{ width: '320px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#1E4FA8' }}>ethercat_service.c / main.c</Text>
+            </Box>
+            <Box style={{ width: '660px', height: '62px', padding: '0 14px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: '18px', color: '#4A5568' }}>一次初始化、持续轮询、运行诊断与故障停服</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '1190px', height: '72px', background: '#E8EFF8', borderLeft: '6px solid #1E4FA8', borderRadius: '6px', padding: '0 20px', flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ fontSize: '20px', color: '#1A2230', lineHeight: '1.5' }}>
+                分层收益：可用假 transport 测协议帧、用受控 HAL 测板级超时、用真实 SSC 源码测邮箱，也能在实板上把错误定位到具体层次
+            </Text>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：调试总结文档第 2 节「从参考工程到 H743 的移植结构」</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>07 / 14</Text>
+    </Box>
+</Slide>

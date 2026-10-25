@@ -1,0 +1,83 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>后续验收计划与可复现操作要点</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>证据链与后续计划</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '20px 40px', gap: '12px' }}>
+        <Box style={{ width: '1200px', height: '32px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: '22px', fontWeight: 'bold', color: '#1A2230' }}>六项后续验收与复现时的关键约束</Text>
+            <Box style={{ background: '#E8EFF8', padding: '5px 13px', borderRadius: '4px' }}>
+                <Text style={{ fontSize: '17px', color: '#1E4FA8' }}>详见 runbook 与首故障记录</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '1200px', height: '440px', flexDirection: 'row', gap: '20px' }}>
+            <Box style={{ width: '640px', height: '440px', background: '#FFFFFF', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '16px 18px', gap: '10px' }}>
+                <Text style={{ fontSize: '25px', fontWeight: 'bold', color: '#1E4FA8' }}>六项后续验收</Text>
+                <Table
+                    style={{ width: '100%', height: '360px' }}
+                    defaultTextStyle={{ fontSize: '18px', textAlign: 'left', color: '#1A2230' }}
+                    defaultCellStyle={{
+                        padding: '7px 12px',
+                        border: {
+                            left: { width: 1, color: '#E5E7EB' },
+                            right: { width: 1, color: '#E5E7EB' },
+                            top: { width: 1, color: '#E5E7EB' },
+                            bottom: { width: 1, color: '#E5E7EB' },
+                        },
+                    }}
+                    cells={[
+                        [
+                            { text: '测试项', textStyle: { bold: true, color: '#FFFFFF', fontSize: '19px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                            { text: '通过条件与记录要求', textStyle: { bold: true, color: '#FFFFFF', fontSize: '19px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                        ],
+                        [
+                            { text: '零输出稳定性', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '保持 OP ≥ 10 分钟，WcState=0，计数持续变化', cellStyle: { background: { color: '#FFFFFF' } } },
+                        ],
+                        [
+                            { text: '非零 PDO 回环', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '控制字 0/1/2/3 输入，状态字应为 0/1/0/1，用周期 PDO 写入', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                        [
+                            { text: '重复冷启动', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '多轮真正断电重启，记录各级状态与是否出现首故障', cellStyle: { background: { color: '#FFFFFF' } } },
+                        ],
+                        [
+                            { text: '状态往返', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '多轮 INIT↔OP 往返，无方向性卡死', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                        [
+                            { text: '网线断开恢复', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '保存断线前后状态、看门狗与计数，SPI 健康时按流程恢复', cellStyle: { background: { color: '#FFFFFF' } } },
+                        ],
+                        [
+                            { text: '缩短实际周期', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '先完成宽周期验证再评估 1 ms，记录真实周期与丢帧', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                    ]}
+                />
+            </Box>
+            <Box style={{ width: '540px', height: '440px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '16px 20px', gap: '8px' }}>
+                <Text style={{ fontSize: '25px', fontWeight: 'bold', color: '#1E4FA8' }}>复现时的关键约束</Text>
+                <Text style={{ fontSize: '18px', color: '#4A5568', lineHeight: '1.5' }}>保持电机断开与功率级禁用，确认 PC4 为低，编译宏保持 bring-up 模式</Text>
+                <Text style={{ fontSize: '18px', color: '#4A5568', lineHeight: '1.5' }}>核对 SPI1 引脚、Mode 0、4 MHz、软件 CS 与 MasterKeepIOState 已生效</Text>
+                <Text style={{ fontSize: '18px', color: '#4A5568', lineHeight: '1.5' }}>由操作者完成 Rebuild 与下载，记录实际 HEX 散列；下载不等价于冷启动</Text>
+                <Text style={{ fontSize: '18px', color: '#4A5568', lineHeight: '1.5' }}>Config Mode 扫描网卡，建议先用 10 ms 周期，确认 Cyclic 帧数增长后再推进</Text>
+                <Box style={{ width: '100%', background: '#E8EFF8', borderRadius: '6px', padding: '12px 16px' }}>
+                    <Text style={{ fontSize: '18px', color: '#1E4FA8', lineHeight: '1.5' }}>失败时先保存主站错误原文与两份快照，不要先复位、重新下载或重写 EEPROM</Text>
+                </Box>
+            </Box>
+        </Box>
+        <Box style={{ width: '1200px', height: '84px', background: '#0E3F8C', borderRadius: '6px', padding: '0 22px', flexDirection: 'row', alignItems: 'center', gap: '18px' }}>
+            <Box style={{ width: '8px', height: '56px', background: '#FFC107' }} />
+            <Box style={{ gap: '4px' }}>
+                <Text style={{ fontSize: '21px', color: '#FFFFFF' }}>本阶段已打通通信链路；下一阶段重点是稳定性、完整 PDO 回环与重复上电验收</Text>
+                <Text style={{ fontSize: '18px', color: '#B9CCEE' }}>之后再单独设计电机 EtherCAT 联动与 DC 同步方案</Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：调试总结文档第 11、12 节；工程内 docs/ethercat/h743-lan9252-first-op-runbook.md</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>14 / 14</Text>
+    </Box>
+</Slide>

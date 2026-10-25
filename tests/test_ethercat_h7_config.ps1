@@ -80,6 +80,9 @@ if (-not $HardwareOnly) {
     Require $legacy 'MX_GPIO_Init\s*\([\s\S]*?MX_ADC1_Init\s*\([\s\S]*?MX_SPI2_Init\s*\([\s\S]*?MX_SPI3_Init\s*\([\s\S]*?MX_SPI4_Init\s*\([\s\S]*?MX_TIM6_Init\s*\([\s\S]*?MX_TIM8_Init\s*\([\s\S]*?MX_USART1_UART_Init\s*\([\s\S]*?MX_USB_DEVICE_Init\s*\([\s\S]*?BissEncoder_Init\s*\([\s\S]*?MotorControl_Init\s*\([\s\S]*?MotorControl_SetOpenLoopCommand\s*\([\s\S]*?MotorControl_SetCurrentCommand\s*\([\s\S]*?MotorControl_SetEncoderCurrentCommand\s*\([\s\S]*?MotorControl_SetSpeedCommand\s*\([\s\S]*?MotorControl_SetPositionCommand\s*\([\s\S]*?MotorControl_SetSpeedPiGains\s*\([\s\S]*?MotorControl_Start\s*\([\s\S]*?MotorTelemetry_Init\s*\([\s\S]*?MotorControl_Service\s*\([\s\S]*?MotorTelemetry_Service\s*\(' 'Original motor startup/service order must stay available only in mode 0.'
     Forbid $legacy 'EtherCAT_(?:Init|Service)\s*\(' 'Legacy motor branch must not acquire EtherCAT startup/service.'
     foreach ($file in (Get-ChildItem (Join-Path $root 'Core/Src/ethercat') -Filter '*.c')) {
+        # Motor-only modules are deliberately absent from the revision-1 target.
+        # Their actual compiled mode is exercised by test_ethercat_motor_build.
+        if ($project -notmatch [regex]::Escape($file.Name)) { continue }
         Forbid (Get-Content $file.FullName -Raw -Encoding UTF8) 'MotorControl_|MotorTelemetry_|TIM8\s*->\s*CCR|DRV_ENA|motor_.*target' "EtherCAT source reaches motor output: $($file.Name)"
     }
     $usbReceive = Function-Body (Read-Required 'USB_DEVICE/App/usbd_cdc_if.c') 'CDC_Receive_FS'

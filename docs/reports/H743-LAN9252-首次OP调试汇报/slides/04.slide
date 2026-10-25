@@ -1,0 +1,77 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>本阶段的验证范围：已验证与未验证</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>结论与范围</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '14px 40px', gap: '12px' }}>
+        <Table
+            style={{ width: '100%', height: '480px' }}
+            defaultTextStyle={{ fontSize: '20px', textAlign: 'left', color: '#1A2230' }}
+            defaultCellStyle={{
+                padding: '10px 16px',
+                border: {
+                    left: { width: 1, color: '#E5E7EB' },
+                    right: { width: 1, color: '#E5E7EB' },
+                    top: { width: 1, color: '#E5E7EB' },
+                    bottom: { width: 1, color: '#E5E7EB' },
+                },
+            }}
+            cells={[
+                [
+                    { text: '验证项目', textStyle: { bold: true, color: '#FFFFFF', fontSize: '21px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                    { text: '当前结论', textStyle: { bold: true, color: '#FFFFFF', fontSize: '21px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                    { text: '判定', textStyle: { bold: true, color: '#FFFFFF', fontSize: '21px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                ],
+                [
+                    { text: 'LAN9252 SPI 基础读写', cellStyle: { background: { color: '#FFFFFF' } } },
+                    { text: '实板读到正确的 BYTE_TEST 与 ID_REV', cellStyle: { background: { color: '#FFFFFF' } } },
+                    { text: '已验证', textStyle: { bold: true, color: '#1E4FA8' }, cellStyle: { background: { color: '#FFFFFF' } } },
+                ],
+                [
+                    { text: 'EEPROM 配置装载', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '写入后设备身份恢复，PDI 类型读到 0x80', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '已验证', textStyle: { bold: true, color: '#1E4FA8' }, cellStyle: { background: { color: '#F7F9FC' } } },
+                ],
+                [
+                    { text: 'CoE 邮箱通信', cellStyle: { background: { color: '#FFFFFF' } } },
+                    { text: '在线读取对象字典与 0x1018 身份成功', cellStyle: { background: { color: '#FFFFFF' } } },
+                    { text: '已验证', textStyle: { bold: true, color: '#1E4FA8' }, cellStyle: { background: { color: '#FFFFFF' } } },
+                ],
+                [
+                    { text: 'SAFEOP 与 OP', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '已有实板状态截图，State 分别为 4 与 8', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '已验证', textStyle: { bold: true, color: '#1E4FA8' }, cellStyle: { background: { color: '#F7F9FC' } } },
+                ],
+                [
+                    { text: '周期输入处理', cellStyle: { background: { color: '#FFFFFF' } } },
+                    { text: 'OP 截图中计数器已非零，持续性需连续记录', cellStyle: { background: { color: '#FFFFFF' } } },
+                    { text: '部分', textStyle: { bold: true, color: '#1A2230' }, cellStyle: { background: { color: '#FFFFFF' } } },
+                ],
+                [
+                    { text: '非零控制字回环', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '代码与主机测试支持，尚未完成实板序列验收', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '未完成', textStyle: { bold: true, color: '#D9534F' }, cellStyle: { background: { color: '#F7F9FC' } } },
+                ],
+                [
+                    { text: '长时间与重复冷启动', cellStyle: { background: { color: '#FFFFFF' } } },
+                    { text: '待补充正式记录', cellStyle: { background: { color: '#FFFFFF' } } },
+                    { text: '未完成', textStyle: { bold: true, color: '#D9534F' }, cellStyle: { background: { color: '#FFFFFF' } } },
+                ],
+                [
+                    { text: '电机闭环与 DC 同步', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '不在本阶段实施范围', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '范围外', textStyle: { bold: true, color: '#8B97A8' }, cellStyle: { background: { color: '#F7F9FC' } } },
+                ],
+            ]}
+        />
+        <Box style={{ width: '100%', height: '84px', background: '#E8EFF8', borderLeft: '6px solid #1E4FA8', borderRadius: '6px', padding: '0 24px', flexDirection: 'row', alignItems: 'center', gap: '16px' }}>
+            <Text style={{ fontSize: '22px', color: '#1A2230', lineHeight: '1.5' }}>
+                前四项构成本阶段的完整证据；周期输入仅证明发生过有效迭代，稳定性与电机联动留待下一阶段验收
+            </Text>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：调试总结文档第「当前结果的范围」节</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>04 / 14</Text>
+    </Box>
+</Slide>

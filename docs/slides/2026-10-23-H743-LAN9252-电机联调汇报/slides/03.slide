@@ -1,0 +1,58 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: 0, fontFamily: 'Microsoft YaHei, SimHei, sans-serif' }}>
+    <Box style={{ height: 72, background: '#1E4FA8', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#FFFFFF' }}>01 阶段目标与当前成果</Text>
+        <Text style={{ fontSize: 20, color: '#BFD3EE' }}>截至 2026 年 10 月 23 日</Text>
+    </Box>
+    <Box style={{ height: 588, paddingTop: 24, paddingBottom: 16, paddingLeft: 40, paddingRight: 40 }}>
+        <Box style={{ height: 56, background: '#F0F5FC', borderLeft: '6px solid #1E4FA8', paddingLeft: 22, paddingRight: 22, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 22, color: '#1A2230' }}>阶段目标：在从站已能进入 OP 的基础上，把 TwinCAT 的 PLC 指令接入 H743 电机控制程序，并推进实板联调</Text>
+        </Box>
+        <Box style={{ height: 18 }} />
+        <Table
+            style={{ width: '100%', height: 322 }}
+            defaultTextStyle={{ fontSize: 18, textAlign: 'center', color: '#1A2230' }}
+            defaultCellStyle={{ border: { left: { width: 1, color: '#D6DCE5' }, right: { width: 1, color: '#D6DCE5' }, top: { width: 1, color: '#D6DCE5' }, bottom: { width: 1, color: '#D6DCE5' } } }}
+            cells={[
+                [
+                    { text: '项目', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#1E4FA8' } } },
+                    { text: '截至 10 月 23 日的结果', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#1E4FA8' } } },
+                    { text: '证据层次', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#1E4FA8' } } },
+                ],
+                [
+                    { text: '通信与控制链路', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: 'TwinCAT 能进入 OP，PLC 可下发启动与速度指令', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '实机已观察', cellStyle: { background: { color: '#F7F9FC' } } },
+                ],
+                [
+                    '电机旋转',
+                    '正给定 +6、+12 时均可转动，两者不是实测转速',
+                    '实机已观察',
+                ],
+                [
+                    { text: '最新运行时限', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '运动 6 秒、总会话 10 秒，两层限时配置已同步', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '修改及离线验证完成', cellStyle: { background: { color: '#F7F9FC' } } },
+                ],
+                [
+                    '正反转与运行质量',
+                    '负给定反向未验证，平滑度与可闻噪声仍待分析',
+                    '待进一步验证',
+                ],
+                [
+                    { text: '电流采样与保护', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '完成诊断与配置修正，异常采样根因仍未确认', cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '部分修正，问题保留', cellStyle: { background: { color: '#F7F9FC' } } },
+                ],
+            ]}
+        />
+        <Box style={{ height: 18 }} />
+        <Box style={{ height: 134, background: '#0E3F8C', borderRadius: 8, paddingTop: 24, paddingBottom: 24, paddingLeft: 32, paddingRight: 32, justifyContent: 'center', gap: 12 }}>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#FFFFFF' }}>可汇报的结论</Text>
+            <Text style={{ fontSize: 22, color: '#D9E4F5' }}>控制链路已打通，正给定 +6 / +12 下电机实际旋转；反向运行、转速精度与平滑度尚未验收，本轮不写作闭环性能验收结论</Text>
+        </Box>
+    </Box>
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>STM32H743-VOFA 电机控制平台</Text>
+        <Text style={{ fontSize: 16, color: '#1E4FA8' }}>03 / 11</Text>
+    </Box>
+</Slide>

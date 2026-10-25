@@ -1,0 +1,26 @@
+<!-- Source inventory/template only. For an importable project use the XAE-exported
+     EtherCATMotorSpeedDemo.tpzip, or build from Standard PLC Template via tools/verify_motor_plc.ps1. -->
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <FileVersion>1.0.0.0</FileVersion><SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{3B46B297-1236-42E8-9063-A71E249D63D2}</ProjectGuid>
+    <Name>EtherCATMotorSpeedDemo</Name><SubObjectsSortedByName>True</SubObjectsSortedByName>
+    <ProgramVersion>3.1.4024.0</ProgramVersion>
+    <Application>{3C1F1BED-F13B-47EB-BBB2-9AB54C5E4FD4}</Application>
+    <TypeSystem>{A546F196-3398-4C89-9886-610939F0E94C}</TypeSystem>
+    <Implicit_Task_Info>{C3C0A845-A995-4583-9649-452FB89F5308}</Implicit_Task_Info>
+    <Implicit_KindOfTask>{D6A2B0EC-65D8-4E5A-9F1B-6E90451D2438}</Implicit_KindOfTask>
+    <Implicit_Jitter_Distribution>{E726A82B-36A3-46FB-95B2-E92CDF9DB293}</Implicit_Jitter_Distribution>
+    <LibraryReferences>{81FC756C-6971-41EA-B716-FC46BB07C77D}</LibraryReferences>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="PlcTask.TcTTO"><SubType>Code</SubType></Compile>
+    <Compile Include="MAIN.TcPOU"><SubType>Code</SubType></Compile>
+    <Compile Include="GVL_MotorIO.TcGVL"><SubType>Code</SubType></Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <PlaceholderReference Include="Tc2_Standard"><DefaultResolution>Tc2_Standard, * (Beckhoff Automation GmbH)</DefaultResolution><Namespace>Tc2_Standard</Namespace></PlaceholderReference>
+    <PlaceholderReference Include="Tc2_System"><DefaultResolution>Tc2_System, * (Beckhoff Automation GmbH)</DefaultResolution><Namespace>Tc2_System</Namespace></PlaceholderReference>
+    <PlaceholderReference Include="Tc3_Module"><DefaultResolution>Tc3_Module, * (Beckhoff Automation GmbH)</DefaultResolution><Namespace>Tc3_Module</Namespace></PlaceholderReference>
+  </ItemGroup>
+</Project>

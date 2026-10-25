@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="412" viewBox="0 0 680 412" font-family="Microsoft YaHei, SimHei, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="680" height="412" fill="#FFFFFF"/>
+  <text x="30" y="32" font-size="15" font-weight="bold" fill="#0C447C">PLC 相位状态机 nPhase（上升沿驱动，位于 MAIN / PlcTask）</text>
+
+  <rect x="30" y="90" width="116" height="64" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+  <text x="88" y="112" font-size="14" font-weight="bold" fill="#0C447C" text-anchor="middle" dominant-baseline="central">0 待机</text>
+  <text x="88" y="131" font-size="10" fill="#185FA5" text-anchor="middle" dominant-baseline="central">输出关闭 · 目标 0</text>
+
+  <rect x="196" y="90" width="116" height="64" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+  <text x="254" y="112" font-size="14" font-weight="bold" fill="#0C447C" text-anchor="middle" dominant-baseline="central">10 启动</text>
+  <text x="254" y="131" font-size="10" fill="#185FA5" text-anchor="middle" dominant-baseline="central">对齐 Id 0.5 A</text>
+
+  <rect x="362" y="90" width="116" height="64" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+  <text x="420" y="112" font-size="14" font-weight="bold" fill="#0C447C" text-anchor="middle" dominant-baseline="central">20 运行</text>
+  <text x="420" y="131" font-size="10" fill="#185FA5" text-anchor="middle" dominant-baseline="central">Iq 0.8 A · 最长 6 s</text>
+
+  <rect x="528" y="90" width="116" height="64" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+  <text x="586" y="112" font-size="14" font-weight="bold" fill="#0C447C" text-anchor="middle" dominant-baseline="central">30 停止</text>
+  <text x="586" y="131" font-size="10" fill="#185FA5" text-anchor="middle" dominant-baseline="central">减速至 &lt;1 rpm</text>
+
+  <rect x="362" y="250" width="116" height="64" rx="8" fill="#FCEBEB" stroke="#A32D2D" stroke-width="0.5"/>
+  <text x="420" y="272" font-size="14" font-weight="bold" fill="#791F1F" text-anchor="middle" dominant-baseline="central">90 故障锁存</text>
+  <text x="420" y="291" font-size="10" fill="#A32D2D" text-anchor="middle" dominant-baseline="central">不会自动清除</text>
+
+  <rect x="196" y="250" width="116" height="64" rx="8" fill="#E6F1FB" stroke="#185FA5" stroke-width="0.5"/>
+  <text x="254" y="272" font-size="14" font-weight="bold" fill="#0C447C" text-anchor="middle" dominant-baseline="central">80 复位</text>
+  <text x="254" y="291" font-size="10" fill="#185FA5" text-anchor="middle" dominant-baseline="central">清锁存并回待机</text>
+
+  <path d="M146 122 L196 122" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="171" y="110" font-size="10" fill="#2C2C2A" text-anchor="middle">bStart ↑</text>
+
+  <path d="M312 122 L362 122" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="337" y="110" font-size="10" fill="#2C2C2A" text-anchor="middle">对齐完成</text>
+
+  <path d="M478 122 L528 122" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="503" y="110" font-size="10" fill="#2C2C2A" text-anchor="middle">bStop ↑</text>
+
+  <path d="M586 154 L586 185 L88 185 L88 154" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="337" y="177" font-size="10" fill="#2C2C2A" text-anchor="middle">停稳确认</text>
+
+  <path d="M420 154 L420 250" fill="none" stroke="#A32D2D" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="430" y="205" font-size="10" fill="#791F1F">故障 / 心跳超时</text>
+
+  <path d="M362 282 L312 282" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="337" y="270" font-size="10" fill="#2C2C2A" text-anchor="middle">bReset ↑</text>
+
+  <path d="M196 282 L88 282 L88 154" fill="none" stroke="#5F5E5A" stroke-width="1.5" marker-end="url(#a)"/>
+  <text x="137" y="300" font-size="10" fill="#2C2C2A" text-anchor="middle">锁存清除</text>
+
+  <rect x="30" y="336" width="620" height="62" rx="6" fill="#F1EFE8" stroke="#B4B2A9" stroke-width="0.5"/>
+  <text x="42" y="353" font-size="9.5" fill="#2C2C2A">复位四步　① bStart 写回 FALSE　② bReset 写 TRUE 再写回 FALSE</text>
+  <text x="42" y="366" font-size="9.5" fill="#2C2C2A">　　　　　③ 确认 nPhase=0 且 bLocalFault=FALSE　④ 重新发 bStart 上升沿</text>
+  <text x="42" y="379" font-size="9.5" fill="#2C2C2A">故障码　7 电流保护 · 8 桥接保护 · 12 运行时限 · 13 直接换向 · 14 停止超时；10 与 30 期间故障同样进 90</text>
+  <text x="42" y="392" font-size="9.5" fill="#2C2C2A">要点　上升沿驱动，每次启动前须先写回 FALSE；90 为锁存态，此时通信可能完全正常（State=8、WcState=FALSE、bHealthy=TRUE）</text>
+</svg>

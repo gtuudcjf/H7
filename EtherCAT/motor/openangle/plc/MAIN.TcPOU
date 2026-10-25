@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1">
+  <POU Name="MAIN" Id="{33FF3302-F6D2-4AF9-8DC1-2E84436E58DF}">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR
+    (* Never force mapped outputs. Physical E-stop remains independent. *)
+    bStart : BOOL := FALSE;
+    bStop : BOOL := FALSE;
+    bDisable : BOOL := FALSE;
+    bReset : BOOL := FALSE;
+    rDemandRpm : REAL := 0.0; (* equivalent FIELD speed, not measured rotor speed *)
+    bFreezeHeartbeat : BOOL := FALSE;
+    nPhase : UINT := 0;
+    bLocalFault : BOOL := FALSE;
+    bHealthy : BOOL;
+    bHadHealthy : BOOL := FALSE;
+    bStartReleased : BOOL := FALSE;
+    bOpenAngleProfile : BOOL;
+    bControlFeedbackValid : BOOL;
+    bElectricalOutputOff : BOOL;
+    bSpeedMeasurementValid : BOOL := FALSE;
+    bDemandValid : BOOL;
+    nDirection : INT := 0;
+    startEdge : Tc2_Standard.R_TRIG;
+    resetEdge : Tc2_Standard.R_TRIG;
+    startupTimer : Tc2_Standard.TON;
+    stoppingTimer : Tc2_Standard.TON;
+    feedbackTimer : Tc2_Standard.TON;
+    resetTimer : Tc2_Standard.TON;
+    lastCounter : UDINT := 0;
+END_VAR
+]]></Declaration>
+    <Implementation><ST><![CDATA[
+startEdge(CLK := bStart);
+resetEdge(CLK := bReset);
+IF NOT bStart THEN bStartReleased := TRUE; END_IF;
+IF NOT bFreezeHeartbeat THEN
+    IF GVL_MotorIO.CommandSequence = UDINT#16#FFFFFFFF THEN
+        GVL_MotorIO.CommandSequence := 0;
+    ELSE
+        GVL_MotorIO.CommandSequence := GVL_MotorIO.CommandSequence + 1;
+    END_IF;
+END_IF;
+bHealthy := NOT GVL_MotorIO.WcState AND (GVL_MotorIO.State = 8);
+bOpenAngleProfile := (GVL_MotorIO.StatusWord AND WORD#16#0100) <> 0;
+bControlFeedbackValid := (GVL_MotorIO.StatusWord AND WORD#16#0200) <> 0;
+bElectricalOutputOff := (GVL_MotorIO.StatusWord AND WORD#16#0400) <> 0;
+bSpeedMeasurementValid := FALSE; (* ActualSpeed=0 is NOT stopped proof. *)
+bDemandValid := (rDemandRpm >= -20.0) AND (rDemandRpm <= 20.0);
+IF (NOT bHealthy AND (bHadHealthy OR (nPhase <> 0))) OR
+   (bHealthy AND NOT bOpenAngleProfile) OR
+   (((GVL_MotorIO.MotorFault <> 0) OR (GVL_MotorIO.BridgeFault <> 0)) AND (nPhase <> 80)) THEN
+    nPhase := 90; bLocalFault := TRUE; bStartReleased := FALSE;
+END_IF;
+IF bHealthy THEN bHadHealthy := TRUE; END_IF;
+startupTimer(IN := nPhase = 10, PT := T#2S);
+stoppingTimer(IN := nPhase = 30, PT := T#2S);
+resetTimer(IN := nPhase = 80, PT := T#1S);
+feedbackTimer(IN := ((nPhase = 20) OR (nPhase = 30)) AND NOT bElectricalOutputOff
+                     AND (GVL_MotorIO.CycleCounter = lastCounter), PT := T#100MS);
+lastCounter := GVL_MotorIO.CycleCounter;
+GVL_MotorIO.ControlWord := WORD#16#0100;
+GVL_MotorIO.TargetSpeed := 0;
+CASE nPhase OF
+0:
+    nDirection := 0;
+    IF bHealthy AND bOpenAngleProfile AND startEdge.Q AND bStartReleased AND NOT bStop AND NOT bDisable
+       AND ((GVL_MotorIO.StatusWord AND WORD#16#0001) <> 0) THEN
+        IF bDemandValid THEN nPhase := 10; bStartReleased := FALSE;
+        ELSE nPhase := 90; bLocalFault := TRUE;
+        END_IF;
+    END_IF;
+10:
+    GVL_MotorIO.ControlWord := WORD#16#0101; (* Start at zero field target. *)
+    IF bStop THEN nPhase := 0; GVL_MotorIO.ControlWord := WORD#16#0100;
+    ELSIF startupTimer.Q THEN nPhase := 90; bLocalFault := TRUE;
+    ELSIF (GVL_MotorIO.StatusWord AND WORD#16#0202) = WORD#16#0202 THEN nPhase := 20;
+    END_IF;
+20:
+    GVL_MotorIO.ControlWord := WORD#16#0101;
+    IF bElectricalOutputOff THEN nPhase := 0; GVL_MotorIO.ControlWord := WORD#16#0100;
+    ELSIF NOT bControlFeedbackValid THEN nPhase := 90; bLocalFault := TRUE;
+    ELSIF bStop OR (rDemandRpm = 0.0) THEN nPhase := 30;
+    ELSIF NOT bDemandValid THEN nPhase := 90; bLocalFault := TRUE;
+    ELSIF ((nDirection = 1) AND (rDemandRpm < 0.0)) OR ((nDirection = -1) AND (rDemandRpm > 0.0)) THEN
+        nPhase := 90; bLocalFault := TRUE;
+    ELSE
+        IF nDirection = 0 THEN
+            IF rDemandRpm > 0.0 THEN nDirection := 1; ELSE nDirection := -1; END_IF;
+        END_IF;
+        GVL_MotorIO.TargetSpeed := REAL_TO_INT(rDemandRpm * 10.0);
+    END_IF;
+30:
+    GVL_MotorIO.ControlWord := WORD#16#0101; (* MCU owns ramp-down. *)
+    IF bElectricalOutputOff THEN nPhase := 0; GVL_MotorIO.ControlWord := WORD#16#0100;
+    ELSIF stoppingTimer.Q THEN nPhase := 90; bLocalFault := TRUE;
+    END_IF;
+80:
+    IF (GVL_MotorIO.MotorFault = 0) AND (GVL_MotorIO.BridgeFault = 0)
+       AND ((GVL_MotorIO.StatusWord AND WORD#16#0004) = 0) AND bElectricalOutputOff THEN
+        nPhase := 0; bLocalFault := FALSE; bStartReleased := FALSE;
+    ELSIF resetTimer.Q THEN nPhase := 90; bLocalFault := TRUE;
+    END_IF;
+90:
+    IF resetEdge.Q AND bHealthy AND bOpenAngleProfile AND NOT bStart THEN
+        GVL_MotorIO.ControlWord := WORD#16#0180; nPhase := 80;
+    END_IF;
+ELSE
+    nPhase := 90; bLocalFault := TRUE;
+END_CASE;
+IF feedbackTimer.Q THEN nPhase := 90; bLocalFault := TRUE; END_IF;
+IF bDisable THEN
+    IF nPhase <> 90 THEN nPhase := 0; END_IF;
+    bStartReleased := FALSE;
+    GVL_MotorIO.ControlWord := WORD#16#0100; GVL_MotorIO.TargetSpeed := 0;
+END_IF;
+IF nPhase = 90 THEN
+    GVL_MotorIO.ControlWord := WORD#16#0100; GVL_MotorIO.TargetSpeed := 0;
+END_IF;
+]]></ST></Implementation>
+  </POU>
+</TcPlcObject>

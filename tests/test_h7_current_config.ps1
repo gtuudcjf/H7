@@ -36,4 +36,30 @@ Assert-Contains $timSource 'MasterOutputTrigger2\s*=\s*TIM_TRGO2_OC4REF' `
 Assert-Contains $timSource 'OCMode\s*=\s*TIM_OCMODE_PWM2[\s\S]*Pulse\s*=\s*11399[\s\S]*TIM_CHANNEL_4' `
     'TIM8 CH4 must generate the internal sample point at about 95 percent of ARR.'
 
+# Execute the production initializer with hardware calls captured at the HAL
+# boundary. Do not emulate the HAL's JEOC/JEOS interrupt selection in a mock.
+$out = Join-Path $projectRoot 'tmp/openangle_tests'
+New-Item -ItemType Directory -Path $out -Force | Out-Null
+$start = $adcSource.IndexOf('void MX_ADC1_Init(void)')
+$end = $adcSource.IndexOf('void HAL_ADC_MspInit(', $start)
+if ($start -lt 0 -or $end -le $start) { throw 'Missing production ADC1 initializer.' }
+[IO.File]::WriteAllText((Join-Path $out 'adc_init_under_test.inc'), $adcSource.Substring($start, $end - $start))
+$cc = Join-Path $projectRoot 'tmp/commit_verification_20261015/tool/tcc/tcc.exe'
+foreach ($profile in @(
+    @{ Name='bench'; Control=1; OpenAngle=1; Power=1 },
+    @{ Name='openangle_dryrun'; Control=1; OpenAngle=1; Power=0 },
+    @{ Name='encoder_dryrun'; Control=1; OpenAngle=0; Power=0 },
+    @{ Name='powerpath'; Control=1; OpenAngle=0; Power=1 },
+    @{ Name='local'; Control=0; OpenAngle=0; Power=0 }
+)) {
+    $binary=Join-Path $out "adc_init_$($profile.Name).exe"
+    & $cc -Wall -Werror "-DETHERCAT_MOTOR_CONTROL=$($profile.Control)" `
+        "-DETHERCAT_MOTOR_OPEN_ANGLE=$($profile.OpenAngle)" `
+        "-DETHERCAT_MOTOR_POWER_ENABLED=$($profile.Power)" `
+        -I $out (Join-Path $PSScriptRoot 'test_h7_adc_init.c') -o $binary
+    if ($LASTEXITCODE -ne 0) { throw "ADC initializer compile failed: $($profile.Name)" }
+    & $binary
+    if ($LASTEXITCODE -ne 0) { throw "ADC initializer contract failed: $($profile.Name)" }
+}
+
 Write-Output 'H7 current-sampling configuration checks passed'

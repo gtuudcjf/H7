@@ -6,6 +6,9 @@
 #include "ethercat_app_core.h"
 #include "mailbox.h"
 #include <string.h>
+#if ETHERCAT_MOTOR_CONTROL
+#include "ethercat_motor_bridge.h"
+#endif
 
 #define DIAGNOSTICS_INTERVAL_US UINT32_C(100000)
 static EtherCATStatus status;
@@ -27,9 +30,18 @@ static void ObservePort(void)
 
 static void ObserveProcessData(void)
 {
+#if ETHERCAT_MOTOR_CONTROL
+    const EMC_Core *c = EtherCATMotorBridge_Get();
+    uint8_t wire[EMC_TX_BYTES];
+    EtherCATMotorBridge_Pack(wire);
+    diagnostics.rx_control_word = c->previous_control;
+    diagnostics.tx_status_word = (uint16_t)(wire[0] | ((uint16_t)wire[1] << 8));
+    diagnostics.tx_cycle_counter = c->cycle_counter;
+#else
     diagnostics.rx_control_word = EtherCAT_AppGetRx()->control_word;
     diagnostics.tx_status_word = EtherCAT_AppGetTx()->status_word;
     diagnostics.tx_cycle_counter = EtherCAT_AppGetTx()->cycle_counter;
+#endif
 }
 
 static void StopOnFault(void)

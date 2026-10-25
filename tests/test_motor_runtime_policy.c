@@ -75,6 +75,12 @@ static void Test_SpeedCurrentHandoffIsAlwaysClampedToItsRuntimeLimit(void)
 
 int main(void)
 {
+    /* A full hardware stop preserves the fault latch but changes mode to STOPPED. */
+    assert(MotorRuntimePolicy_FaultResetAllowed(MOTOR_CONTROL_FAULT, true));
+    assert(MotorRuntimePolicy_FaultResetAllowed(MOTOR_CONTROL_STOPPED, true));
+    assert(!MotorRuntimePolicy_FaultResetAllowed(MOTOR_CONTROL_STOPPED, false));
+    assert(!MotorRuntimePolicy_FaultResetAllowed(MOTOR_CONTROL_ENCODER_SPEED_CURRENT, true));
+    assert(!MotorRuntimePolicy_FaultResetAllowed(MOTOR_CONTROL_OPEN_VOLTAGE, true));
     Test_EncoderDmaIsBlockedWhileCurrentOffsetsAreCalibrated();
     Test_EncoderDmaIsAllowedAfterCurrentCalibration();
     Test_EncoderDmaIsBlockedWhenStoppedOrFaulted();

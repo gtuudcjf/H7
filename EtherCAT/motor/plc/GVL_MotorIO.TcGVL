@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1">
+  <GVL Name="GVL_MotorIO" Id="{5E605B83-C674-4DF3-A43F-6CEAC80B98D6}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+    (* Link individually to revision-2 PDO / InfoData. *)
+    StatusWord AT %I* : WORD;
+    CycleCounter AT %I* : UDINT;
+    ActualSpeed AT %I* : INT; (* motor shaft 0.1 rpm *)
+    ActualIq AT %I* : INT; (* q-axis mA *)
+    MotorFault AT %I* : UINT;
+    BridgeFault AT %I* : UINT;
+    ActiveTargetSpeed AT %I* : INT;
+    AcceptedSequence AT %I* : UDINT;
+    WcState AT %I* : BOOL;
+    State AT %I* : UINT;
+    ControlWord AT %Q* : WORD;
+    TargetSpeed AT %Q* : INT;
+    CommandSequence AT %Q* : UDINT;
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

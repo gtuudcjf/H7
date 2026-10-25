@@ -1,0 +1,67 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>为什么先做通信，而不接入电机控制</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>系统组成与软件移植</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '20px 40px', gap: '12px' }}>
+        <Box style={{ width: '100%', height: '460px', flexDirection: 'row', gap: '20px' }}>
+            <Box style={{ width: '550px', height: '460px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '0 22px 20px 22px', gap: '10px' }}>
+                <Box style={{ width: '100%', height: '48px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                    <Box style={{ width: '8px', height: '28px', background: '#D9534F' }} />
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#1A2230' }}>不隔离会怎样</Text>
+                </Box>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.6' }}>
+                    原 H743 工程已经包含电机、编码器、ADC、PWM 与 VOFA 相关功能
+                </Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.6' }}>
+                    若首次 EtherCAT 调试时同时启动这些功能，会增加时序干扰
+                </Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.6' }}>
+                    更危险的是可能把主站输出误当成电机指令，造成功率级动作
+                </Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.6' }}>
+                    故障现象也会被多个子系统叠加掩盖，难以定位到具体层次
+                </Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '12px 16px' }}>
+                    <Text style={{ fontSize: '19px', color: '#8B97A8' }}>本质问题：变量不唯一，无法做单因素对照</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: '50px', height: '460px', alignItems: 'center', justifyContent: 'center' }}>
+                <Box style={{ width: '46px', height: '46px', borderRadius: '28px', background: '#1E4FA8', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: '24px', fontWeight: 'bold', color: '#FFFFFF' }}>VS</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: '550px', height: '460px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '0 22px 20px 22px', gap: '10px' }}>
+                <Box style={{ width: '100%', height: '48px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                    <Box style={{ width: '8px', height: '28px', background: '#1E4FA8' }} />
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#1A2230' }}>隔离后只做什么</Text>
+                </Box>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.6' }}>
+                    编译宏 <span style={{ fontWeight: 'bold', color: '#1E4FA8' }}>ETHERCAT_BRINGUP_ONLY=1</span>，将本阶段限制在通信验证
+                </Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.6' }}>
+                    仅执行公共 MPU、HAL 与时钟初始化，再初始化 GPIO、拉低 PC4、拉高 CS
+                </Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.6' }}>
+                    启动 SPI1、调用一次 EtherCAT_Init，主循环持续调用 EtherCAT_Service
+                </Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.6' }}>
+                    不启动电机初始化、校准、PWM、ADC 采样、编码器初始化与电机服务
+                </Text>
+                <Box style={{ width: '100%', background: '#E8EFF8', borderRadius: '6px', padding: '12px 16px' }}>
+                    <Text style={{ fontSize: '19px', color: '#1E4FA8' }}>收益：故障可定位到具体层次，且功率级始终禁用</Text>
+                </Box>
+            </Box>
+        </Box>
+        <Box style={{ width: '100%', height: '96px', background: '#0E3F8C', borderRadius: '6px', padding: '0 24px', flexDirection: 'row', alignItems: 'center', gap: '16px' }}>
+            <Box style={{ width: '8px', height: '58px', background: '#FFC107' }} />
+            <Text style={{ fontSize: '22px', color: '#FFFFFF', lineHeight: '1.5' }}>
+                先证明链路，再谈控制：把电机与编码器从变量中剔除，是后续所有定位能够收敛的前提
+            </Text>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：调试总结文档第 1.2 节</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>06 / 14</Text>
+    </Box>
+</Slide>

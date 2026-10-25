@@ -1,0 +1,20 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: 0, fontFamily: 'Microsoft YaHei, SimHei, sans-serif' }}>
+    <Box style={{ height: 72, background: '#1E4FA8', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#FFFFFF' }}>汇报结束</Text>
+        <Text style={{ fontSize: 20, color: '#BFD3EE' }}>STM32H743 与 LAN9252 电机联调阶段汇报</Text>
+    </Box>
+    <Box style={{ height: 588, paddingTop: 24, paddingBottom: 16, paddingLeft: 40, paddingRight: 40, alignItems: 'center', justifyContent: 'center', gap: 28 }}>
+        <Text style={{ fontSize: 56, fontWeight: 'bold', color: '#0E3F8C' }}>请老师批评指正</Text>
+        <Box style={{ width: 120, height: 4, background: '#1E4FA8' }} />
+        <Box style={{ width: 1000, background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 24, paddingBottom: 24, paddingLeft: 32, paddingRight: 32, gap: 12 }}>
+            <Text style={{ fontSize: 20, color: '#4A5568' }}>EtherCAT/motor/openangle/SOFTWARE_VERIFICATION.md —— 逐日修改与离线验证记录</Text>
+            <Text style={{ fontSize: 20, color: '#4A5568' }}>EtherCAT/motor/openangle/COMMISSIONING.md —— 实验流程说明</Text>
+            <Text style={{ fontSize: 20, color: '#4A5568' }}>MDK-ARM/motor_build_openanglebenchcheck.log —— 最新延时版编译记录</Text>
+        </Box>
+        <Text style={{ fontSize: 22, color: '#1A2230' }}>已把 TwinCAT 指令接入 H743 电机执行链路，并在正给定 +6 / +12 下观察到旋转</Text>
+    </Box>
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>STM32H743-VOFA 电机控制平台</Text>
+        <Text style={{ fontSize: 16, color: '#1E4FA8' }}>11 / 11</Text>
+    </Box>
+</Slide>

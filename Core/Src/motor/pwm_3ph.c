@@ -9,6 +9,10 @@
 #include "pwm_3ph.h"
 
 #include "tim.h"
+#include "../ethercat/ethercat_build.h"
+#if ETHERCAT_MOTOR_CONTROL
+#include "motor_safety.h"
+#endif
 
 static float Pwm3ph_ClampDuty(float duty)
 {
@@ -39,16 +43,31 @@ static uint32_t Pwm3ph_DutyToCompare(float duty)
 static HAL_StatusTypeDef Pwm3ph_StartChannel(uint32_t channel)
 {
     HAL_StatusTypeDef status;
+#if ETHERCAT_MOTOR_CONTROL
+    uint32_t p = __get_PRIMASK();
+    __disable_irq();
+    if (!MotorSafety_OutputPermitted()) {
+        __set_PRIMASK(p);
+        return HAL_ERROR;
+    }
+#endif
 
     /* 先打开 CHx 主输出，HAL 会设置对应的 CCxE。 */
     status = HAL_TIM_PWM_Start(&htim8, channel);
     if (status != HAL_OK)
     {
+#if ETHERCAT_MOTOR_CONTROL
+        __set_PRIMASK(p);
+#endif
         return status;
     }
 
     /* 再打开 CHxN，HAL 会设置 CCxNE，并确保高级定时器 MOE 置位。 */
-    return HAL_TIMEx_PWMN_Start(&htim8, channel);
+    status = HAL_TIMEx_PWMN_Start(&htim8, channel);
+#if ETHERCAT_MOTOR_CONTROL
+    __set_PRIMASK(p);
+#endif
+    return status;
 }
 
 static HAL_StatusTypeDef Pwm3ph_StopChannel(uint32_t channel)

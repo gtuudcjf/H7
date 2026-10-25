@@ -1,0 +1,98 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>关键定位二：首故障快照与 HAL 毫秒 Tick 边界</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>实板调试复盘</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '18px 40px', gap: '12px' }}>
+        <Box style={{ width: '1200px', height: '474px', flexDirection: 'row', gap: '20px' }}>
+            <Box style={{ width: '640px', height: '474px', background: '#FFFFFF', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '16px 18px', gap: '10px' }}>
+                <Text style={{ fontSize: '25px', fontWeight: 'bold', color: '#1E4FA8' }}>首次故障快照实测值</Text>
+                <Table
+                    style={{ width: '100%', height: '392px' }}
+                    defaultTextStyle={{ fontSize: '18px', textAlign: 'left', color: '#1A2230' }}
+                    defaultCellStyle={{
+                        padding: '7px 12px',
+                        border: {
+                            left: { width: 1, color: '#E5E7EB' },
+                            right: { width: 1, color: '#E5E7EB' },
+                            top: { width: 1, color: '#E5E7EB' },
+                            bottom: { width: 1, color: '#E5E7EB' },
+                        },
+                    }}
+                    cells={[
+                        [
+                            { text: '字段', textStyle: { bold: true, color: '#FFFFFF', fontSize: '19px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                            { text: '实测值', textStyle: { bold: true, color: '#FFFFFF', fontSize: '19px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                            { text: '定位意义', textStyle: { bold: true, color: '#FFFFFF', fontSize: '19px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                        ],
+                        [
+                            { text: 'first_fault.valid', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '1', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '首次现场完整有效', cellStyle: { background: { color: '#FFFFFF' } } },
+                        ],
+                        [
+                            { text: 'address / esc', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '0x0304 / 0x0004', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '读 CSR_CMD，属 SSC 初始化请求', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                        [
+                            { text: 'command / phase', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '0x0B / 2', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '快读数据阶段失败', cellStyle: { background: { color: '#FFFFFF' } } },
+                        ],
+                        [
+                            { text: 'reason / status', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '2 / 3', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: 'transport 失败，DIRECT_TIMEOUT', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                        [
+                            { text: 'elapsed / budget', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '39 µs / 1000 µs', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '物理访问耗时远小于预算', cellStyle: { background: { color: '#FFFFFF' } } },
+                        ],
+                        [
+                            { text: 'hal_status / err', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '3 / 0x100', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: 'HAL_TIMEOUT', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                        [
+                            { text: 'HAL elapsed', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: '11 µs', cellStyle: { background: { color: '#FFFFFF' } } },
+                            { text: 'HAL 回调很快返回超时', cellStyle: { background: { color: '#FFFFFF' } } },
+                        ],
+                        [
+                            { text: 'timeout_us / ms', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '977 µs / 1 ms', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '剩余 977 µs 被换算为 1 ms', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                    ]}
+                />
+            </Box>
+            <Box style={{ width: '540px', height: '474px', gap: '12px' }}>
+                <Box style={{ width: '100%', height: '146px', background: '#F7F9FC', borderLeft: '6px solid #1E4FA8', borderRadius: '6px', padding: '14px 18px', gap: '6px' }}>
+                    <Text style={{ fontSize: '23px', fontWeight: 'bold', color: '#1A2230' }}>现象</Text>
+                    <Text style={{ fontSize: '19px', color: '#4A5568', lineHeight: '1.5' }}>同一程序有时能进 PREOP 却不能返回 INIT，有时停在 INIT 且 INIT→PREOP 请求 3000 ms 超时</Text>
+                </Box>
+                <Box style={{ width: '100%', height: '146px', background: '#F7F9FC', borderLeft: '6px solid #3D7BD9', borderRadius: '6px', padding: '14px 18px', gap: '6px' }}>
+                    <Text style={{ fontSize: '23px', fontWeight: 'bold', color: '#1A2230' }}>根因</Text>
+                    <Text style={{ fontSize: '19px', color: '#4A5568', lineHeight: '1.5' }}>HAL 用毫秒 Tick 差值判超时：调用若始于某毫秒末尾，几微秒后 Tick 加 1，差值已达 1 即报超时</Text>
+                </Box>
+                <Box style={{ width: '100%', height: '146px', background: '#E8EFF8', borderLeft: '6px solid #0E3F8C', borderRadius: '6px', padding: '14px 18px', gap: '6px' }}>
+                    <Text style={{ fontSize: '23px', fontWeight: 'bold', color: '#1A2230' }}>修正</Text>
+                    <Text style={{ fontSize: '19px', color: '#4A5568', lineHeight: '1.5' }}>剩余微秒向上取整到毫秒再加 1 个 Tick；不修改 HAL 库、不扩大判据、不新增自动重试</Text>
+                </Box>
+            </Box>
+        </Box>
+        <Box style={{ width: '1200px', height: '84px', background: '#0E3F8C', borderRadius: '6px', padding: '0 22px', flexDirection: 'row', alignItems: 'center', gap: '18px' }}>
+            <Box style={{ width: '8px', height: '56px', background: '#FFC107' }} />
+            <Box style={{ gap: '4px' }}>
+                <Text style={{ fontSize: '19px', color: '#B9CCEE' }}>timeout_ms = remaining_us / 1000 + 1，余数非零再 +1</Text>
+                <Text style={{ fontSize: '19px', color: '#FFFFFF' }}>修正后实板两份故障 valid=0，驱动错误与超时计数为 0，恢复 PREOP 与在线 CoE</Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：调试总结文档第 8 节与 docs/ethercat/2026-10-14-spi-first-fault.md</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>10 / 14</Text>
+    </Box>
+</Slide>

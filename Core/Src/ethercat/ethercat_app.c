@@ -2,6 +2,9 @@
 #include "ethercat_app_core.h"
 #include "ecatslv.h"
 #include "el9800hw.h"
+#if ETHERCAT_MOTOR_CONTROL
+#include "ethercat_motor_app.inc"
+#else
 
 /* SI0 占 UINT16；其余成员按 SSC OBJ_DWORD_ALIGN 自然对齐。
    对象存储布局与线上 PDO 布局不同，不能直接 memcpy 到过程数据。 */
@@ -127,3 +130,4 @@ UINT16 APPL_GetDeviceID(void)
 {
     return 0; /* EXPLICIT_DEVICE_ID=0，没有拨码开关身份。 */
 }
+#endif

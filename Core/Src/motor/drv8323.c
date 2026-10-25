@@ -8,6 +8,10 @@
  */
 #include "drv8323.h"
 #include "drv8323_registers.h"
+#include "../ethercat/ethercat_build.h"
+#if ETHERCAT_MOTOR_CONTROL
+#include "motor_safety.h"
+#endif
 
 #define DRV8323_SPI_READ_BIT       (0x8000U) /**< B15：1=读，0=写。 */
 #define DRV8323_SPI_ADDRESS_SHIFT  (11U)     /**< 地址位位于 B14:B11。 */
@@ -134,10 +138,20 @@ HAL_StatusTypeDef Drv8323_EnableAndConfigure6Pwm(Drv8323Device *device)
      * ENABLE 高电平使芯片退出休眠。只有在 VM 高于欠压阈值时，内部电源、
      * 电荷泵和 SPI 才会进入工作状态。
      */
+#if ETHERCAT_MOTOR_CONTROL
+    if (!MotorSafety_TryEnableDriver()) return HAL_ERROR;
+#else
     HAL_GPIO_WritePin(device->enable_port, device->enable_pin, GPIO_PIN_SET);
+#endif
 
     /* 数据手册给出的 SPI ready / wake-up 时间为 1 ms，5 ms 留出启动裕量。 */
     HAL_Delay(5U);
+#if ETHERCAT_MOTOR_CONTROL
+    if (!MotorSafety_OutputPermitted()) {
+        Drv8323_Disable(device);
+        return HAL_ERROR;
+    }
+#endif
 
     /* 先选择 6x PWM 并清除锁存故障，再配置后续 CSA 和过流参数。 */
     status = Drv8323_WriteRegister(device,
@@ -168,6 +182,12 @@ HAL_StatusTypeDef Drv8323_EnableAndConfigure6Pwm(Drv8323Device *device)
     {
         Drv8323_Disable(device);
     }
+#if ETHERCAT_MOTOR_CONTROL
+    if (!MotorSafety_OutputPermitted()) {
+        Drv8323_Disable(device);
+        return HAL_ERROR;
+    }
+#endif
     return status;
 }
 

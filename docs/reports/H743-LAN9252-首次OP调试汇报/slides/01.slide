@@ -1,0 +1,44 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#0E3F8C', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '12px', background: '#FFC107' }} />
+    <Box style={{ width: '100%', height: '588px', padding: '52px 72px', justifyContent: 'space-between' }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: '16px' }}>
+            <Box style={{ background: '#1E4FA8', padding: '8px 18px', borderRadius: '4px' }}>
+                <Text style={{ fontSize: '20px', color: '#FFFFFF' }}>阶段进展汇报</Text>
+            </Box>
+            <Text style={{ fontSize: '20px', color: '#8FB0E8' }}>EtherCAT 从站 bring-up</Text>
+        </Box>
+        <Box style={{ gap: '22px' }}>
+            <Text style={{ fontSize: '56px', fontWeight: 'bold', color: '#FFFFFF', lineHeight: '1.25' }}>
+                STM32H743 与 LAN9252<br />从零进入 OP 的调试总结
+            </Text>
+            <Text style={{ fontSize: '26px', color: '#9DBDF0', lineHeight: '1.5' }}>
+                Bring-up of a Minimal EtherCAT Slave on STM32H743 + LAN9252
+            </Text>
+            <Text style={{ fontSize: '30px', color: '#E8EFF8' }}>
+                代码移植与实板联调阶段汇报
+            </Text>
+        </Box>
+        <Box style={{ width: '100%', height: '4px', background: '#3D7BD9' }} />
+    </Box>
+    <Box style={{ width: '100%', height: '120px', background: '#1E4FA8', padding: '28px 72px', flexDirection: 'row', alignItems: 'center', gap: '56px' }}>
+        <Box style={{ gap: '6px' }}>
+            <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>汇报对象</Text>
+            <Text style={{ fontSize: '24px', color: '#FFFFFF', fontWeight: 'bold' }}>指导教师</Text>
+        </Box>
+        <Box style={{ width: '1px', height: '56px', background: '#3D7BD9' }} />
+        <Box style={{ gap: '6px' }}>
+            <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>整理日期</Text>
+            <Text style={{ fontSize: '24px', color: '#FFFFFF', fontWeight: 'bold' }}>2026 年 10 月 15 日</Text>
+        </Box>
+        <Box style={{ width: '1px', height: '56px', background: '#3D7BD9' }} />
+        <Box style={{ gap: '6px' }}>
+            <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>硬件平台</Text>
+            <Text style={{ fontSize: '24px', color: '#FFFFFF', fontWeight: 'bold' }}>H743-VOFA 自研板卡</Text>
+        </Box>
+        <Box style={{ width: '1px', height: '56px', background: '#3D7BD9' }} />
+        <Box style={{ gap: '6px' }}>
+            <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>主站环境</Text>
+            <Text style={{ fontSize: '24px', color: '#FFFFFF', fontWeight: 'bold' }}>TwinCAT 3 XAE</Text>
+        </Box>
+    </Box>
+</Slide>

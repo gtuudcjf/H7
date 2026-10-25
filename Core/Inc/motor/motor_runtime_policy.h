@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 
+
 typedef enum
 {
     /* 功率级未运行；上电电流零偏校准期间motor_mode也暂时保持此值。 */
@@ -69,6 +70,9 @@ MotorStartAction MotorRuntimePolicy_ClassifyStartMode(MotorControlMode mode);
  * @note STOPPED用于上电电流校准，绝不能把待启动模式回退成STOPPED。
  */
 bool MotorRuntimePolicy_ModeRequestAllowed(MotorControlMode active_mode);
+
+/* Reset is legal after a full stop with a retained fault, never while active. */
+bool MotorRuntimePolicy_FaultResetAllowed(MotorControlMode mode, bool fault_latched);
 
 /** 将速度模式的q轴活动参考限制到当前运行时转矩电流边界。 */
 float MotorRuntimePolicy_ClampSpeedIq(float iq_a, float limit_a);

@@ -1,0 +1,68 @@
+<mxfile host="Electron" modified="2026-10-24T01:50:00.000Z" agent="WorkBuddy" version="24.7.17" type="device">
+  <diagram id="nPhase-state-machine" name="PLC 相位状态机">
+    <mxGraphModel dx="1422" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="420" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="&lt;b style=&quot;font-size:16px&quot;&gt;PLC 相位状态机 nPhase（上升沿驱动，位于 MAIN / PlcTask）&lt;/b&gt;" style="text;html=1;align=left;verticalAlign=middle;fontColor=#0C447C;" vertex="1" parent="1">
+          <mxGeometry x="30" y="20" width="630" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="s0" value="&lt;b style=&quot;font-size:14px&quot;&gt;0 待机&lt;/b&gt;&lt;div style=&quot;font-size:11px&quot;&gt;输出关闭 · 线上目标 0&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F1FB;strokeColor=#185FA5;fontColor=#0C447C;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="30" y="90" width="110" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="s10" value="&lt;b style=&quot;font-size:14px&quot;&gt;10 启动&lt;/b&gt;&lt;div style=&quot;font-size:11px&quot;&gt;对齐 Id 0.5 A / 0.75 s&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F1FB;strokeColor=#185FA5;fontColor=#0C447C;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="205" y="90" width="110" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="s20" value="&lt;b style=&quot;font-size:14px&quot;&gt;20 运行&lt;/b&gt;&lt;div style=&quot;font-size:11px&quot;&gt;Iq 0.8 A · 运动最长 6 s&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F1FB;strokeColor=#185FA5;fontColor=#0C447C;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="380" y="90" width="110" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="s30" value="&lt;b style=&quot;font-size:14px&quot;&gt;30 停止&lt;/b&gt;&lt;div style=&quot;font-size:11px&quot;&gt;|速度|&amp;lt;1 rpm 保持 200 ms&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F1FB;strokeColor=#185FA5;fontColor=#0C447C;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="555" y="90" width="110" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="s90" value="&lt;b style=&quot;font-size:14px&quot;&gt;90 故障锁存&lt;/b&gt;&lt;div style=&quot;font-size:11px&quot;&gt;不会自动清除&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FCEBEB;strokeColor=#A32D2D;fontColor=#791F1F;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="380" y="250" width="110" height="64" as="geometry" />
+        </mxCell>
+        <mxCell id="s80" value="&lt;b style=&quot;font-size:14px&quot;&gt;80 复位&lt;/b&gt;&lt;div style=&quot;font-size:11px&quot;&gt;清锁存并回待机&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E6F1FB;strokeColor=#185FA5;fontColor=#0C447C;align=center;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="205" y="250" width="110" height="64" as="geometry" />
+        </mxCell>
+
+        <mxCell id="e1" value="bStart ↑" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=blockThin;endFill=1;strokeColor=#5F5E5A;fontSize=10;fontColor=#2C2C2A;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s0" target="s10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="对齐完成" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=blockThin;endFill=1;strokeColor=#5F5E5A;fontSize=10;fontColor=#2C2C2A;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s10" target="s20">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="bStop ↑ / 6 s" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=blockThin;endFill=1;strokeColor=#5F5E5A;fontSize=10;fontColor=#2C2C2A;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s20" target="s30">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="停稳确认" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=blockThin;endFill=1;strokeColor=#5F5E5A;fontSize=10;fontColor=#2C2C2A;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="s30" target="s0">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="610" y="185" />
+              <mxPoint x="85" y="185" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="e5" value="故障 / 心跳超时" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=blockThin;endFill=1;strokeColor=#A32D2D;fontSize=10;fontColor=#791F1F;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="s20" target="s90">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="bReset ↑" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=blockThin;endFill=1;strokeColor=#5F5E5A;fontSize=10;fontColor=#2C2C2A;labelBackgroundColor=#FFFFFF;" edge="1" parent="1" source="s90" target="s80">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="锁存清除" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=blockThin;endFill=1;strokeColor=#5F5E5A;fontSize=10;fontColor=#2C2C2A;labelBackgroundColor=#FFFFFF;exitX=0.5;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="s80" target="s0">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="85" y="282" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="note" value="&lt;b&gt;复位四步&lt;/b&gt;　① bStart 写回 FALSE　② bReset 写 TRUE 再写回 FALSE　③ 确认 nPhase=0 且 bLocalFault=FALSE　④ 重新发 bStart 上升沿&lt;br&gt;&lt;b&gt;故障码&lt;/b&gt;　7 电流保护 · 8 桥接保护 · 12 运行时限 · 13 直接换向 · 14 停止超时；10 与 30 期间检测到故障同样直接进入 90&lt;br&gt;&lt;b&gt;要点&lt;/b&gt;　状态机靠上升沿驱动而非电平，因此每次启动前必须先写回 FALSE；90 是锁存态，通信可能完全正常（State=8、WcState=FALSE、bHealthy=TRUE）" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F1EFE8;strokeColor=#B4B2A9;align=left;verticalAlign=middle;fontSize=11;spacingLeft=8;spacingRight=8;" vertex="1" parent="1">
+          <mxGeometry x="30" y="340" width="630" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

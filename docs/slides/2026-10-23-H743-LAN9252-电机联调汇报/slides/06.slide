@@ -1,0 +1,67 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: 0, fontFamily: 'Microsoft YaHei, SimHei, sans-serif' }}>
+    <Box style={{ height: 72, background: '#1E4FA8', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#FFFFFF' }}>04 关键问题与排查（一）</Text>
+        <Text style={{ fontSize: 20, color: '#BFD3EE' }}>通信状态 · 故障锁存 · 采样配置</Text>
+    </Box>
+    <Box style={{ height: 588, paddingTop: 24, paddingBottom: 16, paddingLeft: 40, paddingRight: 40 }}>
+        <Box style={{ height: 46, background: '#F0F5FC', borderLeft: '6px solid #1E4FA8', paddingLeft: 22, paddingRight: 22, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 21, color: '#1A2230' }}>三个问题都不是「换个参数就好」，而是把联调操作、状态机语义与配置契约各自理顺</Text>
+        </Box>
+        <Box style={{ height: 8 }} />
+        <Box style={{ flexDirection: 'row', height: 440, gap: 24 }}>
+            <Box style={{ width: 384, height: 440, background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 22, paddingRight: 22, justifyContent: 'space-between' }}>
+                <Box style={{ gap: 14 }}>
+                    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <Box style={{ width: 44, height: 44, background: '#1E4FA8', borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#FFFFFF' }}>1</Text>
+                        </Box>
+                        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0E3F8C' }}>无法进入或意外退出 OP</Text>
+                    </Box>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#D9534F' }}>现象</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>进入 Debug、复位或暂停后，TwinCAT 出现 INIT 到 PREOP 超时，或从 OP 异常退回 INIT。</Text>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1E4FA8' }}>定位与处置</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>结合 Keil 运行状态与 uwTick 核对，区分「MCU 停止服务」与持续通信故障；固定为先让 MCU 连续运行再恢复 OP。</Text>
+                </Box>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#0E3F8C' }}>解决的是操作干扰，不等于长期通信稳定性已验证</Text>
+            </Box>
+            <Box style={{ width: 384, height: 440, background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 22, paddingRight: 22, justifyContent: 'space-between' }}>
+                <Box style={{ gap: 14 }}>
+                    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <Box style={{ width: 44, height: 44, background: '#1E4FA8', borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#FFFFFF' }}>2</Text>
+                        </Box>
+                        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0E3F8C' }}>通信恢复后 nPhase 仍为 90</Text>
+                    </Box>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#D9534F' }}>现象</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>State=8、WcState=FALSE、bHealthy 已 TRUE，但 nPhase=90、bLocalFault=TRUE，电机仍不能启动。</Text>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1E4FA8' }}>定位与处置</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>阅读状态机确认 90 是故障锁存，不是通信恢复后自动待机；复位需 bStart=FALSE 且 bReset 产生新上升沿。</Text>
+                </Box>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#D9534F' }}>禁止强写 nPhase=0 或强制映射输出绕过状态机</Text>
+            </Box>
+            <Box style={{ width: 384, height: 440, background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 22, paddingRight: 22, justifyContent: 'space-between' }}>
+                <Box style={{ gap: 14 }}>
+                    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <Box style={{ width: 44, height: 44, background: '#1E4FA8', borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}>
+                            <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#FFFFFF' }}>3</Text>
+                        </Box>
+                        <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0E3F8C' }}>ADC 完成中断与读取不匹配</Text>
+                    </Box>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#D9534F' }}>现象</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>电流回调需同时读取 JDR1、JDR2，原 EOCSelection 却是 SINGLE_CONV。</Text>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1E4FA8' }}>定位与处置</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>该设置与「序列结束后再读取」不一致；改为 SEQ_CONV 以 JEOS 为依据，通道、rank 与触发源不变。</Text>
+                </Box>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#0E3F8C' }}>只证明配置与意图一致，未证明采样准确</Text>
+            </Box>
+        </Box>
+        <Box style={{ height: 8 }} />
+        <Box style={{ height: 46, background: '#0E3F8C', borderRadius: 8, paddingLeft: 28, paddingRight: 28, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#FFFFFF' }}>共同点：通信健康（bHealthy）与应用已准备好（bLocalFault）必须分别检查，不能互相替代</Text>
+        </Box>
+    </Box>
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>STM32H743-VOFA 电机控制平台</Text>
+        <Text style={{ fontSize: 16, color: '#1E4FA8' }}>06 / 11</Text>
+    </Box>
+</Slide>

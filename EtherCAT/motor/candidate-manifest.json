@@ -1,0 +1,83 @@
+{
+  "revision": 2,
+  "rx_bytes": 8,
+  "tx_bytes": 20,
+  "hardware_verified": false,
+  "write_authorized": false,
+  "status": "CANDIDATE ONLY - compare with TwinCAT generated SII before any write",
+  "power_default": "locked",
+  "speed_unit": "motor shaft 0.1 rpm",
+  "iq_unit": "mA",
+  "rx": [
+    [
+      "ControlWord",
+      "UINT",
+      16,
+      1
+    ],
+    [
+      "TargetSpeed",
+      "INT",
+      16,
+      2
+    ],
+    [
+      "CommandSequence",
+      "UDINT",
+      32,
+      3
+    ]
+  ],
+  "tx": [
+    [
+      "StatusWord",
+      "UINT",
+      16,
+      1
+    ],
+    [
+      "CycleCounter",
+      "UDINT",
+      32,
+      2
+    ],
+    [
+      "ActualSpeed",
+      "INT",
+      16,
+      3
+    ],
+    [
+      "ActualIq",
+      "INT",
+      16,
+      4
+    ],
+    [
+      "MotorFault",
+      "UINT",
+      16,
+      5
+    ],
+    [
+      "BridgeFault",
+      "UINT",
+      16,
+      6
+    ],
+    [
+      "ActiveTargetSpeed",
+      "INT",
+      16,
+      7
+    ],
+    [
+      "AcceptedSequence",
+      "UDINT",
+      32,
+      8
+    ]
+  ],
+  "esi_sha256": "659c425792d8f52056df607401dd2bf4d83f207d4e5d7370dff9ebf2e95d8d01",
+  "sii_sha256": "59478227efd0800916d57f11a47ce03cad8131ebf0c1287981f41fa9d01c19db"
+}

@@ -19,6 +19,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "tim.h"
+#include "ethercat_build.h"
 
 /* USER CODE BEGIN 0 */
 
@@ -43,7 +44,11 @@ void MX_TIM6_Init(void)
   htim6.Instance = TIM6;
   htim6.Init.Prescaler = 239;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+#if ETHERCAT_MOTOR_CONTROL
+  htim6.Init.Period = 999; /* 240 MHz / 240 / 1000 = 1 kHz guard. */
+#else
   htim6.Init.Period = 65535;
+#endif
   htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
   {

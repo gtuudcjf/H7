@@ -1,0 +1,63 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>状态推进证据链：每一级证明了什么</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>证据链与后续计划</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '20px 40px', gap: '12px' }}>
+        <Box style={{ width: '1200px', height: '466px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+            <Box style={{ width: '250px', height: '466px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '16px 18px', gap: '12px' }}>
+                <Box style={{ width: '100%', height: '54px', background: '#1E4FA8', borderRadius: '4px', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#FFFFFF' }}>INIT</Text>
+                </Box>
+                <Text style={{ fontSize: '19px', fontWeight: 'bold', color: '#1E4FA8' }}>判据</Text>
+                <Text style={{ fontSize: '19px', color: '#4A5568', lineHeight: '1.5' }}>BYTE_TEST = 0x87654321<br />ID_REV = 0x92520001<br />PDI 类型 = 0x80</Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '12px 14px' }}>
+                    <Text style={{ fontSize: '18px', color: '#1A2230', lineHeight: '1.5' }}>证明：MCU 经 SPI1 能正确访问 ESC 主机寄存器</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: '30px', alignItems: 'center' }}><Text style={{ fontSize: '28px', fontWeight: 'bold', color: '#3D7BD9' }}>→</Text></Box>
+            <Box style={{ width: '250px', height: '466px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '16px 18px', gap: '12px' }}>
+                <Box style={{ width: '100%', height: '54px', background: '#1E4FA8', borderRadius: '4px', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#FFFFFF' }}>PREOP</Text>
+                </Box>
+                <Text style={{ fontSize: '19px', fontWeight: 'bold', color: '#1E4FA8' }}>判据</Text>
+                <Text style={{ fontSize: '19px', color: '#4A5568', lineHeight: '1.5' }}>CoE Online 可读 0x1018<br />Vendor 0x00F0C743<br />Product 0x00009252</Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '12px 14px' }}>
+                    <Text style={{ fontSize: '18px', color: '#1A2230', lineHeight: '1.5' }}>证明：邮箱、CoE 与对象字典处理已实际工作</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: '30px', alignItems: 'center' }}><Text style={{ fontSize: '28px', fontWeight: 'bold', color: '#3D7BD9' }}>→</Text></Box>
+            <Box style={{ width: '250px', height: '466px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '16px 18px', gap: '12px' }}>
+                <Box style={{ width: '100%', height: '54px', background: '#1E4FA8', borderRadius: '4px', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#FFFFFF' }}>SAFEOP</Text>
+                </Box>
+                <Text style={{ fontSize: '19px', fontWeight: 'bold', color: '#1E4FA8' }}>判据</Text>
+                <Text style={{ fontSize: '19px', color: '#4A5568', lineHeight: '1.5' }}>State = 4，WcState = 0<br />StatusWord 与计数为 0<br />错误数为 0</Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '12px 14px' }}>
+                    <Text style={{ fontSize: '18px', color: '#1A2230', lineHeight: '1.5' }}>证明：SM 与 PDO 配置被接受，尚未收到有效输出</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: '30px', alignItems: 'center' }}><Text style={{ fontSize: '28px', fontWeight: 'bold', color: '#3D7BD9' }}>→</Text></Box>
+            <Box style={{ width: '250px', height: '466px', background: '#E8EFF8', border: '1px solid #3D7BD9', borderRadius: '6px', padding: '16px 18px', gap: '12px' }}>
+                <Box style={{ width: '100%', height: '54px', background: '#0E3F8C', borderRadius: '4px', alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#FFFFFF' }}>OP</Text>
+                </Box>
+                <Text style={{ fontSize: '19px', fontWeight: 'bold', color: '#1E4FA8' }}>判据</Text>
+                <Text style={{ fontSize: '19px', color: '#4A5568', lineHeight: '1.5' }}>State = 8，WcState = 0<br />CycleCounter = 2127<br />ControlWord = 0</Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', borderRadius: '6px', padding: '12px 14px' }}>
+                    <Text style={{ fontSize: '18px', color: '#1A2230', lineHeight: '1.5' }}>证明：周期交换已建立，发生过有效应用迭代</Text>
+                </Box>
+            </Box>
+        </Box>
+        <Box style={{ width: '1200px', height: '90px', background: '#0E3F8C', borderRadius: '6px', padding: '0 22px', flexDirection: 'row', alignItems: 'center', gap: '18px' }}>
+            <Box style={{ width: '8px', height: '58px', background: '#FFC107' }} />
+            <Text style={{ fontSize: '21px', color: '#FFFFFF', lineHeight: '1.5' }}>
+                每级只证明本级的事：PREOP 证明邮箱与 CoE，不代表已有周期 PDO；OP 计数器非零也不代表稳定性
+            </Text>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：TwinCAT CoE Online 与 Online 状态截图（2026-10-15）</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>12 / 14</Text>
+    </Box>
+</Slide>

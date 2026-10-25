@@ -1,0 +1,68 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: 0, fontFamily: 'Microsoft YaHei, SimHei, sans-serif' }}>
+    <Box style={{ height: 72, background: '#1E4FA8', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#FFFFFF' }}>03 四天推进时间线</Text>
+        <Text style={{ fontSize: 20, color: '#BFD3EE' }}>2026.10.20 — 2026.10.23</Text>
+    </Box>
+    <Box style={{ height: 588, paddingTop: 24, paddingBottom: 16, paddingLeft: 40, paddingRight: 40 }}>
+        <Box style={{ flexDirection: 'row', height: 320, gap: 0 }}>
+            <Box style={{ width: 282, height: 320, background: '#F7F9FC', border: '1px solid #D6DCE5', borderTop: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 22, paddingRight: 22, justifyContent: 'space-between' }}>
+                <Box style={{ gap: 14 }}>
+                    <Box style={{ background: '#1E4FA8', borderRadius: 20, paddingTop: 6, paddingBottom: 6, paddingLeft: 16, paddingRight: 16, alignSelf: 'flex-start' }}>
+                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>10 月 20 日</Text>
+                    </Box>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0E3F8C' }}>打通控制通路</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>建立模式 2 的 PLC、PDO 与桥接控制流程，打通主站指令到 H743 的通路。</Text>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#8B97A8' }}>链路建立</Text>
+            </Box>
+            <Box style={{ width: 24, height: 320, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 30, color: '#3D7BD9' }}>›</Text>
+            </Box>
+            <Box style={{ width: 282, height: 320, background: '#F7F9FC', border: '1px solid #D6DCE5', borderTop: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 22, paddingRight: 22, justifyContent: 'space-between' }}>
+                <Box style={{ gap: 14 }}>
+                    <Box style={{ background: '#1E4FA8', borderRadius: 20, paddingTop: 6, paddingBottom: 6, paddingLeft: 16, paddingRight: 16, alignSelf: 'flex-start' }}>
+                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>10 月 21 日</Text>
+                    </Box>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0E3F8C' }}>修正采样配置</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>完善调试观察手段，并把 ADC 完成中断改为序列完成，匹配双通道读取。</Text>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#8B97A8' }}>配置契约</Text>
+            </Box>
+            <Box style={{ width: 24, height: 320, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 30, color: '#3D7BD9' }}>›</Text>
+            </Box>
+            <Box style={{ width: 282, height: 320, background: '#F7F9FC', border: '1px solid #D6DCE5', borderTop: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 22, paddingRight: 22, justifyContent: 'space-between' }}>
+                <Box style={{ gap: 14 }}>
+                    <Box style={{ background: '#1E4FA8', borderRadius: 20, paddingTop: 6, paddingBottom: 6, paddingLeft: 16, paddingRight: 16, alignSelf: 'flex-start' }}>
+                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>10 月 22 日</Text>
+                    </Box>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0E3F8C' }}>做采样基线</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>增加「六路相 PWM 尚未开启」的采样基线对照，隔离功率输出对读数的影响。</Text>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#8B97A8' }}>诊断方法</Text>
+            </Box>
+            <Box style={{ width: 24, height: 320, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 30, color: '#3D7BD9' }}>›</Text>
+            </Box>
+            <Box style={{ width: 282, height: 320, background: '#E8EFF8', border: '1px solid #3D7BD9', borderTop: '6px solid #0E3F8C', borderRadius: 8, paddingTop: 22, paddingBottom: 22, paddingLeft: 22, paddingRight: 22, justifyContent: 'space-between' }}>
+                <Box style={{ gap: 14 }}>
+                    <Box style={{ background: '#0E3F8C', borderRadius: 20, paddingTop: 6, paddingBottom: 6, paddingLeft: 16, paddingRight: 16, alignSelf: 'flex-start' }}>
+                        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>10 月 23 日</Text>
+                    </Box>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0E3F8C' }}>实机起转</Text>
+                    <Text style={{ fontSize: 20, color: '#4A5568' }}>完成分频对照、恢复旧保护门槛、拆分对齐与运行给定，+6 / +12 均观察到旋转。</Text>
+                </Box>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1E4FA8' }}>功能推进</Text>
+            </Box>
+        </Box>
+        <Box style={{ height: 20 }} />
+        <Box style={{ height: 128, background: '#F0F5FC', borderLeft: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 24, paddingBottom: 24, paddingLeft: 32, paddingRight: 32, justifyContent: 'center', gap: 12 }}>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#0E3F8C' }}>时间线的定位</Text>
+            <Text style={{ fontSize: 22, color: '#4A5568' }}>本阶段成果属于一次短时运行的功能演示基础：反向实机验证、转速精度与平滑度验收均未在本轮完成，不写作完整闭环性能结论。</Text>
+        </Box>
+    </Box>
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>STM32H743-VOFA 电机控制平台</Text>
+        <Text style={{ fontSize: 16, color: '#1E4FA8' }}>05 / 11</Text>
+    </Box>
+</Slide>

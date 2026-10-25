@@ -505,24 +505,76 @@
         <Group>
           <GroupName>Application/User/EtherCAT</GroupName>
           <Files>
-            <File><FileName>lan9252_spi.c</FileName><FileType>1</FileType><FilePath>../Core/Src/ethercat/lan9252_spi.c</FilePath></File>
-            <File><FileName>lan9252_board.c</FileName><FileType>1</FileType><FilePath>../Core/Src/ethercat/lan9252_board.c</FilePath></File>
-            <File><FileName>lan9252_port.c</FileName><FileType>1</FileType><FilePath>../Core/Src/ethercat/lan9252_port.c</FilePath></File>
-            <File><FileName>ethercat_service.c</FileName><FileType>1</FileType><FilePath>../Core/Src/ethercat/ethercat_service.c</FilePath></File>
-            <File><FileName>ethercat_app_core.c</FileName><FileType>1</FileType><FilePath>../Core/Src/ethercat/ethercat_app_core.c</FilePath></File>
-            <File><FileName>ethercat_app.c</FileName><FileType>1</FileType><FilePath>../Core/Src/ethercat/ethercat_app.c</FilePath></File>
+            <File>
+              <FileName>lan9252_spi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/lan9252_spi.c</FilePath>
+            </File>
+            <File>
+              <FileName>lan9252_board.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/lan9252_board.c</FilePath>
+            </File>
+            <File>
+              <FileName>lan9252_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/lan9252_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>ethercat_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/ethercat_service.c</FilePath>
+            </File>
+            <File>
+              <FileName>ethercat_app_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/ethercat_app_core.c</FilePath>
+            </File>
+            <File>
+              <FileName>ethercat_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/ethercat_app.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>
           <GroupName>Middlewares/EtherCAT_SSC</GroupName>
           <Files>
-            <File><FileName>coeappl.c</FileName><FileType>1</FileType><FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/coeappl.c</FilePath></File>
-            <File><FileName>ecatappl.c</FileName><FileType>1</FileType><FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/ecatappl.c</FilePath></File>
-            <File><FileName>ecatcoe.c</FileName><FileType>1</FileType><FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/ecatcoe.c</FilePath></File>
-            <File><FileName>ecatslv.c</FileName><FileType>1</FileType><FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/ecatslv.c</FilePath></File>
-            <File><FileName>mailbox.c</FileName><FileType>1</FileType><FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/mailbox.c</FilePath></File>
-            <File><FileName>objdef.c</FileName><FileType>1</FileType><FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/objdef.c</FilePath></File>
-            <File><FileName>sdoserv.c</FileName><FileType>1</FileType><FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/sdoserv.c</FilePath></File>
+            <File>
+              <FileName>coeappl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/coeappl.c</FilePath>
+            </File>
+            <File>
+              <FileName>ecatappl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/ecatappl.c</FilePath>
+            </File>
+            <File>
+              <FileName>ecatcoe.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/ecatcoe.c</FilePath>
+            </File>
+            <File>
+              <FileName>ecatslv.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/ecatslv.c</FilePath>
+            </File>
+            <File>
+              <FileName>mailbox.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/mailbox.c</FilePath>
+            </File>
+            <File>
+              <FileName>objdef.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/objdef.c</FilePath>
+            </File>
+            <File>
+              <FileName>sdoserv.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/sdoserv.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

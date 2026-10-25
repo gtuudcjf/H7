@@ -15,6 +15,20 @@
  * 避免多个控制路径同时争用PWM。
  */
 #include "motor_control.h"
+#include "../ethercat/ethercat_build.h"
+#if ETHERCAT_MOTOR_CONTROL
+#include "motor_safety.h"
+#endif
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+#include "open_angle_experiment.h"
+static OAE_State oae_state;
+static OAE_Result oae_result;
+static volatile float oae_requested_rpm;
+static uint32_t oae_last_adc_ms;
+static bool open_angle_initialized;
+volatile OAE_Diagnostics g_motor_openangle_diagnostics;
+volatile OAE_Diagnostics g_motor_openangle_baseline_diagnostics;
+#endif
 
 #include "adc.h"
 #include "biss_encoder.h"
@@ -285,8 +299,24 @@ static void MotorControl_QuiesceRealtimeInterrupts(void)
     __HAL_ADC_DISABLE_IT(&hadc1, ADC_IT_JEOC | ADC_IT_JEOS);
 }
 
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+static void MotorControl_RecordCurrentDiagnostics(uint32_t raw_a,uint32_t raw_b,uint32_t stage)
+{
+    OAE_DiagnosticSample sample;
+    sample.at_ms=HAL_GetTick();
+    sample.raw_a=raw_a;sample.raw_b=raw_b;sample.run_state=stage;
+    sample.ia_a=phase_current.ia_a;sample.ib_a=phase_current.ib_a;sample.ic_a=phase_current.ic_a;
+    sample.id_a=current_feedback_dq.d;sample.iq_a=current_feedback_dq.q;
+    OAE_DiagnosticsSample(g_motor_openangle_baseline_diagnostics.active ?
+        &g_motor_openangle_baseline_diagnostics : &g_motor_openangle_diagnostics,&sample);
+}
+#endif
+
 static void MotorControl_EnterFault(MotorFaultCode fault)
 {
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    const uint32_t diagnostic_run_state=(uint32_t)run_state;
+#endif
     fault_code = fault;
     motor_mode = MOTOR_CONTROL_FAULT;
     run_state = MOTOR_RUN_STATE_FAULT;
@@ -299,7 +329,26 @@ static void MotorControl_EnterFault(MotorFaultCode fault)
     memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
     CurrentPi_Reset(&current_pi);
     MotorControl_ResetSpeedState(true);
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    /* ISR faults only revoke the hardware gate; foreground performs HAL Stop. */
+    MotorSafety_Revoke();
+    /* Capture the triggering conversion only AFTER the existing safety revoke.
+     * The regular sample logger runs after protection checks, so this sample
+     * has not been counted yet. Never delay shutdown for diagnostic copies. */
+    if(fault==MOTOR_FAULT_OVERCURRENT)
+        MotorControl_RecordCurrentDiagnostics(g_motor_control_debug.phase_a_raw,
+            g_motor_control_debug.phase_b_raw,diagnostic_run_state);
+    OAE_DiagnosticsStop(&g_motor_openangle_diagnostics,HAL_GetTick(),
+                        OAE_DIAG_STOP_MOTOR_FAULT,(uint32_t)fault,
+                        oae_result.bridge_fault,diagnostic_run_state,
+                        g_motor_control_debug.phase_a_raw,g_motor_control_debug.phase_b_raw);
+    OAE_DiagnosticsStop(&g_motor_openangle_baseline_diagnostics,HAL_GetTick(),
+                        OAE_DIAG_STOP_MOTOR_FAULT,(uint32_t)fault,
+                        oae_result.bridge_fault,diagnostic_run_state,
+                        g_motor_control_debug.phase_a_raw,g_motor_control_debug.phase_b_raw);
+#else
     MotorControl_DisablePowerStage();
+#endif
     MotorControl_PublishStateDebug();
 }
 
@@ -482,6 +531,11 @@ static void MotorControl_FinishCalibration(void)
         fault_code = MOTOR_FAULT_NONE;
         g_motor_control_debug.phase_a_offset = current_offsets.phase_a_count;
         g_motor_control_debug.phase_b_offset = current_offsets.phase_b_count;
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+        g_motor_openangle_diagnostics.offset_a=current_offsets.phase_a_count;
+        g_motor_openangle_diagnostics.offset_b=current_offsets.phase_b_count;
+        g_motor_openangle_diagnostics.calibrated=1U;
+#endif
     }
     else
     {
@@ -495,6 +549,23 @@ static void MotorControl_FinishCalibration(void)
     }
 
     run_state = MOTOR_RUN_STATE_READY;
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    if (requested_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT)
+    {
+        /* One bounded comparison in the same Start: CAL is now low and the
+         * CH4 ADC trigger continues, but CH1..3/CH1N..3N are not enabled.
+         * Keep the same conversion and protection before entering alignment. */
+        adc_age_ticks=0U;
+        oae_last_adc_ms=HAL_GetTick();
+        OAE_DiagnosticsBegin(&g_motor_openangle_baseline_diagnostics,oae_last_adc_ms);
+        g_motor_openangle_baseline_diagnostics.session=g_motor_openangle_diagnostics.session;
+        g_motor_openangle_baseline_diagnostics.calibrated=1U;
+        g_motor_openangle_baseline_diagnostics.offset_a=current_offsets.phase_a_count;
+        g_motor_openangle_baseline_diagnostics.offset_b=current_offsets.phase_b_count;
+        MotorControl_PublishStateDebug();
+        return;
+    }
+#endif
     /*
      * 编码器采集在电流零偏校准完成后才启动，因此模式3此时还没有首帧
      * 有效位置。先保持功率级PWM关闭并停在READY，FastTick取得首帧后
@@ -542,6 +613,13 @@ static bool MotorControl_UpdateCurrentMeasurement(uint32_t phase_a_raw,
     }
 
     current_feedback_valid = true;
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    if (OAE_CheckPhaseCurrent(&oae_state, phase_current.ia_a, phase_current.ib_a, phase_current.ic_a))
+    {
+        MotorControl_EnterFault(MOTOR_FAULT_OVERCURRENT);
+        return false;
+    }
+#endif
     peak_current = fmaxf(fabsf(phase_current.ia_a),
                          fmaxf(fabsf(phase_current.ib_a), fabsf(phase_current.ic_a)));
     if (peak_current > MOTOR_CURRENT_TRIP_A)
@@ -558,11 +636,63 @@ static bool MotorControl_UpdateCurrentMeasurement(uint32_t phase_a_raw,
         overcurrent_count = 0U;
     }
 
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    MotorControl_RecordCurrentDiagnostics(phase_a_raw,phase_b_raw,(uint32_t)run_state);
+#endif
     g_motor_control_debug.id_a = current_feedback_dq.d;
     g_motor_control_debug.iq_a = current_feedback_dq.q;
     g_motor_control_debug.overcurrent_count = overcurrent_count;
     return true;
 }
+
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+static bool MotorControl_RunPwmOffBaseline(uint32_t raw_a,uint32_t raw_b,float dt_s)
+{
+    if (!g_motor_openangle_baseline_diagnostics.active) return false;
+    /* Stop changes state before HAL cleanup; an intervening ADC interrupt
+     * must not finish the baseline and enable phases while Stop is running. */
+    if (run_state!=MOTOR_RUN_STATE_READY || motor_mode!=MOTOR_CONTROL_STOPPED ||
+        !sampling_started) return true;
+    if (!MotorSafety_OutputPermitted()) return true;
+    if (pwm_enabled || (htim8.Instance->CCER &
+        (TIM_CCER_CC1E | TIM_CCER_CC1NE | TIM_CCER_CC2E | TIM_CCER_CC2NE |
+         TIM_CCER_CC3E | TIM_CCER_CC3NE)))
+    {
+        MotorControl_EnterFault(MOTOR_FAULT_DRIVER);
+        return true;
+    }
+    if (!isfinite(dt_s) || dt_s<=0.0f)
+    {
+        MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
+        return true;
+    }
+    adc_age_ticks=0U;
+    oae_last_adc_ms=HAL_GetTick();
+    if (!MotorControl_UpdateCurrentMeasurement(raw_a,raw_b,0.0f)) return true;
+    if ((uint32_t)(HAL_GetTick()-g_motor_openangle_baseline_diagnostics.started_ms)>=OAE_PWM_OFF_BASELINE_MS)
+    {
+        OAE_DiagnosticsStop(&g_motor_openangle_baseline_diagnostics,HAL_GetTick(),
+            OAE_DIAG_STOP_AUTO,0U,0U,(uint32_t)run_state,raw_a,raw_b);
+        /* Existing PWM entry still rechecks the independent permission. */
+        if (MotorSafety_OutputPermitted()) MotorControl_StartSelectedMode();
+    }
+    MotorControl_PublishStateDebug();
+    MotorControl_PublishMotionDebug();
+    return true;
+}
+
+static bool MotorControl_CheckPwmOffBaselineAge(void)
+{
+    if (!g_motor_openangle_baseline_diagnostics.active) return false;
+    if (run_state!=MOTOR_RUN_STATE_READY || motor_mode!=MOTOR_CONTROL_STOPPED ||
+        !sampling_started) return true;
+    if (++adc_age_ticks>CURRENT_ADC_TIMEOUT_TICKS ||
+        (uint32_t)(HAL_GetTick()-oae_last_adc_ms)>OAE_CONTROL_STALE_MS)
+        MotorControl_EnterFault(MOTOR_FAULT_ADC_TIMEOUT);
+    MotorControl_PublishStateDebug();
+    return true;
+}
+#endif
 
 static bool MotorControl_UpdateEncoderAngle(bool require_ready)
 {
@@ -870,7 +1000,11 @@ static bool MotorControl_RunCurrentLoop(float dt_s,
     }
     else if (run_state == MOTOR_RUN_STATE_ALIGNING)
     {
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+        step_target.d = OAE_ALIGN_CURRENT_A;
+#else
         step_target.d = MOTOR_CURRENT_ALIGN_A;
+#endif
         step_target.q = 0.0f;
         alignment_elapsed_s += dt_s;
         if (alignment_elapsed_s >= CURRENT_ALIGNMENT_TIME_S)
@@ -894,6 +1028,14 @@ static bool MotorControl_RunCurrentLoop(float dt_s,
         }
     }
 
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    if ((step_target.d * step_target.d + step_target.q * step_target.q) >
+        (OAE_CURRENT_LIMIT_A * OAE_CURRENT_LIMIT_A))
+    {
+        MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
+        return false;
+    }
+#endif
     if (!encoder_calibration_active)
     {
         current_command_slew_a_per_s =
@@ -938,6 +1080,13 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     SpeedPiConfig speed_pi_config;
 
     memset((void *)&g_motor_control_debug, 0, sizeof(g_motor_control_debug));
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    open_angle_initialized = false;
+    OAE_Init(&oae_state);
+    memset(&oae_result, 0, sizeof(oae_result));
+    oae_requested_rpm = 0.0f;
+    if ((config == 0) || (config->mode != MOTOR_CONTROL_OPEN_ANGLE_CURRENT)) return HAL_ERROR;
+#endif
     if ((config == 0) || !MotorControl_ModeIsImplemented(config->mode) ||
         !isfinite(config->frequency_slew_hz_per_s) ||
         !isfinite(config->voltage_slew_pu_per_s) ||
@@ -1015,6 +1164,10 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     current_reference_active.d = 0.0f;
     current_reference_active.q = 0.0f;
     current_target_frequency_hz = 1.0f;
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    current_reference_target.d = current_reference_target.q = 0.0f;
+    current_target_frequency_hz = 0.0f;
+#endif
     alignment_elapsed_s = 0.0f;
     speed_target_rpm = 0.0f;
     MotorControl_ResetSpeedState(false);
@@ -1040,12 +1193,16 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
      * Flash 中没有有效记录并不是启动故障：电压开环和虚拟角度电流环
      * 仍可照常运行。只有请求编码器角度/速度模式时才要求该记录有效。
      */
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    encoder_calibration_valid = false;
+#else
     encoder_calibration_valid =
         (MotorConfigStore_Load(&encoder_saved_config) == HAL_OK) &&
         EncoderAngle_Init(&encoder_angle_config,
                           encoder_saved_config.electrical_zero_raw,
                           encoder_saved_config.encoder_direction,
                           encoder_saved_config.pole_pairs);
+#endif
     speed_estimator_config.counts_per_turn = MOTOR_ENCODER_COUNTS_PER_TURN;
     speed_estimator_config.direction = encoder_calibration_valid ?
         encoder_angle_config.direction : 1;
@@ -1056,7 +1213,9 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
         MotorControl_PublishStateDebug();
         return HAL_ERROR;
     }
+#if !ETHERCAT_MOTOR_OPEN_ANGLE
     (void)BissEncoder_GetSnapshot(&encoder_snapshot);
+#endif
 
     if (Drv8323Board_Init() != HAL_OK)
     {
@@ -1070,6 +1229,10 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
         MotorControl_PublishStateDebug();
         return HAL_ERROR;
     }
+
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    open_angle_initialized = true;
+#endif
 
     MotorControl_PublishStateDebug();
     MotorControl_PublishEncoderDebug();
@@ -1368,6 +1531,10 @@ HAL_StatusTypeDef MotorControl_RequestMode(MotorControlMode mode)
 {
     uint32_t interrupt_state;
 
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    if (mode != MOTOR_CONTROL_OPEN_ANGLE_CURRENT) return HAL_ERROR;
+#endif
+
     if (!MotorControl_ModeIsImplemented(mode) || (motor_mode == MOTOR_CONTROL_FAULT) ||
         (MotorControl_ModeUsesCurrentLoop(mode) && current_calibration_failed) ||
         encoder_calibration_active || encoder_calibration_requested ||
@@ -1573,6 +1740,10 @@ HAL_StatusTypeDef MotorControl_SetCurrentVoltageLimit(float limit_pu)
     uint32_t interrupt_state;
     bool valid;
 
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    if (limit_pu > OAE_VOLTAGE_LIMIT_PU) return HAL_ERROR;
+#endif
+
     if (!isfinite(limit_pu) || (limit_pu <= 0.0f) ||
         (limit_pu > MOTOR_POLE_VOLTAGE_LIMIT_MAX_PU))
     {
@@ -1592,11 +1763,24 @@ HAL_StatusTypeDef MotorControl_SetCurrentVoltageLimit(float limit_pu)
 HAL_StatusTypeDef MotorControl_Start(void)
 {
     HAL_StatusTypeDef status;
+#if ETHERCAT_MOTOR_CONTROL
+    if (!MotorSafety_OutputPermitted()) return HAL_ERROR;
+#endif
 
     if ((motor_mode != MOTOR_CONTROL_STOPPED) || sampling_started)
     {
         return HAL_ERROR;
     }
+
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    if (!open_angle_initialized) return HAL_ERROR;
+    OAE_Start(&oae_state, HAL_GetTick());
+    OAE_DiagnosticsBegin(&g_motor_openangle_diagnostics,oae_state.start_ms);
+    memset(&oae_result, 0, sizeof(oae_result));
+    oae_requested_rpm = 0.0f;
+    current_reference_active.d = current_reference_active.q = 0.0f;
+    current_target_frequency_hz = 0.0f;
+#endif
 
     status = HAL_ADCEx_Calibration_Start(&hadc1, ADC_CALIB_OFFSET, ADC_SINGLE_ENDED);
     if (status != HAL_OK)
@@ -1618,6 +1802,9 @@ HAL_StatusTypeDef MotorControl_Start(void)
     current_feedback_valid = false;
     run_state = MOTOR_RUN_STATE_CURRENT_CALIBRATING;
     Drv8323Board_SetCurrentCalibration(true);
+    /* Track attempted realtime startup until all cleanup has succeeded, even
+     * when a later startup step fails and its immediate rollback also fails. */
+    sampling_started = true;
     status = HAL_ADCEx_InjectedStart_IT(&hadc1);
     if (status != HAL_OK)
     {
@@ -1635,7 +1822,11 @@ HAL_StatusTypeDef MotorControl_Start(void)
         MotorControl_EnterFault(MOTOR_FAULT_ADC_START);
         return status;
     }
+#if ETHERCAT_MOTOR_CONTROL
+    status = MotorSafety_TryStartSamplingPwm() ? HAL_OK : HAL_ERROR;
+#else
     status = HAL_TIM_PWM_Start(&htim8, TIM_CHANNEL_4);
+#endif
     if (status != HAL_OK)
     {
         (void)HAL_TIM_Base_Stop_IT(&htim8);
@@ -1655,6 +1846,9 @@ HAL_StatusTypeDef MotorControl_Stop(void)
 {
     HAL_StatusTypeDef result = HAL_OK;
     HAL_StatusTypeDef stop_status;
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    const uint32_t diagnostic_run_state=(uint32_t)run_state;
+#endif
 
     motor_mode = MOTOR_CONTROL_STOPPED;
     run_state = MOTOR_RUN_STATE_STOPPED;
@@ -1686,7 +1880,9 @@ HAL_StatusTypeDef MotorControl_Stop(void)
         {
             result = HAL_ERROR;
         }
-        sampling_started = false;
+        /* Failed HAL stops must remain pending for the explicit reset retry.
+         * Never let a later Stop report success by skipping unfinished cleanup. */
+        sampling_started = (result != HAL_OK);
     }
 
     CurrentPi_Reset(&current_pi);
@@ -1696,6 +1892,25 @@ HAL_StatusTypeDef MotorControl_Stop(void)
     memset(&encoder_calibration_command, 0, sizeof(encoder_calibration_command));
     adc_age_ticks = 0U;
     overcurrent_count = 0U;
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    OAE_DiagnosticsStop(&g_motor_openangle_diagnostics,HAL_GetTick(),
+        fault_code!=MOTOR_FAULT_NONE ? OAE_DIAG_STOP_MOTOR_FAULT :
+        (oae_result.bridge_fault ? OAE_DIAG_STOP_POLICY :
+         (oae_result.request_stop ? OAE_DIAG_STOP_AUTO : OAE_DIAG_STOP_API)),
+        (uint32_t)fault_code,oae_result.bridge_fault,diagnostic_run_state,
+        g_motor_control_debug.phase_a_raw,g_motor_control_debug.phase_b_raw);
+    OAE_DiagnosticsStop(&g_motor_openangle_baseline_diagnostics,HAL_GetTick(),
+        fault_code!=MOTOR_FAULT_NONE ? OAE_DIAG_STOP_MOTOR_FAULT :
+        (oae_result.bridge_fault ? OAE_DIAG_STOP_POLICY : OAE_DIAG_STOP_API),
+        (uint32_t)fault_code,oae_result.bridge_fault,diagnostic_run_state,
+        g_motor_control_debug.phase_a_raw,g_motor_control_debug.phase_b_raw);
+    OAE_Init(&oae_state);
+    memset(&oae_result, 0, sizeof(oae_result));
+    oae_requested_rpm = 0.0f;
+    current_target_frequency_hz = 0.0f;
+    open_loop_state.electrical_frequency_hz = 0.0f;
+    current_feedback_valid = false;
+#endif
     MotorControl_PublishStateDebug();
     MotorControl_PublishEncoderDebug();
     MotorControl_PublishMotionDebug();
@@ -1706,21 +1921,98 @@ HAL_StatusTypeDef MotorControl_ClearFault(void)
 {
     HAL_StatusTypeDef status;
 
-    if (motor_mode != MOTOR_CONTROL_FAULT)
+    if (!MotorRuntimePolicy_FaultResetAllowed(motor_mode, fault_code != MOTOR_FAULT_NONE))
     {
         return HAL_ERROR;
     }
 
     status = MotorControl_Stop();
+    if (status != HAL_OK)
+    {
+        return status; /* Keep the diagnostic latch when hardware cleanup failed. */
+    }
     fault_code = MOTOR_FAULT_NONE;
     current_calibration_failed = false;
     MotorControl_PublishStateDebug();
     return status;
 }
 
+void MotorControl_GetFeedback(MotorControlFeedback *feedback)
+{
+    uint32_t p;
+    if (feedback == 0) return;
+    p = __get_PRIMASK();
+    __disable_irq();
+    feedback->speed_rpm = speed_estimator.filtered_rpm;
+    feedback->iq_a = current_feedback_dq.q;
+    feedback->active_target_rpm = speed_active_target_rpm;
+    feedback->fault = (uint16_t)fault_code;
+    feedback->calibrated = encoder_calibration_valid ? 1U : 0U;
+    feedback->running = (motor_mode == MOTOR_CONTROL_ENCODER_SPEED_CURRENT &&
+                        run_state == MOTOR_RUN_STATE_RUNNING) ? 1U : 0U;
+    feedback->valid = (feedback->running && current_feedback_valid &&
+                      encoder_snapshot.ready &&
+                      encoder_snapshot.valid_age_ticks <= ENCODER_STALE_LIMIT_TICKS &&
+                      !speed_mode_waiting_for_estimator) ? 1U : 0U;
+    __set_PRIMASK(p);
+}
+
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+void MotorControl_SetOpenAngleSpeedCommand(float equivalent_rpm)
+{
+    uint32_t p = __get_PRIMASK();
+    __disable_irq();
+    oae_requested_rpm = equivalent_rpm; /* Policy rejects non-finite/out-of-range requests. */
+    __set_PRIMASK(p);
+}
+void MotorControl_GetOpenAngleFeedback(MotorOpenAngleFeedback *feedback)
+{
+    uint32_t p;
+    if (feedback == 0) return;
+    p = __get_PRIMASK(); __disable_irq();
+    feedback->iq_a = current_feedback_dq.q;
+    feedback->active_frequency_hz = open_loop_state.electrical_frequency_hz;
+    feedback->motor_fault = (uint16_t)fault_code;
+    feedback->bridge_fault = oae_result.bridge_fault;
+    feedback->running = motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT &&
+        run_state == MOTOR_RUN_STATE_RUNNING && pwm_enabled && sampling_started && MotorSafety_OutputPermitted();
+    feedback->control_valid = motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT &&
+        (run_state == MOTOR_RUN_STATE_ALIGNING || run_state == MOTOR_RUN_STATE_RUNNING) &&
+        sampling_started && pwm_enabled && current_sense_ready && current_feedback_valid &&
+        adc_age_ticks <= CURRENT_ADC_TIMEOUT_TICKS &&
+        (uint32_t)(HAL_GetTick() - oae_last_adc_ms) <= OAE_CONTROL_STALE_MS &&
+        MotorSafety_OutputPermitted() &&
+        isfinite(feedback->iq_a) && isfinite(feedback->active_frequency_hz);
+    /* Initial offset calibration has no active three-phase current control.
+     * Once ALIGNING/RUNNING has PWM, stale feedback must not wait for the
+     * bridge's overall STARTING timeout. Report the same control fault as OAE. */
+    if (!feedback->bridge_fault && motor_mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT &&
+        (run_state == MOTOR_RUN_STATE_ALIGNING || run_state == MOTOR_RUN_STATE_RUNNING) &&
+        sampling_started && pwm_enabled && current_sense_ready &&
+        MotorSafety_OutputPermitted() && !feedback->control_valid)
+        feedback->bridge_fault = 8U;
+    if (!feedback->bridge_fault && g_motor_openangle_baseline_diagnostics.active &&
+        sampling_started && current_sense_ready && MotorSafety_OutputPermitted() &&
+        (adc_age_ticks>CURRENT_ADC_TIMEOUT_TICKS ||
+         (uint32_t)(HAL_GetTick()-oae_last_adc_ms)>OAE_CONTROL_STALE_MS))
+        feedback->bridge_fault=8U;
+    feedback->output_off = !sampling_started && !pwm_enabled &&
+        (motor_mode == MOTOR_CONTROL_STOPPED || motor_mode == MOTOR_CONTROL_FAULT) &&
+        !(DRV_ENA_GPIO_Port->ODR & DRV_ENA_Pin) && !(htim8.Instance->BDTR & TIM_BDTR_MOE);
+    feedback->start_permitted = open_angle_initialized &&
+        motor_config.mode == MOTOR_CONTROL_OPEN_ANGLE_CURRENT && fault_code == MOTOR_FAULT_NONE &&
+        feedback->output_off && motor_mode == MOTOR_CONTROL_STOPPED;
+    feedback->stop_requested = oae_result.request_stop;
+    __set_PRIMASK(p);
+}
+#endif
+
 void MotorControl_FastTick(float dt_s)
 {
     MotorVoltageDq open_voltage;
+#if ETHERCAT_MOTOR_CONTROL
+    if (!MotorSafety_OutputPermitted()) return;
+#endif
 
     /*
      * TIM8更新中断的职责顺序：
@@ -1732,12 +2024,14 @@ void MotorControl_FastTick(float dt_s)
      * 电流零偏校准阶段保持与已验证版本相同的 ADC/TIM8 启动路径。
      * 校准结束后才允许 SPI4 DMA 进入后台采集；HAL_BUSY 属于正常状态。
      */
+#if !ETHERCAT_MOTOR_OPEN_ANGLE
     if (MotorRuntimePolicy_EncoderAcquisitionAllowed(run_state))
     {
         BissEncoder_ControlTick();
         (void)BissEncoder_StartRead();
         (void)BissEncoder_GetSnapshot(&encoder_snapshot);
     }
+#endif
 
     if (!isfinite(dt_s) || (dt_s <= 0.0f))
     {
@@ -1758,6 +2052,10 @@ void MotorControl_FastTick(float dt_s)
         MotorControl_PublishMotionDebug();
         return;
     }
+
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    if (MotorControl_CheckPwmOffBaselineAge()) return;
+#endif
 
     /*
      * .mode直接选择模式3/4时，在这里等待SPI4 DMA发布第一帧一致快照。
@@ -1847,6 +2145,9 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
     MotorVoltageDq zero_voltage = {0.0f, 0.0f};
     float electrical_angle_pu;
     float open_voltage_magnitude;
+#if ETHERCAT_MOTOR_CONTROL
+    if (!MotorSafety_OutputPermitted()) return;
+#endif
 
     /*
      * ADC注入完成中断的职责顺序：
@@ -1868,6 +2169,10 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
         MotorControl_PublishStateDebug();
         return;
     }
+
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    if (MotorControl_RunPwmOffBaseline(phase_a_raw,phase_b_raw,dt_s)) return;
+#endif
 
     if (encoder_calibration_save_pending || encoder_calibration_failure_pending)
     {
@@ -2001,6 +2306,30 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
     {
         return;
     }
+
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+    {
+        OAE_Input input;
+        input.now_ms = HAL_GetTick();
+        oae_last_adc_ms = input.now_ms; /* Only a successful ADC conversion renews freshness. */
+        input.command_rpm = oae_requested_rpm;
+        input.active_frequency_hz = open_loop_state.electrical_frequency_hz;
+        input.active_id_a = current_reference_active.d;
+        input.active_iq_a = current_reference_active.q;
+        input.aligning = run_state == MOTOR_RUN_STATE_ALIGNING;
+        input.control_valid = current_feedback_valid;
+        oae_result = OAE_Step(&oae_state, &input);
+        current_target_frequency_hz = oae_result.target_frequency_hz;
+        current_reference_target.d = oae_result.id_ref_a;
+        current_reference_target.q = oae_result.iq_ref_a;
+        if (oae_result.request_stop)
+        {
+            if (oae_result.bridge_fault) MotorSafety_Revoke();
+            else MotorSafety_Disarm();
+            return; /* Foreground owns complete HAL Stop; never write PWM again. */
+        }
+    }
+#endif
 
     if (MotorControl_ModeUsesCurrentLoop(motor_mode))
     {

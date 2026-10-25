@@ -27,14 +27,22 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#if ETHERCAT_BRINGUP_ONLY
+#if ETHERCAT_BRINGUP_ONLY || ETHERCAT_MOTOR_CONTROL
 #include "ethercat_service.h"
 #include "lan9252_board.h"
-#else
+#endif
+#if !ETHERCAT_BRINGUP_ONLY
 #include "biss_encoder.h"
 #include "motor_control.h"
 #include "motor_telemetry.h"
 #include "motor_params.h"
+#endif
+#if ETHERCAT_MOTOR_CONTROL
+#include "ethercat_motor_bridge.h"
+#include "motor_safety.h"
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+#include "open_angle_experiment.h"
+#endif
 #endif
 
 /* USER CODE END Includes */
@@ -57,11 +65,12 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-#if ETHERCAT_BRINGUP_ONLY
+#if ETHERCAT_BRINGUP_ONLY || ETHERCAT_MOTOR_CONTROL
 /* 调试器查看：init 状态仅表示本次初始化结果，实时 AL 状态在诊断结构中。 */
 volatile EtherCATStatus ethercat_init_status = ETHERCAT_STATUS_UNINITIALIZED;
 const EtherCATDiagnostics * volatile ethercat_diagnostics;
-#else
+#endif
+#if !ETHERCAT_BRINGUP_ONLY
 /*
  * 快速控制周期必须与 TIM8 更新事件周期严格一致：
  * 240 MHz / (2 * (11999 + 1)) = 10 kHz，因此 dt = 1 / 10 kHz = 100 us。
@@ -92,8 +101,20 @@ const EtherCATDiagnostics * volatile ethercat_diagnostics;
  * 角度。voltage_slew_pu_per_s用于从电流闭环退回模式1时平滑恢复开环电压。
  */
 static const MotorControlConfig motor_config = {
+#if ETHERCAT_MOTOR_CONTROL
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+  .mode = MOTOR_CONTROL_OPEN_ANGLE_CURRENT,
+#else
+  .mode = MOTOR_CONTROL_ENCODER_SPEED_CURRENT,
+#endif
+#else
   .mode = MOTOR_CONTROL_ENCODER_ANGLE_CURRENT,
+#endif
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+  .frequency_slew_hz_per_s = OAE_RPM_SLEW_PER_S * MOTOR_POLE_PAIRS / 60.0f,
+#else
   .frequency_slew_hz_per_s = 20.0f,
+#endif
   .voltage_slew_pu_per_s = 5.0f
 };
 #endif
@@ -118,6 +139,9 @@ static void MPU_Config(void);
   */
 int main(void)
 {
+#if ETHERCAT_MOTOR_CONTROL
+  HAL_StatusTypeDef motor_boot_status = HAL_OK;
+#endif
 
   /* USER CODE BEGIN 1 */
 
@@ -151,6 +175,34 @@ int main(void)
   ethercat_diagnostics = EtherCAT_GetDiagnostics();
   /* 仅测试模式启动时执行一次只读对照；不覆盖原初始化结果、不自动清错。 */
   LAN9252_BoardRunSpiDiagnostics();
+#elif ETHERCAT_MOTOR_CONTROL
+  MX_GPIO_Init();
+  HAL_GPIO_WritePin(DRV_ENA_GPIO_Port, DRV_ENA_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(LAN9252_CS_GPIO_Port, LAN9252_CS_Pin, GPIO_PIN_SET);
+  MX_SPI1_Init();
+  MX_ADC1_Init();
+  MX_SPI2_Init();
+#if !ETHERCAT_MOTOR_OPEN_ANGLE
+  MX_SPI4_Init();
+#endif
+  MX_TIM6_Init();
+  MX_TIM8_Init();
+  MotorSafety_Init();
+#if !ETHERCAT_MOTOR_OPEN_ANGLE
+  if (BissEncoder_Init(&hspi4) != HAL_OK) motor_boot_status = HAL_ERROR;
+#endif
+  if (MotorControl_Init(&motor_config) != HAL_OK) motor_boot_status = HAL_ERROR;
+#if ETHERCAT_MOTOR_OPEN_ANGLE
+  MotorControl_SetOpenAngleSpeedCommand(0.0f);
+#else
+  MotorControl_SetSpeedCommand(0.0f);
+  if (MotorControl_SetSpeedIqLimit(0.3f) != HAL_OK) motor_boot_status = HAL_ERROR;
+#endif
+  if (HAL_TIM_Base_Start_IT(&htim6) != HAL_OK) motor_boot_status = HAL_ERROR;
+  EtherCATMotorBridge_Init();
+  if (motor_boot_status != HAL_OK) EtherCATMotorBridge_StartupFailed();
+  ethercat_init_status = EtherCAT_Init();
+  ethercat_diagnostics = EtherCAT_GetDiagnostics();
 #else
   /* USER CODE END SysInit */
 
@@ -238,6 +290,9 @@ int main(void)
     /* USER CODE BEGIN 3 */
 #if ETHERCAT_BRINGUP_ONLY
     EtherCAT_Service();
+#elif ETHERCAT_MOTOR_CONTROL
+    EtherCAT_Service();
+    EtherCATMotorBridge_Service();
 #else
     /*
      * 处理编码器标定请求和停机后的 Flash 保存。该服务无忙等，但可能执行
@@ -313,6 +368,7 @@ void SystemClock_Config(void)
 
 /* USER CODE BEGIN 4 */
 #if !ETHERCAT_BRINGUP_ONLY
+#if !ETHERCAT_MOTOR_CONTROL
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   MotorTelemetry_OnUartComplete(huart);
@@ -322,10 +378,17 @@ void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
   MotorTelemetry_OnUartError(huart);
 }
+#endif
 
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
+#if ETHERCAT_MOTOR_CONTROL
+  if (htim->Instance == TIM6) {
+    MotorSafety_Tick();
+    return;
+  }
+#endif
   /*
    * HAL 可能把其他基础定时器的更新事件也分派到此回调，因此必须检查
    * Instance。只有 TIM8 更新事件属于电机10 kHz快速控制周期。
@@ -424,6 +487,9 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
+#if ETHERCAT_MOTOR_CONTROL
+  MotorSafety_Revoke();
+#endif
   __disable_irq();
   while (1)
   {

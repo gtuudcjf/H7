@@ -45,10 +45,19 @@ void MX_ADC1_Init(void)
   /** Common config
   */
   hadc1.Instance = ADC1;
+#if ETHERCAT_MOTOR_OPEN_ANGLE && ETHERCAT_MOTOR_POWER_ENABLED
+  /* Single-variable, no-motor bench comparison: double acquisition/conversion
+   * time without changing TIM8 trigger cadence, ranks, JEOS or protection.
+   * This tests clock/settling sensitivity; it is not a validated motor fix. */
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV2;
+#else
   hadc1.Init.ClockPrescaler = ADC_CLOCK_ASYNC_DIV1;
+#endif
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
-  hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  /* The callback consumes both injected ranks; interrupt only after the
+   * complete A/B sequence (JEOS), not after each individual rank (JEOC). */
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
   hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.NbrOfConversion = 1;

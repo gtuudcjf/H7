@@ -1,0 +1,77 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: 0, fontFamily: 'Microsoft YaHei, SimHei, sans-serif' }}>
+    <Box style={{ height: 72, background: '#1E4FA8', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#FFFFFF' }}>05 TwinCAT 控制电机的操作流程</Text>
+        <Text style={{ fontSize: 20, color: '#BFD3EE' }}>模式 2 短时空载验证</Text>
+    </Box>
+    <Box style={{ height: 588, paddingTop: 24, paddingBottom: 16, paddingLeft: 40, paddingRight: 40 }}>
+        <Box style={{ height: 46, background: '#F0F5FC', borderLeft: '6px solid #1E4FA8', paddingLeft: 22, paddingRight: 22, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 21, color: '#1A2230' }}>七步顺序不可颠倒：先让 MCU 连续运行再动主站，先预置速度再发启动边沿</Text>
+        </Box>
+        <Box style={{ height: 16 }} />
+        <Box style={{ flexDirection: 'row', height: 212, gap: 16 }}>
+            <Box style={{ width: 288, height: 212, background: '#F7F9FC', border: '1px solid #D6DCE5', borderTop: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 18, paddingRight: 18, gap: 10 }}>
+                <Box style={{ width: 36, height: 36, background: '#1E4FA8', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>1</Text>
+                </Box>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#0E3F8C' }}>检查接线与条件</Text>
+                <Text style={{ fontSize: 19, color: '#4A5568' }}>24 V 供电限流 1 A，抱闸接 12 V；拆接线须断电，下载前先断开 U/V/W。</Text>
+            </Box>
+            <Box style={{ width: 288, height: 212, background: '#F7F9FC', border: '1px solid #D6DCE5', borderTop: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 18, paddingRight: 18, gap: 10 }}>
+                <Box style={{ width: 36, height: 36, background: '#1E4FA8', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>2</Text>
+                </Box>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#0E3F8C' }}>下载并连续运行</Text>
+                <Text style={{ fontSize: 19, color: '#4A5568' }}>Keil 下载同名 AXF 后 Run(F5)，在 Watch 中确认 uwTick 持续增长。</Text>
+            </Box>
+            <Box style={{ width: 288, height: 212, background: '#F7F9FC', border: '1px solid #D6DCE5', borderTop: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 18, paddingRight: 18, gap: 10 }}>
+                <Box style={{ width: 36, height: 36, background: '#1E4FA8', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>3</Text>
+                </Box>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#0E3F8C' }}>进入 OP 并运行 PLC</Text>
+                <Text style={{ fontSize: 19, color: '#4A5568' }}>Box 1 的 Online 页请求 OP，PLC 登录运行，确认 State=8、WcState=FALSE。</Text>
+            </Box>
+            <Box style={{ width: 288, height: 212, background: '#F7F9FC', border: '1px solid #D6DCE5', borderTop: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 18, paddingRight: 18, gap: 10 }}>
+                <Box style={{ width: 36, height: 36, background: '#1E4FA8', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>4</Text>
+                </Box>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#0E3F8C' }}>初始化与故障复位</Text>
+                <Text style={{ fontSize: 19, color: '#4A5568' }}>用「写入值」而非「强制值」；nPhase=90 时给 bReset 一个上升沿清锁存。</Text>
+            </Box>
+        </Box>
+        <Box style={{ height: 16 }} />
+        <Box style={{ flexDirection: 'row', height: 212, gap: 16 }}>
+            <Box style={{ width: 288, height: 212, background: '#E8EFF8', border: '1px solid #3D7BD9', borderTop: '6px solid #0E3F8C', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 18, paddingRight: 18, gap: 10 }}>
+                <Box style={{ width: 36, height: 36, background: '#0E3F8C', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>5</Text>
+                </Box>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#0E3F8C' }}>预置速度再启动</Text>
+                <Text style={{ fontSize: 19, color: '#4A5568' }}>先写 rDemandRpm=+6.0，再把 bStart 由 FALSE 写为 TRUE，产生启动边沿。</Text>
+            </Box>
+            <Box style={{ width: 288, height: 212, background: '#F7F9FC', border: '1px solid #D6DCE5', borderTop: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 18, paddingRight: 18, gap: 10 }}>
+                <Box style={{ width: 36, height: 36, background: '#1E4FA8', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>6</Text>
+                </Box>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#0E3F8C' }}>运行与主动停止</Text>
+                <Text style={{ fontSize: 19, color: '#4A5568' }}>Start 后约 4 s 把 bStop 写 TRUE；确认 nPhase=0 并目视转轴完全停稳。</Text>
+            </Box>
+            <Box style={{ width: 288, height: 212, background: '#FFFFFF', border: '1px solid #D6DCE5', borderTop: '6px solid #8B97A8', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 18, paddingRight: 18, gap: 10 }}>
+                <Box style={{ width: 36, height: 36, background: '#8B97A8', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>7</Text>
+                </Box>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#4A5568' }}>反向验证（待做）</Text>
+                <Text style={{ fontSize: 19, color: '#4A5568' }}>停稳后预置 -6.0 并重发启动边沿；运行中禁止由正给定直接改为负给定。</Text>
+            </Box>
+            <Box style={{ width: 288, height: 212, background: '#FFFFFF', border: '1px solid #D9534F', borderTop: '6px solid #D9534F', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 18, paddingRight: 18, gap: 10 }}>
+                <Box style={{ width: 36, height: 36, background: '#D9534F', borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>!</Text>
+                </Box>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#D9534F' }}>贯穿的安全红线</Text>
+                <Text style={{ fontSize: 19, color: '#4A5568' }}>功率输出期间禁止暂停、单步或命中断点；异常时直接切断主电源。</Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>STM32H743-VOFA 电机控制平台</Text>
+        <Text style={{ fontSize: 16, color: '#1E4FA8' }}>08 / 11</Text>
+    </Box>
+</Slide>

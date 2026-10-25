@@ -1,0 +1,75 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: 0, fontFamily: 'Microsoft YaHei, SimHei, sans-serif' }}>
+    <Box style={{ height: 72, background: '#1E4FA8', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#FFFFFF' }}>06 当前配置、后续工作与结论</Text>
+        <Text style={{ fontSize: 20, color: '#BFD3EE' }}>截至 2026 年 10 月 23 日</Text>
+    </Box>
+    <Box style={{ height: 588, paddingTop: 24, paddingBottom: 16, paddingLeft: 40, paddingRight: 40 }}>
+        <Box style={{ height: 46, background: '#F0F5FC', borderLeft: '6px solid #1E4FA8', paddingLeft: 22, paddingRight: 22, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 21, color: '#1A2230' }}>左表为本次汇报对应的实际配置，右侧是本轮明确保留、未做的三项工作</Text>
+        </Box>
+        <Box style={{ height: 8 }} />
+        <Box style={{ flexDirection: 'row', height: 440, gap: 24 }}>
+            <Box style={{ width: 700, height: 440, background: '#FFFFFF', border: '1px solid #D6DCE5', borderRadius: 8, paddingTop: 16, paddingBottom: 16, paddingLeft: 16, paddingRight: 16, gap: 10 }}>
+                <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#0E3F8C' }}>截至本次汇报的配置</Text>
+                <Table
+                    style={{ width: '100%', height: 372 }}
+                    defaultTextStyle={{ fontSize: 16, textAlign: 'center', color: '#1A2230' }}
+                    defaultCellStyle={{ border: { left: { width: 1, color: '#D6DCE5' }, right: { width: 1, color: '#D6DCE5' }, top: { width: 1, color: '#D6DCE5' }, bottom: { width: 1, color: '#D6DCE5' } } }}
+                    cells={[
+                        [
+                            { text: '参数', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#1E4FA8' } } },
+                            { text: '当前值', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#1E4FA8' } } },
+                            { text: '说明', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#1E4FA8' } } },
+                        ],
+                        ['对齐 Id / 运行 Iq', '0.5 A / 0.8 A', '参考给定不等于实际电流'],
+                        [
+                            { text: '参考限幅 / 电压限幅', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '1.0 A / 0.15 pu', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '不作安全额定值认定', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                        ['极对数与已用需求', '10；+6、+12', '对应 +1、+2 Hz 电角频率'],
+                        [
+                            { text: '对齐时间 / 频率斜坡', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '0.75 s / 20 rpm/s', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '斜坡为等效磁场速度变化率', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                        ['会话 / 运动上限', '10 s / 6 s', '两层共用，含加减速'],
+                        [
+                            { text: '通信 / 停止保护', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '100 ms / 2 s', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '超限撤销许可或进故障', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                        ['相电流软件关断', '>10 A 连续两次', '0.6 A 仍为诊断门槛'],
+                        [
+                            { text: 'ADC / PWM', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: 'Bench DIV2 / 约 10 kHz', cellStyle: { background: { color: '#F7F9FC' } } },
+                            { text: '采样质量未验收', cellStyle: { background: { color: '#F7F9FC' } } },
+                        ],
+                    ]}
+                />
+            </Box>
+            <Box style={{ width: 476, height: 440, gap: 16 }}>
+                <Box style={{ flex: 1, background: '#F7F9FC', border: '1px solid #D6DCE5', borderLeft: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 20, paddingRight: 20, gap: 8 }}>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#0E3F8C' }}>待办一 · 反向转动</Text>
+                    <Text style={{ fontSize: 19, color: '#4A5568' }}>在停稳后验证负给定反向转动，确认方向是否与正给定相反。</Text>
+                </Box>
+                <Box style={{ flex: 1, background: '#F7F9FC', border: '1px solid #D6DCE5', borderLeft: '6px solid #1E4FA8', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 20, paddingRight: 20, gap: 8 }}>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#0E3F8C' }}>待办二 · 运行质量</Text>
+                    <Text style={{ fontSize: 19, color: '#4A5568' }}>区分起动阶段与恒速阶段的抖动、噪声，再决定是否调整控制参数。</Text>
+                </Box>
+                <Box style={{ flex: 1, background: '#F0F5FC', border: '1px solid #3D7BD9', borderLeft: '6px solid #D9534F', borderRadius: 8, paddingTop: 18, paddingBottom: 18, paddingLeft: 20, paddingRight: 20, gap: 8 }}>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#D9534F' }}>待办三 · 采样与保护</Text>
+                    <Text style={{ fontSize: 19, color: '#4A5568' }}>核实电流采样准确性、真实相电流与保护有效性，本轮尚未确认。</Text>
+                </Box>
+            </Box>
+        </Box>
+        <Box style={{ height: 8 }} />
+        <Box style={{ height: 46, background: '#0E3F8C', borderRadius: 8, paddingLeft: 28, paddingRight: 28, justifyContent: 'center' }}>
+            <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#FFFFFF' }}>本轮不再追加实机测试，不在汇报前继续扩大参数——把边界写清楚比多一组数据更重要</Text>
+        </Box>
+    </Box>
+    <Box style={{ height: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingLeft: 40, paddingRight: 40 }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>STM32H743-VOFA 电机控制平台</Text>
+        <Text style={{ fontSize: 16, color: '#1E4FA8' }}>10 / 11</Text>
+    </Box>
+</Slide>

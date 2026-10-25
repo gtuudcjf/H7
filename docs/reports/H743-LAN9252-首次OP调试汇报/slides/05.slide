@@ -1,0 +1,103 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>系统组成与最小验证目标</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>系统组成与软件移植</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '20px 40px', flexDirection: 'row', gap: '20px' }}>
+        <Box style={{ width: '560px', height: '568px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '0 0 18px 0', justifyContent: 'space-between' }}>
+            <Box style={{ width: '100%', height: '48px', background: '#1E4FA8', padding: '0 20px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#FFFFFF' }}>硬件与开发环境</Text>
+                <Text style={{ fontSize: '17px', color: '#B9CCEE' }}>台架</Text>
+            </Box>
+            <Box style={{ padding: '0 22px', gap: '10px' }}>
+                <Text style={{ fontSize: '21px', color: '#1A2230', lineHeight: '1.6' }}>
+                    应用控制器为 <span style={{ fontWeight: 'bold', color: '#1E4FA8' }}>STM32H743</span>，从站控制器为 <span style={{ fontWeight: 'bold', color: '#1E4FA8' }}>LAN9252</span>（片内集成以太网 PHY）
+                </Text>
+                <Text style={{ fontSize: '21px', color: '#1A2230', lineHeight: '1.6' }}>
+                    LAN9252 外接串行 EEPROM、25 MHz 晶振与两个网口；PC 经专用网线接从站 IN 口
+                </Text>
+                <Text style={{ fontSize: '21px', color: '#1A2230', lineHeight: '1.6' }}>
+                    H743 经独立 SPI1 访问 LAN9252，与 PC 侧 EtherCAT 网口是两条不同的访问路径
+                </Text>
+                <Text style={{ fontSize: '21px', color: '#1A2230', lineHeight: '1.6' }}>
+                    环境：Windows + Keil MDK，ARMCC 5.06u5，STM32Cube H7 V1.12.1
+                </Text>
+                <Text style={{ fontSize: '21px', color: '#1A2230', lineHeight: '1.6' }}>
+                    主站：TwinCAT 3 XAE（build 4024.65），本阶段关闭 DC，采用轮询 FreeRun
+                </Text>
+            </Box>
+            <Box style={{ padding: '0 22px' }}>
+                <Text style={{ fontSize: '18px', color: '#8B97A8', lineHeight: '1.5' }}>
+                    注：当前笔记本网卡仅用于台架功能实验，不能推导正式实时网卡兼容性
+                </Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '620px', height: '568px', background: '#FFFFFF', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '18px 20px', gap: '12px' }}>
+            <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#1E4FA8' }}>SPI1 与关键控制引脚</Text>
+            <Table
+                style={{ width: '100%', height: '360px' }}
+                defaultTextStyle={{ fontSize: '19px', textAlign: 'left', color: '#1A2230' }}
+                defaultCellStyle={{
+                    padding: '8px 14px',
+                    border: {
+                        left: { width: 1, color: '#E5E7EB' },
+                        right: { width: 1, color: '#E5E7EB' },
+                        top: { width: 1, color: '#E5E7EB' },
+                        bottom: { width: 1, color: '#E5E7EB' },
+                    },
+                }}
+                cells={[
+                    [
+                        { text: '信号', textStyle: { bold: true, color: '#FFFFFF', fontSize: '20px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                        { text: '引脚', textStyle: { bold: true, color: '#FFFFFF', fontSize: '20px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                        { text: '配置与用途', textStyle: { bold: true, color: '#FFFFFF', fontSize: '20px' }, cellStyle: { background: { color: '#0E3F8C' } } },
+                    ],
+                    [
+                        { text: 'CS', cellStyle: { background: { color: '#FFFFFF' } } },
+                        { text: 'PA4', cellStyle: { background: { color: '#FFFFFF' } } },
+                        { text: 'GPIO 推挽，空闲高，软件控制片选', cellStyle: { background: { color: '#FFFFFF' } } },
+                    ],
+                    [
+                        { text: 'SCK', cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: 'PA5', cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: 'SPI1 AF5，分频后 4 MHz', cellStyle: { background: { color: '#F7F9FC' } } },
+                    ],
+                    [
+                        { text: 'MISO', cellStyle: { background: { color: '#FFFFFF' } } },
+                        { text: 'PA6', cellStyle: { background: { color: '#FFFFFF' } } },
+                        { text: 'SPI1 AF5，LAN9252 返回数据', cellStyle: { background: { color: '#FFFFFF' } } },
+                    ],
+                    [
+                        { text: 'MOSI', cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: 'PA7', cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: 'SPI1 AF5，H743 发送数据', cellStyle: { background: { color: '#F7F9FC' } } },
+                    ],
+                    [
+                        { text: 'SYNC0/1', cellStyle: { background: { color: '#FFFFFF' } } },
+                        { text: 'PE0/PE1', cellStyle: { background: { color: '#FFFFFF' } } },
+                        { text: '普通输入，本阶段不启用同步中断', cellStyle: { background: { color: '#FFFFFF' } } },
+                    ],
+                    [
+                        { text: 'IRQ', cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: 'PE3', cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: '普通输入，本阶段轮询，不启用 EXTI', cellStyle: { background: { color: '#F7F9FC' } } },
+                    ],
+                    [
+                        { text: 'DRV enable', cellStyle: { background: { color: '#FFFFFF' } } },
+                        { text: 'PC4', cellStyle: { background: { color: '#FFFFFF' } } },
+                        { text: '调试模式明确拉低，功率级禁用', cellStyle: { background: { color: '#FFFFFF' } } },
+                    ],
+                ]}
+            />
+            <Box style={{ width: '100%', background: '#E8EFF8', borderRadius: '6px', padding: '12px 16px' }}>
+                <Text style={{ fontSize: '19px', color: '#1A2230', lineHeight: '1.5' }}>
+                    SPI1 配置：主机全双工、8 位、MSB first、Mode 0、软件 NSS、无 NSS pulse
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：调试总结文档第 1 节「系统组成与最小验证目标」</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>05 / 14</Text>
+    </Box>
+</Slide>

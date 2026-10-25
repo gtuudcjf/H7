@@ -1,0 +1,43 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>关键定位一：空白 EEPROM 与 SPI 帧连续性</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>实板调试复盘</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '20px 40px', gap: '12px' }}>
+        <Box style={{ width: '1200px', height: '520px', flexDirection: 'row', gap: '20px' }}>
+            <Box style={{ width: '590px', height: '520px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '0 22px 20px 22px', gap: '10px' }}>
+                <Box style={{ width: '100%', height: '46px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                    <Box style={{ width: '8px', height: '26px', background: '#1E4FA8' }} />
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#1A2230' }}>配置层：空白 EEPROM</Text>
+                </Box>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>现象：扫描到产品与版本为 FFFFFFFF，Hex Editor 可见连续 FF，MISO 无有效波形</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>独立证据：ESC Access 读 0x0140 得 0x0C00（PDI 类型为 0），0x0502 得 0x1880</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>处理：先备份原内容到文件，再安装实验 ESI，选 H743-LAN9252-LAB 写入 SII</Text>
+                <Text style={{ fontSize: '20px', color: '#1E4FA8', lineHeight: '1.55' }}>结果：设备名恢复，0x0502=0080，0x0140=0E80，低字节 0x80 即 PDI 类型</Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '12px 16px' }}>
+                    <Text style={{ fontSize: '18px', color: '#8B97A8', lineHeight: '1.5' }}>边界：备份约 1 KB，而 ESI 目标有效大小为 2048 字节，正式归档应补齐整段回读与校验</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: '590px', height: '520px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '0 22px 20px 22px', gap: '10px' }}>
+                <Box style={{ width: '100%', height: '46px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                    <Box style={{ width: '8px', height: '26px', background: '#3D7BD9' }} />
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#1A2230' }}>物理层：SPI 帧连续性</Text>
+                </Box>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>判据：BYTE_TEST 位于主机寄存器 0x0064，正确值为 0x87654321</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>现象：读到 0x0ECB8642，三种读法 passed_mask=0x06，仅分段快读失败</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>分析：整帧通过而分段失败，把范围缩到跨 HAL 调用的帧连续性</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>处理：MasterKeepIOState 改为 ENABLE，Mode 0、4 MHz、8 位与软件 CS 不变</Text>
+                <Box style={{ width: '100%', background: '#E8EFF8', borderRadius: '6px', padding: '12px 16px' }}>
+                    <Text style={{ fontSize: '18px', color: '#1E4FA8', lineHeight: '1.5' }}>结果：mask=0x07，BYTE_TEST=0x87654321，ID_REV=0x92520001，初始化 READY</Text>
+                </Box>
+            </Box>
+        </Box>
+        <Box style={{ width: '1200px', height: '48px', background: '#E8EFF8', borderLeft: '6px solid #1E4FA8', borderRadius: '6px', padding: '0 20px', flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ fontSize: '20px', color: '#1A2230' }}>对照实验只改变一个因素：三种读法读同一寄存器，才揭示出分段与整帧的差异</Text>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：调试总结文档第 5、6 节</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>09 / 14</Text>
+    </Box>
+</Slide>

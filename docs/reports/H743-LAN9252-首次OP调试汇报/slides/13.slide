@@ -1,0 +1,45 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>OP 已经证明什么，还没有证明什么</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>证据链与后续计划</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '20px 40px', gap: '12px' }}>
+        <Box style={{ width: '1200px', height: '32px', flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ fontSize: '22px', fontWeight: 'bold', color: '#1A2230' }}>结论边界：把结论停在证据能够支撑的地方</Text>
+        </Box>
+        <Box style={{ width: '1200px', height: '440px', flexDirection: 'row', gap: '20px' }}>
+            <Box style={{ width: '590px', height: '440px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '0 22px 20px 22px', gap: '10px' }}>
+                <Box style={{ width: '100%', height: '46px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                    <Box style={{ width: '8px', height: '26px', background: '#1E4FA8' }} />
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#1A2230' }}>已经证明</Text>
+                </Box>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>完整链路打通：网口 → LAN9252 → SPI1 → H743 协议栈 → 周期输入数据</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>状态可达：从站可依次进入 PREOP、SAFEOP 与 OP，且 WcState 为 0</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>应用迭代：CycleCounter 非零，说明发生过有效的过程数据交换</Text>
+                <Box style={{ width: '100%', background: '#E8EFF8', borderRadius: '6px', padding: '12px 16px' }}>
+                    <Text style={{ fontSize: '18px', color: '#1E4FA8', lineHeight: '1.5' }}>对象字典可用：CoE 在线读取 0x1018 身份与对象字典成功</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: '590px', height: '440px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '0 22px 20px 22px', gap: '10px' }}>
+                <Box style={{ width: '100%', height: '46px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                    <Box style={{ width: '8px', height: '26px', background: '#D9534F' }} />
+                    <Text style={{ fontSize: '26px', fontWeight: 'bold', color: '#1A2230' }}>尚未证明</Text>
+                </Box>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>长期稳定：单张截图不能证明计数在后续十分钟内持续变化</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>1 ms 实时性：服务耗时上限曾记录 4510 µs，不能据此承诺周期</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>非零 PDO 回环：代码与主机测试支持，实板序列尚未验收</Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '12px 16px' }}>
+                    <Text style={{ fontSize: '18px', color: '#8B97A8', lineHeight: '1.5' }}>电机闭环与 DC 同步不在本阶段范围；错误栏为 0 但仍有 1 条未展开警告待补录</Text>
+                </Box>
+            </Box>
+        </Box>
+        <Box style={{ width: '1200px', height: '72px', background: '#0E3F8C', borderRadius: '6px', padding: '0 22px', flexDirection: 'row', alignItems: 'center', gap: '18px' }}>
+            <Box style={{ width: '8px', height: '46px', background: '#FFC107' }} />
+            <Text style={{ fontSize: '21px', color: '#FFFFFF' }}>先说清边界，再谈下一步：这样后续验收的数据才具备可比性</Text>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：调试总结文档第 10.1 节与第 12 节</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>13 / 14</Text>
+    </Box>
+</Slide>

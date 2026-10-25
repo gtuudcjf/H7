@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1">
+  <GVL Name="GVL_MotorIO" Id="{5E605B83-C674-4DF3-A43F-6CEAC80B98D6}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+VAR_GLOBAL
+    StatusWord AT %I* : WORD;
+    CycleCounter AT %I* : UDINT;
+    ActualSpeed AT %I* : INT; (* INVALID: no rotor speed sensor *)
+    ActualIq AT %I* : INT; (* virtual-angle q-axis mA, NOT rotor torque current *)
+    MotorFault AT %I* : UINT;
+    BridgeFault AT %I* : UINT;
+    ActiveTargetSpeed AT %I* : INT; (* active field equivalent 0.1 rpm *)
+    AcceptedSequence AT %I* : UDINT;
+    WcState AT %I* : BOOL;
+    State AT %I* : UINT;
+    ControlWord AT %Q* : WORD;
+    TargetSpeed AT %Q* : INT; (* field equivalent 0.1 rpm *)
+    CommandSequence AT %Q* : UDINT;
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

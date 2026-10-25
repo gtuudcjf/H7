@@ -1,0 +1,66 @@
+<Slide style={{ width: '1280px', height: '720px', background: '#FFFFFF', padding: '0px' }}>
+    <Box style={{ width: '100%', height: '72px', background: '#0E3F8C', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '34px', fontWeight: 'bold', color: '#FFFFFF' }}>关键定位三：主站周期通信未启动</Text>
+        <Text style={{ fontSize: '16px', color: '#9DBDF0' }}>实板调试复盘</Text>
+    </Box>
+    <Box style={{ width: '100%', height: '608px', padding: '20px 40px', gap: '12px' }}>
+        <Box style={{ width: '1200px', height: '36px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: '22px', fontWeight: 'bold', color: '#1A2230' }}>这一步的问题不在固件，而在主站：TwinCAT 也是系统的一部分</Text>
+            <Box style={{ background: '#E8EFF8', padding: '5px 13px', borderRadius: '4px' }}>
+                <Text style={{ fontSize: '17px', color: '#1E4FA8' }}>2026-10-15 13:48–14:01</Text>
+            </Box>
+        </Box>
+        <Box style={{ width: '1200px', height: '370px', flexDirection: 'row', gap: '20px' }}>
+            <Box style={{ width: '380px', height: '370px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '16px 18px', gap: '10px' }}>
+                <Box style={{ width: '100%', height: '44px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                    <Box style={{ width: '36px', height: '36px', borderRadius: '4px', background: '#1E4FA8', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: '19px', fontWeight: 'bold', color: '#FFFFFF' }}>1</Text>
+                    </Box>
+                    <Text style={{ fontSize: '24px', fontWeight: 'bold', color: '#1A2230' }}>现象</Text>
+                </Box>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>在 Box 1 点击 Safe-Op，提示 Master state PREOP is insufficient</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>这与前面的 SPI 故障性质不同：从站请求受到主站状态限制</Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '10px 14px' }}>
+                    <Text style={{ fontSize: '18px', color: '#8B97A8' }}>应先查看父节点 Device 2 的状态，而不是只在 Box 1 重复请求</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: '380px', height: '370px', background: '#F7F9FC', border: '1px solid #D6DCE5', borderRadius: '6px', padding: '16px 18px', gap: '10px' }}>
+                <Box style={{ width: '100%', height: '44px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                    <Box style={{ width: '36px', height: '36px', borderRadius: '4px', background: '#1E4FA8', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: '19px', fontWeight: 'bold', color: '#FFFFFF' }}>2</Text>
+                    </Box>
+                    <Text style={{ fontSize: '24px', fontWeight: 'bold', color: '#1A2230' }}>关键证据</Text>
+                </Box>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>Device 2 的 Cyclic 列：发送帧数与 Frames/sec 均为 0</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>Queued 列仍有收发，但那是非周期通信，只够读邮箱与寄存器</Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: '6px', padding: '10px 14px' }}>
+                    <Text style={{ fontSize: '18px', color: '#8B97A8' }}>能读 CoE 不等于已经具备周期 PDO 通信</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: '380px', height: '370px', background: '#E8EFF8', border: '1px solid #3D7BD9', borderRadius: '6px', padding: '16px 18px', gap: '10px' }}>
+                <Box style={{ width: '100%', height: '44px', flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
+                    <Box style={{ width: '36px', height: '36px', borderRadius: '4px', background: '#0E3F8C', alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ fontSize: '19px', fontWeight: 'bold', color: '#FFFFFF' }}>3</Text>
+                    </Box>
+                    <Text style={{ fontSize: '24px', fontWeight: 'bold', color: '#1A2230' }}>处理</Text>
+                </Box>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>Device 2 → Advanced Settings → State Machine → Master Settings</Text>
+                <Text style={{ fontSize: '20px', color: '#4A5568', lineHeight: '1.55' }}>Startup State 暂设 SAFEOP，保留 Config Mode，执行 Toggle Free Run State</Text>
+                <Box style={{ width: '100%', background: '#FFFFFF', borderRadius: '6px', padding: '10px 14px' }}>
+                    <Text style={{ fontSize: '18px', color: '#1E4FA8' }}>该命令是开关，不应反复点击；它可在无 PLC 任务时驱动 I/O</Text>
+                </Box>
+            </Box>
+        </Box>
+        <Box style={{ width: '1200px', height: '100px', background: '#0E3F8C', borderRadius: '6px', padding: '0 22px', flexDirection: 'row', alignItems: 'center', gap: '18px' }}>
+            <Box style={{ width: '8px', height: '64px', background: '#FFC107' }} />
+            <Box style={{ gap: '4px' }}>
+                <Text style={{ fontSize: '21px', color: '#FFFFFF' }}>随后 SAFEOP（State=4）→ OP（State=8），WcState=0，CycleCounter=2127</Text>
+                <Text style={{ fontSize: '18px', color: '#B9CCEE' }}>最后这段状态推进由主站操作与从站固件共同完成，不能用「SPI 修好了」概括</Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ width: '100%', height: '40px', padding: '0 40px', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: '14px', color: '#8B97A8' }}>数据来源：调试总结文档第 9 节；参考 Beckhoff TwinCAT 3 Infosys 状态机与 FreeRun 说明</Text>
+        <Text style={{ fontSize: '15px', fontWeight: 'bold', color: '#1E4FA8' }}>11 / 14</Text>
+    </Box>
+</Slide>

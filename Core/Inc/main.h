@@ -31,6 +31,7 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "ethercat/ethercat_build.h"
 
 /* USER CODE END Includes */
 
