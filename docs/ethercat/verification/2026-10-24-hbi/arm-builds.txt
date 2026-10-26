@@ -1,0 +1,18 @@
+ARMCC actual startup mode 0/1 preprocessing: PASS
+linking...
+Program Size: Code=64040 RO-data=844 RW-data=476 ZI-data=10748  
+FromELF: creating hex file...
+"emptytest\motor-check\motor-check.axf" - 0 Error(s), 0 Warning(s).
+Build Time Elapsed:  00:01:11
+linking...
+Program Size: Code=37074 RO-data=2066 RW-data=1144 ZI-data=8336  
+FromELF: creating hex file...
+"emptytest\emptytest.axf" - 0 Error(s), 0 Warning(s).
+Build Time Elapsed:  00:00:57
+
+Algorithm       Hash                                                                   Path                            
+---------       ----                                                                   ----                            
+SHA256          B625E92559F5C61BA1B5AA392070EB4E400376D177E240E60F57AF0769BC4E6C       D:\STM32MX\EtherCAT-HBI\MDK-A...
+ARMCC full build and HBI map validation: PASS
+
+

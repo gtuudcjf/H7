@@ -27,10 +27,15 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#if ETHERCAT_BRINGUP_ONLY
+#include "ethercat_service.h"
+#include "fmc.h"
+#else
 #include "biss_encoder.h"
 #include "motor_control.h"
 #include "motor_telemetry.h"
 #include "motor_params.h"
+#endif
 
 /* USER CODE END Includes */
 
@@ -52,6 +57,11 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+#if ETHERCAT_BRINGUP_ONLY
+/* 调试器查看：init 状态仅表示本次初始化结果，实时 AL 状态在诊断结构中。 */
+volatile EtherCATStatus ethercat_init_status = ETHERCAT_STATUS_UNINITIALIZED;
+const EtherCATDiagnostics * volatile ethercat_diagnostics;
+#else
 /*
  * 快速控制周期必须与 TIM8 更新事件周期严格一致：
  * 240 MHz / (2 * (11999 + 1)) = 10 kHz，因此 dt = 1 / 10 kHz = 100 us。
@@ -86,6 +96,7 @@ static const MotorControlConfig motor_config = {
   .frequency_slew_hz_per_s = 20.0f,
   .voltage_slew_pu_per_s = 5.0f
 };
+#endif
 
 /* USER CODE END PV */
 
@@ -128,7 +139,14 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  /* 条件边界保存在 USER CODE 中，CubeMX 重生成的外设调用仍属于电机分支。 */
+#if ETHERCAT_BRINGUP_ONLY
+  MX_GPIO_Init();
+  /* GPIO has preloaded BOTH co-net DRV_EN pins low and released SPI1 pins. */
+  MX_FMC_Init();
+  ethercat_init_status = EtherCAT_Init();
+  ethercat_diagnostics = EtherCAT_GetDiagnostics();
+#else
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -202,7 +220,7 @@ int main(void)
   }
   MotorTelemetry_Init(&huart1, MOTOR_TELEMETRY_UART_ENABLED,
                       MOTOR_TELEMETRY_USB_ENABLED);
-
+#endif
 
   /* USER CODE END 2 */
 
@@ -213,6 +231,9 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+#if ETHERCAT_BRINGUP_ONLY
+    EtherCAT_Service();
+#else
     /*
      * 处理编码器标定请求和停机后的 Flash 保存。该服务无忙等，但可能执行
      * Flash 擦写，所以只能放在主循环，禁止移动到 TIM8/ADC/SPI 中断。
@@ -221,6 +242,7 @@ int main(void)
      */
     MotorControl_Service();
     MotorTelemetry_Service();
+#endif
   }
   /* USER CODE END 3 */
 }
@@ -285,6 +307,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+#if !ETHERCAT_BRINGUP_ONLY
 void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
 {
   MotorTelemetry_OnUartComplete(huart);
@@ -355,6 +378,7 @@ void HAL_SPI_AbortCpltCallback(SPI_HandleTypeDef *hspi)
     BissEncoder_OnAbortComplete();
   }
 }
+#endif
 
 /* USER CODE END 4 */
 
@@ -382,6 +406,22 @@ void MPU_Config(void)
   MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
 
   HAL_MPU_ConfigRegion(&MPU_InitStruct);
+#if ETHERCAT_BRINGUP_ONLY
+  /* Region0 denies this external window. Region1 permits ordered Device
+   * accesses, with no caching, buffering or executable instructions. */
+  MPU_InitStruct.Number = MPU_REGION_NUMBER1;
+  MPU_InitStruct.BaseAddress = 0x6C000000;
+  MPU_InitStruct.Size = MPU_REGION_SIZE_64KB;
+  MPU_InitStruct.SubRegionDisable = 0;
+  MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL2; /* TEX/C/B=010/0/0: Device */
+  MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+  MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
+  MPU_InitStruct.IsShareable = MPU_ACCESS_NOT_SHAREABLE;
+  MPU_InitStruct.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
+  MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+#endif
+
   /* Enables the MPU */
   HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
 

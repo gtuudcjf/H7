@@ -6,6 +6,23 @@ MDK-ARM/emptytest/
 MDK-ARM/*.log
 MDK-ARM/*.lst
 MDK-ARM/*.uvguix.*
+MDK-ARM/hbi_motor_check.*
+
+# Generated HBI firmware handoff package (sources and verification stay tracked).
+output/hbi/
+
+# F407 HBI reference: retain sources and project, omit generated/private files.
+407 LAN9252 Ethercat hbi/**/MDK-ARM/STM32F40_41xxx/
+407 LAN9252 Ethercat hbi/**/*.[Tt][Mm][Pp]
+407 LAN9252 Ethercat hbi/**/*.[Bb][Aa][Kk]
+407 LAN9252 Ethercat hbi/**/*.dep
+407 LAN9252 Ethercat hbi/**/*.uvoptx
+407 LAN9252 Ethercat hbi/**/*.uvguix.*
+407 LAN9252 Ethercat hbi/**/*.sublime-workspace
+407 LAN9252 Ethercat hbi/**/JLinkLog.txt
+407 LAN9252 Ethercat hbi/**/JLinkSettings.ini
+407 LAN9252 Ethercat hbi/**/TcHelper.dll
+407 LAN9252 Ethercat hbi/**/TcHelper.lib
 
 # J-Link debugger log written during on-target sessions.
 MDK-ARM/JLinkLog.txt

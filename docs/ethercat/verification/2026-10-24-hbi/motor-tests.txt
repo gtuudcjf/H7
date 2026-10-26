@@ -1,0 +1,10 @@
+motor telemetry core tests passed
+motor telemetry adapter tests passed
+motor telemetry integration tests passed
+H7 current-sampling configuration checks passed
+motor-control integration checks passed
+BiSS-C SPI4/DMA configuration checks passed
+encoder-angle current-mode integration checks passed
+speed-mode integration checks passed
+position-mode integration checks passed
+motor telemetry suite: 8 checks passed (core + adapter + wiring + 6 regressions)

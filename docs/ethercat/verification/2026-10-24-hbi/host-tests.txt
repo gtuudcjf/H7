@@ -1,0 +1,14 @@
+HBI project/ESI/CubeMX: PASS (83 build inputs)
+test_lan9252_hbi: PASS (481501 checks)
+test_hbi_board: PASS (150 checks)
+test_hbi_board stalled counter: PASS
+LAN9252 port: 146 checks passed (probes=10 reads=12 writes=1)
+EtherCAT service: 36 checks passed
+SSC polling: 99 checks passed
+SSC SDO configuration: 75 checks passed
+SSC mailbox lifecycle: 125 checks passed
+SSC real object access: 157 checks passed
+SSC real mailbox length chain: 6257 checks passed
+EtherCAT app: 372 checks passed
+EtherCAT SSC integration contract passed
+EtherCAT HBI suite: PASS

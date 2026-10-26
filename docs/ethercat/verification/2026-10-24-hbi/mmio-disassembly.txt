@@ -1,0 +1,28 @@
+board_read16
+        0x08008ca4:    f10141d8    ...A    ADD      r1,r1,#0x6c000000
+        0x08008ca8:    8808        ..      LDRH     r0,[r1,#0]
+        0x08008caa:    8010        ..      STRH     r0,[r2,#0]
+        0x08008cac:    f3bf8f4f    ..O.    DSB      
+        0x08008cb0:    2000        .       MOVS     r0,#0
+        0x08008cb2:    4770        pG      BX       lr
+
+board_write16
+        0x08008d44:    f10141d8    ...A    ADD      r1,r1,#0x6c000000
+        0x08008d48:    800a        ..      STRH     r2,[r1,#0]
+        0x08008d4a:    f3bf8f4f    ..O.    DSB      
+        0x08008d4e:    2000        .       MOVS     r0,#0
+        0x08008d50:    4770        pG      BX       lr
+
+board_finish_dword
+        0x08008c84:    f3bf8f4f    ..O.    DSB      
+        0x08008c88:    4905        .I      LDR      r1,[pc,#20] ; [0x8008ca0] = 0xe0001000
+        0x08008c8a:    6880        .h      LDR      r0,[r0,#8]
+        0x08008c8c:    684a        Jh      LDR      r2,[r1,#4]
+        0x08008c8e:    e000        ..      B        0x8008c92 ; board_finish_dword + 14
+        0x08008c90:    bf00        ..      NOP      
+        0x08008c92:    684b        Kh      LDR      r3,[r1,#4]
+        0x08008c94:    1a9b        ..      SUBS     r3,r3,r2
+        0x08008c96:    4283        .B      CMP      r3,r0
+        0x08008c98:    d3fa        ..      BCC      0x8008c90 ; board_finish_dword + 12
+        0x08008c9a:    f3bf8f4f    ..O.    DSB      
+        0x08008c9e:    4770        pG      BX       lr

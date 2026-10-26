@@ -1,0 +1,9 @@
+# EDA PDFs may contain no NUL bytes: force binary treatment to preserve offsets.
+*.pdf binary
+*.zip binary
+*.rtf -text
+
+# Preserve imported vendor/reference bytes and the recorded SSC source hashes.
+"407 LAN9252 Ethercat hbi/**" -text
+/Middlewares/Third_Party/EtherCAT_SSC/** -text
+/docs/ethercat/verification/** -text

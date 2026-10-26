@@ -334,9 +334,9 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define>USE_PWR_LDO_SUPPLY,USE_HAL_DRIVER,STM32H743xx</Define>
+              <Define>USE_PWR_LDO_SUPPLY,USE_HAL_DRIVER,STM32H743xx,ETHERCAT_BRINGUP_ONLY=1</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../Core/Inc/motor;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Device/ST/STM32H7xx/Include;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Include;../USB_DEVICE/App;../USB_DEVICE/Target;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc</IncludePath>
+              <IncludePath>../Core/Inc;../Core/Inc/motor;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Inc/Legacy;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Device/ST/STM32H7xx/Include;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/CMSIS/Include;../USB_DEVICE/App;../USB_DEVICE/Target;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Core/Inc;C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc;../Core/Inc/ethercat;../Middlewares/Third_Party/EtherCAT_SSC/Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -2003,6 +2003,91 @@
                   </Cads>
                 </FileArmAds>
               </FileOption>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Application/HBI_EtherCAT</GroupName>
+          <Files>
+            <File>
+              <FileName>fmc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/fmc.c</FilePath>
+            </File>
+            <File>
+              <FileName>ethercat_app.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/ethercat_app.c</FilePath>
+            </File>
+            <File>
+              <FileName>ethercat_app_core.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/ethercat_app_core.c</FilePath>
+            </File>
+            <File>
+              <FileName>ethercat_service.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/ethercat_service.c</FilePath>
+            </File>
+            <File>
+              <FileName>lan9252_board.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/lan9252_board.c</FilePath>
+            </File>
+            <File>
+              <FileName>lan9252_hbi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/lan9252_hbi.c</FilePath>
+            </File>
+            <File>
+              <FileName>lan9252_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Core/Src/ethercat/lan9252_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>coeappl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/coeappl.c</FilePath>
+            </File>
+            <File>
+              <FileName>ecatappl.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/ecatappl.c</FilePath>
+            </File>
+            <File>
+              <FileName>ecatcoe.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/ecatcoe.c</FilePath>
+            </File>
+            <File>
+              <FileName>ecatslv.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/ecatslv.c</FilePath>
+            </File>
+            <File>
+              <FileName>mailbox.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/mailbox.c</FilePath>
+            </File>
+            <File>
+              <FileName>objdef.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/objdef.c</FilePath>
+            </File>
+            <File>
+              <FileName>sdoserv.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/EtherCAT_SSC/Src/sdoserv.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7xx_hal_sram.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_hal_sram.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32h7xx_ll_fmc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>C:/Users/tx/STM32Cube/Repository/STM32Cube_FW_H7_V1.12.1/Drivers/STM32H7xx_HAL_Driver/Src/stm32h7xx_ll_fmc.c</FilePath>
             </File>
           </Files>
         </Group>

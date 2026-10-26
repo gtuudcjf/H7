@@ -59,6 +59,12 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 
 /* USER CODE BEGIN Private defines */
+#ifndef ETHERCAT_BRINGUP_ONLY
+#define ETHERCAT_BRINGUP_ONLY 1
+#endif
+#if (ETHERCAT_BRINGUP_ONLY != 0) && (ETHERCAT_BRINGUP_ONLY != 1)
+#error ETHERCAT_BRINGUP_ONLY_must_be_0_or_1
+#endif
 
 /* DRV8323：SPI2 使用软件片选，PC4 为驱动 nSLEEP/使能，PC5 为 CSA 校准。 */
 #define DRV_CS_Pin GPIO_PIN_1
@@ -67,7 +73,8 @@ void Error_Handler(void);
 #define DRV_ENA_GPIO_Port GPIOC
 #define DRV_CAL_Pin GPIO_PIN_5
 #define DRV_CAL_GPIO_Port GPIOC
-/* PB5 由用户要求保持高电平，不属于 DRV8323 的使能链路。 */
+/* Legacy motor mode keeps PB5 high. The supplied schematic co-nets PB5
+ * and PC4 as DRV_ENA; HBI bringup overrides both LOW. Recheck before motor use. */
 #define PB5_KEEP_HIGH_Pin GPIO_PIN_5
 #define PB5_KEEP_HIGH_GPIO_Port GPIOB
 /* SPI4/BiSS-C 只使用 SCK+MISO；PE6 经隔离器接到禁用的 U18 DI，固定拉低。 */
