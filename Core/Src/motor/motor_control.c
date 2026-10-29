@@ -39,20 +39,15 @@
 #include <stdbool.h>
 #include <string.h>
 
-#define CURRENT_CALIBRATION_DISCARD_COUNT (16U)
-#define CURRENT_CALIBRATION_SAMPLE_COUNT  (256U)
 #define CURRENT_CALIBRATION_RAIL_MARGIN   (512.0f)
 #define CURRENT_CALIBRATION_MAX_SPAN      (64U)
 #define CURRENT_ADC_RUNTIME_RAIL_MARGIN   (32U)
-#define CURRENT_OVERCURRENT_CONFIRM_COUNT (2U)
-#define CURRENT_ADC_TIMEOUT_TICKS         (3U)
 #define CURRENT_ALIGNMENT_TIME_S          (0.75f)
 #define CURRENT_PI_KP_MAX_V_PER_A         (2.0f)
 #define CURRENT_PI_KI_MAX_V_PER_A_S       (2000.0f)
 #define CURRENT_PI_KAW_MAX_PER_S          (2000.0f)
-#define ENCODER_STALE_LIMIT_TICKS         (10U)
-#define SPEED_PI_KP_MAX_A_PER_RPM         (1.0f)
-#define SPEED_PI_KI_MAX_A_PER_RPM_S       (100.0f)
+#define SPEED_PI_KP_MAX_A_PER_RAD_S         (9.5492966f)
+#define SPEED_PI_KI_MAX_A_PER_RAD           (954.92966f)
 #define SPEED_PI_KAW_MAX_PER_S            (2000.0f)
 
 volatile MotorControlDebug g_motor_control_debug;
@@ -93,6 +88,7 @@ static float alignment_elapsed_s;
 
 /* 模式3/4与编码器校准路径使用的快照、角度配置和持久化状态。 */
 static BissEncoderSnapshot encoder_snapshot;
+static uint32_t encoder_read_phase;
 static EncoderAngleConfig encoder_angle_config;
 static EncoderAngleSample encoder_angle_sample;
 static MotorCalibrationConfig encoder_saved_config;
@@ -111,8 +107,8 @@ static SpeedEstimator speed_estimator;
 static SpeedPiController speed_pi;
 static SpeedPiResult speed_pi_result;
 static FocDq speed_current_reference_target;
-static volatile float speed_target_rpm;
-static float speed_active_target_rpm;
+static volatile float speed_target_rad_s;
+static float speed_active_target_rad_s;
 static uint32_t speed_divider_count;
 static bool speed_mode_waiting_for_estimator;
 
@@ -216,7 +212,7 @@ static void MotorControl_ResetSpeedState(bool reset_estimator)
     memset(&speed_pi_result, 0, sizeof(speed_pi_result));
     speed_current_reference_target.d = 0.0f;
     speed_current_reference_target.q = 0.0f;
-    speed_active_target_rpm = 0.0f;
+    speed_active_target_rad_s = 0.0f;
     speed_divider_count = 0U;
     speed_mode_waiting_for_estimator = false;
     MotorControl_ResetPositionState();
@@ -251,9 +247,9 @@ static void MotorControl_PublishEncoderDebug(void)
 
 static void MotorControl_PublishMotionDebug(void)
 {
-    g_motor_control_debug.speed_target_rpm = speed_target_rpm;
-    g_motor_control_debug.speed_active_target_rpm = speed_active_target_rpm;
-    g_motor_control_debug.speed_filtered_rpm = speed_estimator.filtered_rpm;
+    g_motor_control_debug.speed_target_rad_s = speed_target_rad_s;
+    g_motor_control_debug.speed_active_target_rad_s = speed_active_target_rad_s;
+    g_motor_control_debug.speed_filtered_rad_s = speed_estimator.filtered_rad_s;
     g_motor_control_debug.speed_iq_command_a = speed_current_reference_target.q;
     g_motor_control_debug.speed_pi_saturated =
         speed_pi_result.saturated ? 1U : 0U;
@@ -278,7 +274,7 @@ static void MotorControl_QuiesceRealtimeInterrupts(void)
 {
     /*
      * 校准完成后功率级已关断，但 TIM8 更新与 ADC 注入完成中断
-     * 仍以 10 kHz 运行。在这里只禁止实时中断源，不调用 HAL 停机、
+     * 仍以 20 kHz 运行。在这里只禁止实时中断源，不调用 HAL 停机、
      * 不写 Flash；完整的外设停止和 Flash 保存仍由前台 Service 完成。
      */
     __HAL_TIM_DISABLE_IT(&htim8, TIM_IT_UPDATE);
@@ -401,7 +397,7 @@ static void MotorControl_StartSelectedMode(void)
         }
         if (!BissEncoder_GetSnapshot(&encoder_snapshot) ||
             !encoder_snapshot.ready ||
-            (encoder_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS) ||
+            (encoder_snapshot.valid_age_ticks > MOTOR_ENCODER_STALE_LIMIT_TICKS) ||
             !EncoderAngle_Update(&encoder_angle_config,
                                  encoder_snapshot.position_raw,
                                  &encoder_angle_sample))
@@ -420,7 +416,7 @@ static void MotorControl_StartSelectedMode(void)
     /*
      * 模式2/3/4复用电流环启动分支。模式2从固定零电角度进入ALIGNING；
      * 模式3/4直接使用此刻编码器电角度进入RUNNING，不做虚拟角度对齐。
-     * 模式4的速度估算器就绪前保持零Iq，随后由1 kHz速度PI生成Iq目标。
+     * 模式4的速度估算器就绪前保持零Iq，随后由2 kHz速度PI生成Iq目标。
      */
     if (start_action == MOTOR_START_ACTION_CURRENT_CONTROL)
     {
@@ -547,7 +543,7 @@ static bool MotorControl_UpdateCurrentMeasurement(uint32_t phase_a_raw,
     if (peak_current > MOTOR_CURRENT_TRIP_A)
     {
         ++overcurrent_count;
-        if (overcurrent_count >= CURRENT_OVERCURRENT_CONFIRM_COUNT)
+        if (overcurrent_count >= MOTOR_CURRENT_OVERCURRENT_CONFIRM_COUNT)
         {
             MotorControl_EnterFault(MOTOR_FAULT_OVERCURRENT);
             return false;
@@ -573,7 +569,7 @@ static bool MotorControl_UpdateEncoderAngle(bool require_ready)
     if (!BissEncoder_GetSnapshot(&encoder_snapshot) ||
         (require_ready && !encoder_snapshot.ready) ||
         (encoder_snapshot.sequence == 0U) ||
-        (encoder_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS) ||
+        (encoder_snapshot.valid_age_ticks > MOTOR_ENCODER_STALE_LIMIT_TICKS) ||
         !encoder_calibration_valid ||
         !EncoderAngle_Update(&encoder_angle_config,
                              encoder_snapshot.position_raw,
@@ -588,20 +584,17 @@ static bool MotorControl_RunSpeedTask(void)
 {
     SpeedEstimatorUpdateStatus estimator_status;
     float maximum_speed_step;
-    float requested_speed_rpm;
+    float requested_speed_rad_s;
 
     if (!MotorControl_ModeUsesEncoderAngle(motor_mode))
     {
         return true;
     }
 
-    ++speed_divider_count;
-    if (speed_divider_count < MOTOR_SPEED_CONTROL_DIVIDER)
+    if (!MotorRuntimePolicy_SpeedTaskDue(&speed_divider_count))
     {
         return true;
     }
-    speed_divider_count = 0U;
-
     estimator_status = SpeedEstimator_Update(
         &speed_estimator,
         encoder_snapshot.position_raw,
@@ -623,15 +616,15 @@ static bool MotorControl_RunSpeedTask(void)
         if (motor_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
         {
             /* 位置模式保持捕获点；不能从旧模式的非零速度继续滑行。 */
-            speed_active_target_rpm = 0.0f;
+            speed_active_target_rad_s = 0.0f;
         }
         else
         {
-            speed_active_target_rpm = speed_estimator.filtered_rpm;
+            speed_active_target_rad_s = speed_estimator.filtered_rad_s;
         }
         if (!SpeedPi_PreloadOutput(&speed_pi,
-                                   speed_active_target_rpm,
-                                   speed_estimator.filtered_rpm,
+                                   speed_active_target_rad_s,
+                                   speed_estimator.filtered_rad_s,
                                    current_reference_active.q))
         {
             MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
@@ -640,7 +633,7 @@ static bool MotorControl_RunSpeedTask(void)
         speed_mode_waiting_for_estimator = false;
     }
 
-    requested_speed_rpm = speed_target_rpm;
+    requested_speed_rad_s = speed_target_rad_s;
     if (motor_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
     {
         if (!position_control_ready ||
@@ -653,16 +646,16 @@ static bool MotorControl_RunSpeedTask(void)
             MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
             return false;
         }
-        requested_speed_rpm = position_result.speed_target_rpm;
+        requested_speed_rad_s = position_result.speed_target_rad_s;
     }
 
     maximum_speed_step =
-        MOTOR_SPEED_COMMAND_SLEW_RPM_PER_S * MOTOR_SPEED_CONTROL_PERIOD_S;
-    speed_active_target_rpm = MotorControl_MoveToward(
-        speed_active_target_rpm, requested_speed_rpm, maximum_speed_step);
+        MOTOR_SPEED_COMMAND_SLEW_RAD_S2 * MOTOR_SPEED_CONTROL_PERIOD_S;
+    speed_active_target_rad_s = MotorControl_MoveToward(
+        speed_active_target_rad_s, requested_speed_rad_s, maximum_speed_step);
     if (!SpeedPi_Step(&speed_pi,
-                      speed_active_target_rpm,
-                      speed_estimator.filtered_rpm,
+                      speed_active_target_rad_s,
+                      speed_estimator.filtered_rad_s,
                       MOTOR_SPEED_CONTROL_PERIOD_S,
                       &speed_pi_result))
     {
@@ -779,7 +772,7 @@ static void MotorControl_ApplyModeRequest(void)
                 MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
                 return;
             }
-            speed_active_target_rpm = 0.0f;
+            speed_active_target_rad_s = 0.0f;
         }
         else if (previous_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
         {
@@ -802,15 +795,15 @@ static void MotorControl_ApplyModeRequest(void)
             {
                 if (motor_mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
                 {
-                    speed_active_target_rpm = 0.0f;
+                    speed_active_target_rad_s = 0.0f;
                 }
                 else
                 {
-                    speed_active_target_rpm = speed_estimator.filtered_rpm;
+                    speed_active_target_rad_s = speed_estimator.filtered_rad_s;
                 }
                 if (!SpeedPi_PreloadOutput(&speed_pi,
-                                           speed_active_target_rpm,
-                                           speed_estimator.filtered_rpm,
+                                           speed_active_target_rad_s,
+                                           speed_estimator.filtered_rad_s,
                                            current_reference_active.q))
                 {
                     MotorControl_EnterFault(MOTOR_FAULT_CONTROL_MATH);
@@ -978,7 +971,7 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     pi_config.kp_v_per_a = MOTOR_CURRENT_PI_KP_V_PER_A;
     pi_config.ki_v_per_a_s = MOTOR_CURRENT_PI_KI_V_PER_A_S;
     pi_config.kaw_per_s = MOTOR_CURRENT_PI_KAW_PER_S;
-    pi_config.output_limit_v = MOTOR_POLE_VOLTAGE_LIMIT_START_PU * MOTOR_NOMINAL_VBUS_V;
+    pi_config.output_limit_v = MOTOR_POLE_VOLTAGE_LIMIT_START_V;
     if (!CurrentPi_Init(&current_pi, &pi_config))
     {
         fault_code = MOTOR_FAULT_INVALID_CONFIG;
@@ -986,8 +979,8 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
         return HAL_ERROR;
     }
 
-    speed_pi_config.kp_a_per_rpm = MOTOR_SPEED_PI_KP_A_PER_RPM;
-    speed_pi_config.ki_a_per_rpm_s = MOTOR_SPEED_PI_KI_A_PER_RPM_S;
+    speed_pi_config.kp_a_per_rad_s = MOTOR_SPEED_PI_KP_A_PER_RAD_S;
+    speed_pi_config.ki_a_per_rad = MOTOR_SPEED_PI_KI_A_PER_RAD;
     speed_pi_config.kaw_per_s = MOTOR_SPEED_PI_KAW_PER_S;
     speed_pi_config.output_limit_a = MOTOR_SPEED_IQ_LIMIT_A;
     if ((MOTOR_SPEED_IQ_LIMIT_A > MOTOR_CURRENT_COMMAND_LIMIT_A) ||
@@ -998,8 +991,8 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
         return HAL_ERROR;
     }
 
-    position_config.kp_rpm_per_deg = MOTOR_POSITION_KP_RPM_PER_DEG;
-    position_config.max_speed_rpm = MOTOR_POSITION_SPEED_LIMIT_RPM;
+    position_config.kp_rad_s_per_deg = MOTOR_POSITION_KP_RAD_S_PER_DEG;
+    position_config.max_speed_rad_s = MOTOR_POSITION_SPEED_LIMIT_RAD_S;
     position_config.tolerance_deg = MOTOR_POSITION_TOLERANCE_DEG;
     if (!PositionController_Init(&position_controller, &position_config))
     {
@@ -1016,12 +1009,13 @@ HAL_StatusTypeDef MotorControl_Init(const MotorControlConfig *config)
     current_reference_active.q = 0.0f;
     current_target_frequency_hz = 1.0f;
     alignment_elapsed_s = 0.0f;
-    speed_target_rpm = 0.0f;
+    speed_target_rad_s = 0.0f;
     MotorControl_ResetSpeedState(false);
     adc_age_ticks = 0U;
     overcurrent_count = 0U;
     pwm_enabled = false;
     sampling_started = false;
+    encoder_read_phase = 0U;
 
     memset(&encoder_snapshot, 0, sizeof(encoder_snapshot));
     memset(&encoder_angle_config, 0, sizeof(encoder_angle_config));
@@ -1150,22 +1144,22 @@ void MotorControl_SetEncoderCurrentCommand(float id_a, float iq_a)
     }
 }
 
-void MotorControl_SetSpeedCommand(float mechanical_speed_rpm)
+void MotorControl_SetSpeedCommand(float mechanical_speed_rad_s)
 {
     uint32_t interrupt_state;
 
-    if (!isfinite(mechanical_speed_rpm))
+    if (!isfinite(mechanical_speed_rad_s))
     {
         return;
     }
 
     interrupt_state = __get_PRIMASK();
     __disable_irq();
-    speed_target_rpm = MotorControl_Clamp(
-        mechanical_speed_rpm,
-        -MOTOR_SPEED_COMMAND_LIMIT_RPM,
-        MOTOR_SPEED_COMMAND_LIMIT_RPM);
-    g_motor_control_debug.speed_target_rpm = speed_target_rpm;
+    speed_target_rad_s = MotorControl_Clamp(
+        mechanical_speed_rad_s,
+        -MOTOR_SPEED_COMMAND_LIMIT_RAD_S,
+        MOTOR_SPEED_COMMAND_LIMIT_RAD_S);
+    g_motor_control_debug.speed_target_rad_s = speed_target_rad_s;
     if (interrupt_state == 0U)
     {
         __enable_irq();
@@ -1213,7 +1207,7 @@ HAL_StatusTypeDef MotorControl_SetPositionCommand(float target_deg)
         !encoder_calibration_valid ||
         !BissEncoder_GetSnapshot(&command_snapshot) ||
         !command_snapshot.ready || (command_snapshot.sequence == 0U) ||
-        (command_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS))
+        (command_snapshot.valid_age_ticks > MOTOR_ENCODER_STALE_LIMIT_TICKS))
     {
         return HAL_ERROR;
     }
@@ -1248,7 +1242,7 @@ HAL_StatusTypeDef MotorControl_RequestEncoderCalibration(void)
         encoder_calibration_failure_pending ||
         !BissEncoder_GetSnapshot(&encoder_snapshot) ||
         !encoder_snapshot.ready ||
-        (encoder_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS))
+        (encoder_snapshot.valid_age_ticks > MOTOR_ENCODER_STALE_LIMIT_TICKS))
     {
         return HAL_ERROR;
     }
@@ -1333,7 +1327,7 @@ void MotorControl_Service(void)
         !pwm_enabled || !current_sense_ready ||
         !BissEncoder_GetSnapshot(&encoder_snapshot) ||
         !encoder_snapshot.ready ||
-        (encoder_snapshot.valid_age_ticks > ENCODER_STALE_LIMIT_TICKS))
+        (encoder_snapshot.valid_age_ticks > MOTOR_ENCODER_STALE_LIMIT_TICKS))
     {
         encoder_calibration_requested = false;
         MotorControl_PublishStateDebug();
@@ -1441,14 +1435,14 @@ HAL_StatusTypeDef MotorControl_SwitchToEncoderAngleCurrent(float id_a,
 }
 
 HAL_StatusTypeDef MotorControl_SwitchToEncoderSpeedCurrent(
-    float mechanical_speed_rpm)
+    float mechanical_speed_rad_s)
 {
-    if (!isfinite(mechanical_speed_rpm))
+    if (!isfinite(mechanical_speed_rad_s))
     {
         return HAL_ERROR;
     }
 
-    MotorControl_SetSpeedCommand(mechanical_speed_rpm);
+    MotorControl_SetSpeedCommand(mechanical_speed_rad_s);
     return MotorControl_RequestMode(MOTOR_CONTROL_ENCODER_SPEED_CURRENT);
 }
 
@@ -1458,19 +1452,19 @@ HAL_StatusTypeDef MotorControl_SwitchToEncoderPositionCurrent(void)
         MOTOR_CONTROL_ENCODER_POSITION_CURRENT);
 }
 
-HAL_StatusTypeDef MotorControl_SetSpeedPiGains(float kp_a_per_rpm,
-                                               float ki_a_per_rpm_s,
+HAL_StatusTypeDef MotorControl_SetSpeedPiGains(float kp_a_per_rad_s,
+                                               float ki_a_per_rad,
                                                float kaw_per_s)
 {
     uint32_t interrupt_state;
     bool valid;
 
-    if (!isfinite(kp_a_per_rpm) || !isfinite(ki_a_per_rpm_s) ||
+    if (!isfinite(kp_a_per_rad_s) || !isfinite(ki_a_per_rad) ||
         !isfinite(kaw_per_s) ||
-        (kp_a_per_rpm < 0.0f) ||
-        (kp_a_per_rpm > SPEED_PI_KP_MAX_A_PER_RPM) ||
-        (ki_a_per_rpm_s < 0.0f) ||
-        (ki_a_per_rpm_s > SPEED_PI_KI_MAX_A_PER_RPM_S) ||
+        (kp_a_per_rad_s < 0.0f) ||
+        (kp_a_per_rad_s > SPEED_PI_KP_MAX_A_PER_RAD_S) ||
+        (ki_a_per_rad < 0.0f) ||
+        (ki_a_per_rad > SPEED_PI_KI_MAX_A_PER_RAD) ||
         (kaw_per_s < 0.0f) || (kaw_per_s > SPEED_PI_KAW_MAX_PER_S))
     {
         return HAL_ERROR;
@@ -1479,7 +1473,7 @@ HAL_StatusTypeDef MotorControl_SetSpeedPiGains(float kp_a_per_rpm,
     interrupt_state = __get_PRIMASK();
     __disable_irq();
     valid = SpeedPi_SetGains(
-        &speed_pi, kp_a_per_rpm, ki_a_per_rpm_s, kaw_per_s);
+        &speed_pi, kp_a_per_rad_s, ki_a_per_rad, kaw_per_s);
     if (interrupt_state == 0U)
     {
         __enable_irq();
@@ -1611,8 +1605,8 @@ HAL_StatusTypeDef MotorControl_Start(void)
         return status;
     }
     CurrentSenseCalibration_Start(&current_calibration,
-                                  CURRENT_CALIBRATION_DISCARD_COUNT,
-                                  CURRENT_CALIBRATION_SAMPLE_COUNT);
+                                  MOTOR_CURRENT_CALIBRATION_DISCARD_COUNT,
+                                  MOTOR_CURRENT_CALIBRATION_SAMPLE_COUNT);
     current_sense_ready = false;
     current_calibration_failed = false;
     current_feedback_valid = false;
@@ -1646,6 +1640,7 @@ HAL_StatusTypeDef MotorControl_Start(void)
         return status;
     }
 
+    encoder_read_phase = 0U;
     sampling_started = true;
     MotorControl_PublishStateDebug();
     return HAL_OK;
@@ -1688,6 +1683,7 @@ HAL_StatusTypeDef MotorControl_Stop(void)
         }
         sampling_started = false;
     }
+    encoder_read_phase = 0U;
 
     CurrentPi_Reset(&current_pi);
     MotorControl_ResetSpeedState(true);
@@ -1721,6 +1717,9 @@ HAL_StatusTypeDef MotorControl_ClearFault(void)
 void MotorControl_FastTick(float dt_s)
 {
     MotorVoltageDq open_voltage;
+    const bool encoder_allowed = MotorRuntimePolicy_EncoderAcquisitionAllowed(run_state);
+    const bool encoder_read_due = MotorRuntimePolicy_EncoderReadDue(
+        &encoder_read_phase, encoder_allowed);
 
     /*
      * TIM8更新中断的职责顺序：
@@ -1732,10 +1731,13 @@ void MotorControl_FastTick(float dt_s)
      * 电流零偏校准阶段保持与已验证版本相同的 ADC/TIM8 启动路径。
      * 校准结束后才允许 SPI4 DMA 进入后台采集；HAL_BUSY 属于正常状态。
      */
-    if (MotorRuntimePolicy_EncoderAcquisitionAllowed(run_state))
+    if (encoder_allowed)
     {
         BissEncoder_ControlTick();
-        (void)BissEncoder_StartRead();
+        if (encoder_read_due)
+        {
+            (void)BissEncoder_StartRead();
+        }
         (void)BissEncoder_GetSnapshot(&encoder_snapshot);
     }
 
@@ -1797,7 +1799,7 @@ void MotorControl_FastTick(float dt_s)
     if (MotorControl_ModeUsesCurrentLoop(motor_mode))
     {
         ++adc_age_ticks;
-        if (adc_age_ticks > CURRENT_ADC_TIMEOUT_TICKS)
+        if (adc_age_ticks > MOTOR_CURRENT_ADC_TIMEOUT_TICKS)
         {
             MotorControl_EnterFault(MOTOR_FAULT_ADC_TIMEOUT);
             return;
@@ -1886,7 +1888,7 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
         calibration_input.encoder_valid =
             (encoder_snapshot.sequence != 0U) &&
             (encoder_snapshot.sequence != encoder_calibration_last_sequence) &&
-            (encoder_snapshot.valid_age_ticks <= ENCODER_STALE_LIMIT_TICKS);
+            (encoder_snapshot.valid_age_ticks <= MOTOR_ENCODER_STALE_LIMIT_TICKS);
         calibration_input.position_raw = encoder_snapshot.position_raw;
         if (calibration_input.encoder_valid)
         {
@@ -1967,7 +1969,7 @@ void MotorControl_CurrentSampleComplete(uint32_t phase_a_raw,
     open_voltage_magnitude = sqrtf((last_voltage_pu.ud_pu * last_voltage_pu.ud_pu) +
                                    (last_voltage_pu.uq_pu * last_voltage_pu.uq_pu));
     if ((motor_mode == MOTOR_CONTROL_OPEN_VOLTAGE) &&
-        (open_voltage_magnitude > MOTOR_POLE_VOLTAGE_LIMIT_MAX_PU))
+        (open_voltage_magnitude > MOTOR_CURRENT_SAMPLING_VOLTAGE_LIMIT_PU))
     {
         current_feedback_valid = false;
         overcurrent_count = 0U;

@@ -10,26 +10,27 @@ if ($paramsHeader -notmatch '#define\s+MOTOR_SPEED_IQ_LIMIT_A\s+\(0\.7f\)')
     throw 'The current speed-mode configuration must use a 0.7 A Iq limit.'
 }
 
-if ($paramsHeader -notmatch '#define\s+MOTOR_SPEED_PI_KP_A_PER_RPM\s+\(0\.03f\)' -or
-    $paramsHeader -notmatch '#define\s+MOTOR_SPEED_PI_KI_A_PER_RPM_S\s+\(0\.015f\)' -or
+if ($paramsHeader -notmatch '#define\s+MOTOR_SPEED_PI_KP_A_PER_RAD_S\s+\(0\.2864789f\)' -or
+    $paramsHeader -notmatch '#define\s+MOTOR_SPEED_PI_KI_A_PER_RAD\s+\(0\.14323945f\)' -or
     $paramsHeader -notmatch '#define\s+MOTOR_SPEED_PI_KAW_PER_S\s+\(10\.0f\)')
 {
-    throw 'The current 50 rpm configuration must use the 0.03/0.015/10 speed PI gains.'
+    throw 'The current 5.2359878 rad/s configuration must use the 0.2864789/0.14323945/10 speed PI gains.'
 }
 
-if ($mainSource -notmatch 'MotorControl_SetSpeedPiGains\s*\(\s*MOTOR_SPEED_PI_KP_A_PER_RPM\s*,\s*MOTOR_SPEED_PI_KI_A_PER_RPM_S\s*,\s*MOTOR_SPEED_PI_KAW_PER_S\s*\)')
+if ($mainSource -notmatch 'MotorControl_SetSpeedPiGains\s*\(\s*MOTOR_SPEED_PI_KP_A_PER_RAD_S\s*,\s*MOTOR_SPEED_PI_KI_A_PER_RAD\s*,\s*MOTOR_SPEED_PI_KAW_PER_S\s*\)')
 {
     throw 'main.c must apply the speed PI gains from motor_params.h.'
 }
 
-if ($mainSource -notmatch '\.mode\s*=\s*MOTOR_CONTROL_ENCODER_(SPEED|POSITION)_CURRENT')
+if ($mainSource -notmatch '\.mode\s*=\s*MOTOR_CONTROL_ENCODER_ANGLE_CURRENT' -or
+    $mainSource -notmatch 'MotorControl_SetEncoderCurrentCommand\(0\.0f,\s*0\.0f\)')
 {
-    throw 'The 0.7 A trial must start in encoder speed/current or position/current mode.'
+    throw 'Default startup must remain encoder current control at zero Iq; speed tests use an explicit mode switch.'
 }
 
-if ($mainSource -notmatch 'MotorControl_SetSpeedCommand\s*\(\s*50\.0f\s*\)')
+if ($mainSource -notmatch 'MotorControl_SetSpeedCommand\s*\(\s*5\.2359878f\s*\)')
 {
-    throw 'The current speed-mode configuration must use a 50 rpm target.'
+    throw 'The current speed-mode configuration must use a 5.2359878 rad/s target.'
 }
 
 if ($paramsHeader -notmatch '#define\s+MOTOR_SPEED_CURRENT_COMMAND_SLEW_A_PER_S\s+\(10\.0f\)')
@@ -47,4 +48,4 @@ if ($motorSource -notmatch 'MOTOR_CURRENT_COMMAND_SLEW_A_PER_S')
     throw 'Non-speed current modes must retain the original current-command slew rate.'
 }
 
-Write-Host '50 rpm speed-loop configuration checks passed'
+Write-Host '5.2359878 rad/s speed-loop configuration checks passed'

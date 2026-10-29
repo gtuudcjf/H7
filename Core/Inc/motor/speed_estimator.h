@@ -1,6 +1,6 @@
 /**
  * @file speed_estimator.h
- * @brief 基于单圈绝对值编码器位置差分的电机轴机械转速估算器。
+ * @brief 基于单圈绝对值编码器位置差分的电机轴机械角速度(rad/s)估算器。
  */
 #ifndef SPEED_ESTIMATOR_H
 #define SPEED_ESTIMATOR_H
@@ -29,8 +29,8 @@ typedef struct
     uint32_t last_position_raw;
     uint32_t last_sequence;
     float elapsed_s;
-    float raw_rpm;
-    float filtered_rpm;
+    float raw_rad_s;
+    float filtered_rad_s;
     bool has_position;
     bool ready;
 } SpeedEstimator;

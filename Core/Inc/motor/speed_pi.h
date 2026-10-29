@@ -9,8 +9,9 @@
 
 typedef struct
 {
-    float kp_a_per_rpm;
-    float ki_a_per_rpm_s;
+    /* Kp: A/(rad/s), Ki: A/rad; sample_period_s is applied explicitly. */
+    float kp_a_per_rad_s;
+    float ki_a_per_rad;
     float kaw_per_s;
     float output_limit_a;
 } SpeedPiConfig;
@@ -23,7 +24,7 @@ typedef struct
 
 typedef struct
 {
-    float error_rpm;
+    float error_rad_s;
     float proportional_a;
     float integrator_a;
     float unsaturated_a;
@@ -34,17 +35,17 @@ typedef struct
 bool SpeedPi_Init(SpeedPiController *controller,
                   const SpeedPiConfig *config);
 bool SpeedPi_Step(SpeedPiController *controller,
-                  float reference_rpm,
-                  float feedback_rpm,
+                  float reference_rad_s,
+                  float feedback_rad_s,
                   float sample_period_s,
                   SpeedPiResult *result);
 bool SpeedPi_PreloadOutput(SpeedPiController *controller,
-                           float reference_rpm,
-                           float feedback_rpm,
+                           float reference_rad_s,
+                           float feedback_rad_s,
                            float requested_iq_a);
 bool SpeedPi_SetGains(SpeedPiController *controller,
-                      float kp_a_per_rpm,
-                      float ki_a_per_rpm_s,
+                      float kp_a_per_rad_s,
+                      float ki_a_per_rad,
                       float kaw_per_s);
 bool SpeedPi_SetOutputLimit(SpeedPiController *controller,
                             float output_limit_a);

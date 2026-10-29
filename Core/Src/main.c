@@ -54,7 +54,7 @@
 /* USER CODE BEGIN PV */
 /*
  * 快速控制周期必须与 TIM8 更新事件周期严格一致：
- * 240 MHz / (2 * (11999 + 1)) = 10 kHz，因此 dt = 1 / 10 kHz = 100 us。
+ * 240 MHz / (2 * 6000) = 20 kHz，因此 dt = 50 us。
  * 后续修改 TIM8 时钟或 ARR 时，必须同步更新此常量，否则电角度积分和
  * 电流 PI 控制器的离散时间都会产生比例误差。
  */
@@ -69,22 +69,22 @@
  *   MOTOR_CONTROL_ENCODER_ANGLE_CURRENT
  *       编码器电角度 + Id/Iq电流PI，需要有效的编码器校准记录。
  *   MOTOR_CONTROL_ENCODER_SPEED_CURRENT
- *       编码器机械速度PI生成Iq，复用模式3的编码器电角度和10 kHz电流PI。
+ *       编码器机械速度PI生成Iq，复用模式3的编码器电角度和20 kHz电流PI。
  *   MOTOR_CONTROL_ENCODER_POSITION_CURRENT
- *       单圈轴侧位置P环生成速度目标，再复用模式4的速度PI和10 kHz电流PI；进入时先保持当前位置。
+ *       单圈轴侧位置P环生成速度目标，再复用模式4的速度PI和20 kHz电流PI；进入时先保持当前位置。
  *
  * 五种运行模式共用同一套启动、采样、保护和PWM输出框架。.mode只决定
  * “角度从哪里来”和“Ud/Uq由谁生成”。已有目标命令会在启动前预置，
  * 所以编译前只改.mode即可选择启动状态。运行中不要直接写本const结构，
- * 应调用MotorControl_SwitchTo...()，切换会在10 kHz控制边界统一生效。
+ * 应调用MotorControl_SwitchTo...()，切换会在20 kHz控制边界统一生效。
  *
  * frequency_slew_hz_per_s只作用于模式1/2的虚拟角频率；模式3/4/6使用编码器
  * 角度。voltage_slew_pu_per_s用于从电流闭环退回模式1时平滑恢复开环电压。
  */
 static const MotorControlConfig motor_config = {
-  .mode = MOTOR_CONTROL_ENCODER_ANGLE_CURRENT,
+  .mode = MOTOR_CONTROL_ENCODER_SPEED_CURRENT,
   .frequency_slew_hz_per_s = 20.0f,
-  .voltage_slew_pu_per_s = 5.0f
+  .voltage_slew_pu_per_s = MOTOR_OPEN_VOLTAGE_SLEW_V_PER_S / MOTOR_NOMINAL_VBUS_V
 };
 
 /* USER CODE END PV */
@@ -160,19 +160,19 @@ int main(void)
 
   /*
    * 五种运行模式的命令集中预置，motor_config.mode决定实际使用哪一套。
-   * 这些数值是当前24 V母线、当前电机和当前负载的实机验证值，不是通用值；
+   * 电流/角度命令源于原24 V硬件验证；20 kHz和48 V组合仍需实机确认。
    * 更换电机/母线/负载时，必须结合motor_params.h从低电压、低电流重新验证：
-   *   模式1：电压开环，Ud=0、Uq=0.08 pu、电角频率=1 Hz；
+   *   模式1：电压开环，Ud=0、Uq=1.92 V（按所选母线归一化）、电角频率=1 Hz；
    *   模式2：虚拟角度+电流闭环，Id=0、Iq=0.8 A、电角频率=1 Hz；
-   *   模式3：编码器角度+电流闭环，Id=0、Iq=0.6 A。
-   *   模式4：编码器速度+电流闭环，目标50 rpm。
+   *   模式3：编码器角度+电流闭环，Id=0、Iq=0 A。
+   *   模式4：编码器速度+电流闭环，目标5.2359878 rad/s。
    *   模式6：单圈轴侧位置+速度+电流闭环，目标60°。
    * Id通常保持0；Iq的正负决定转矩方向。模式3不是位置环，不会保持目标角度。
    */
-  MotorControl_SetOpenLoopCommand(0.0f, 0.08f, 1.0f);
+  MotorControl_SetOpenLoopCommand(0.0f, MOTOR_OPEN_LOOP_START_UQ_V / MOTOR_NOMINAL_VBUS_V, 1.0f);
   MotorControl_SetCurrentCommand(0.0f, 0.8f, 1.0f);
-  MotorControl_SetEncoderCurrentCommand(0.0f, 0.0f);
-  MotorControl_SetSpeedCommand(50.0f);
+  MotorControl_SetEncoderCurrentCommand(0.0f, 0.7f);
+  MotorControl_SetSpeedCommand(5.2359878f);
 
   /* 位置目标只能为 [0, 360) 度；未选择模式6时不预置，避免日后切换时意外转动。 */
   if (motor_config.mode == MOTOR_CONTROL_ENCODER_POSITION_CURRENT)
@@ -185,8 +185,8 @@ int main(void)
 
   /* 模式4与模式6共用速度 PI，参数由 motor_params.h 统一管理。 */
   if (MotorControl_SetSpeedPiGains(
-          MOTOR_SPEED_PI_KP_A_PER_RPM,
-          MOTOR_SPEED_PI_KI_A_PER_RPM_S,
+          MOTOR_SPEED_PI_KP_A_PER_RAD_S,
+          MOTOR_SPEED_PI_KI_A_PER_RAD,
           MOTOR_SPEED_PI_KAW_PER_S) != HAL_OK)
   {
     Error_Handler();
@@ -300,7 +300,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   /*
    * HAL 可能把其他基础定时器的更新事件也分派到此回调，因此必须检查
-   * Instance。只有 TIM8 更新事件属于电机10 kHz快速控制周期。
+   * Instance。只有 TIM8 更新事件属于电机20 kHz快速控制周期。
    */
   if (htim->Instance == TIM8)
   {
@@ -315,6 +315,13 @@ void HAL_ADCEx_InjectedConvCpltCallback(ADC_HandleTypeDef *hadc)
   uint32_t phase_b_raw;
 
   if (hadc->Instance != ADC1)
+  {
+    return;
+  }
+
+  /* HAL clears JEOS after this callback. Reject an early rank-1/JEOC call
+   * rather than combine a new A sample with the preceding B sample. */
+  if (__HAL_ADC_GET_FLAG(hadc, ADC_FLAG_JEOS) == RESET)
   {
     return;
   }

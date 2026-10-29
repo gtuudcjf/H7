@@ -6,6 +6,7 @@
 #define MOTOR_RUNTIME_POLICY_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef enum
 {
@@ -60,6 +61,12 @@ typedef enum
  * 参与，避免新增外设 DMA 改变已经验证过的电流采样启动时序。
  */
 bool MotorRuntimePolicy_EncoderAcquisitionAllowed(MotorRunState run_state);
+
+/** 20 kHz边界上的10 kHz读帧节拍；首个允许周期立即请求，禁用时复位。 */
+bool MotorRuntimePolicy_EncoderReadDue(uint32_t *phase, bool allowed);
+
+/** 每10个快控制边界运行一次速度/位置任务；调用方在停启时清零计数。 */
+bool MotorRuntimePolicy_SpeedTaskDue(uint32_t *phase);
 
 /** 将启动模式分类；损坏或未实现的值必须返回INVALID，禁止静默降级。 */
 MotorStartAction MotorRuntimePolicy_ClassifyStartMode(MotorControlMode mode);

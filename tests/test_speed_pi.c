@@ -20,8 +20,8 @@ static SpeedPiConfig DefaultConfig(void)
 {
     SpeedPiConfig config;
 
-    config.kp_a_per_rpm = 0.005f;
-    config.ki_a_per_rpm_s = 0.10f;
+    config.kp_a_per_rad_s = 0.005f;
+    config.ki_a_per_rad = 0.10f;
     config.kaw_per_s = 10.0f;
     config.output_limit_a = 0.6f;
     return config;
@@ -34,11 +34,11 @@ static void Test_ProportionalAndIntegralTermsUsePhysicalUnits(void)
     const SpeedPiConfig config = DefaultConfig();
 
     assert(SpeedPi_Init(&controller, &config));
-    assert(SpeedPi_Step(&controller, 10.0f, 0.0f, 0.001f, &result));
-    AssertNear(result.error_rpm, 10.0f, TEST_EPSILON);
+    assert(SpeedPi_Step(&controller, 10.0f, 0.0f, 0.0005f, &result));
+    AssertNear(result.error_rad_s, 10.0f, TEST_EPSILON);
     AssertNear(result.proportional_a, 0.05f, TEST_EPSILON);
-    AssertNear(controller.integrator_a, 0.001f, TEST_EPSILON);
-    AssertNear(result.integrator_a, 0.001f, TEST_EPSILON);
+    AssertNear(controller.integrator_a, 0.0005f, TEST_EPSILON);
+    AssertNear(result.integrator_a, 0.0005f, TEST_EPSILON);
 }
 
 static void Test_PositiveAndNegativeLimitsAreSymmetric(void)
@@ -48,12 +48,12 @@ static void Test_PositiveAndNegativeLimitsAreSymmetric(void)
     const SpeedPiConfig config = DefaultConfig();
 
     assert(SpeedPi_Init(&controller, &config));
-    assert(SpeedPi_Step(&controller, 1000.0f, 0.0f, 0.001f, &result));
+    assert(SpeedPi_Step(&controller, 1000.0f, 0.0f, 0.0005f, &result));
     AssertNear(result.iq_command_a, 0.6f, TEST_EPSILON);
     assert(result.saturated);
 
     SpeedPi_Reset(&controller);
-    assert(SpeedPi_Step(&controller, -1000.0f, 0.0f, 0.001f, &result));
+    assert(SpeedPi_Step(&controller, -1000.0f, 0.0f, 0.0005f, &result));
     AssertNear(result.iq_command_a, -0.6f, TEST_EPSILON);
     assert(result.saturated);
 }
@@ -71,7 +71,7 @@ static void Test_AntiWindupKeepsIntegratorFiniteAndBounded(void)
         assert(SpeedPi_Step(&controller,
                             1000.0f,
                             0.0f,
-                            0.001f,
+                            0.0005f,
                             &result));
     }
     assert(isfinite(controller.integrator_a));
@@ -86,8 +86,8 @@ static void Test_PreloadProducesBumplessFirstOutput(void)
 
     assert(SpeedPi_Init(&controller, &config));
     assert(SpeedPi_PreloadOutput(&controller, 20.0f, 10.0f, 0.30f));
-    assert(SpeedPi_Step(&controller, 20.0f, 10.0f, 0.001f, &result));
-    AssertNear(result.iq_command_a, 0.30f, 0.001f);
+    assert(SpeedPi_Step(&controller, 20.0f, 10.0f, 0.0005f, &result));
+    AssertNear(result.iq_command_a, 0.30f, 0.0005f);
 }
 
 static void Test_ResetAndLimitUpdateKeepStateSafe(void)
@@ -97,7 +97,7 @@ static void Test_ResetAndLimitUpdateKeepStateSafe(void)
     const SpeedPiConfig config = DefaultConfig();
 
     assert(SpeedPi_Init(&controller, &config));
-    assert(SpeedPi_Step(&controller, 1000.0f, 0.0f, 0.001f, &result));
+    assert(SpeedPi_Step(&controller, 1000.0f, 0.0f, 0.0005f, &result));
     assert(SpeedPi_SetOutputLimit(&controller, 0.2f));
     assert(fabsf(controller.integrator_a) <= 0.2f);
 
@@ -114,11 +114,11 @@ static void Test_GainsCanBeUpdatedWithoutResettingIntegrator(void)
     float previous_integrator;
 
     assert(SpeedPi_Init(&controller, &config));
-    assert(SpeedPi_Step(&controller, 10.0f, 0.0f, 0.001f, &result));
+    assert(SpeedPi_Step(&controller, 10.0f, 0.0f, 0.0005f, &result));
     previous_integrator = controller.integrator_a;
     assert(SpeedPi_SetGains(&controller, 0.004f, 0.08f, 8.0f));
     AssertNear(controller.integrator_a, previous_integrator, TEST_EPSILON);
-    AssertNear(controller.config.kp_a_per_rpm, 0.004f, TEST_EPSILON);
+    AssertNear(controller.config.kp_a_per_rad_s, 0.004f, TEST_EPSILON);
 }
 
 static void Test_InvalidArgumentsDoNotCorruptController(void)
@@ -130,10 +130,10 @@ static void Test_InvalidArgumentsDoNotCorruptController(void)
 
     assert(!SpeedPi_Init(NULL, &config));
     assert(!SpeedPi_Init(&controller, NULL));
-    config.kp_a_per_rpm = -1.0f;
+    config.kp_a_per_rad_s = -1.0f;
     assert(!SpeedPi_Init(&controller, &config));
     config = DefaultConfig();
-    config.ki_a_per_rpm_s = NAN;
+    config.ki_a_per_rad = NAN;
     assert(!SpeedPi_Init(&controller, &config));
     config = DefaultConfig();
     config.output_limit_a = 0.0f;
@@ -142,10 +142,10 @@ static void Test_InvalidArgumentsDoNotCorruptController(void)
     config = DefaultConfig();
     assert(SpeedPi_Init(&controller, &config));
     before = controller;
-    assert(!SpeedPi_Step(NULL, 0.0f, 0.0f, 0.001f, &result));
-    assert(!SpeedPi_Step(&controller, NAN, 0.0f, 0.001f, &result));
+    assert(!SpeedPi_Step(NULL, 0.0f, 0.0f, 0.0005f, &result));
+    assert(!SpeedPi_Step(&controller, NAN, 0.0f, 0.0005f, &result));
     assert(!SpeedPi_Step(&controller, 0.0f, 0.0f, 0.0f, &result));
-    assert(!SpeedPi_Step(&controller, 0.0f, 0.0f, 0.001f, NULL));
+    assert(!SpeedPi_Step(&controller, 0.0f, 0.0f, 0.0005f, NULL));
     assert(!SpeedPi_PreloadOutput(&controller, 0.0f, 0.0f, NAN));
     assert(!SpeedPi_SetGains(&controller, -1.0f, 0.0f, 0.0f));
     assert(!SpeedPi_SetOutputLimit(&controller, 0.0f));

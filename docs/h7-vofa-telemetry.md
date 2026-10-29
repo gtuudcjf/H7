@@ -1,5 +1,8 @@
 # H743 三环控制 VOFA+ 双端口遥测
 
+> **2026-10-28版本说明：** 当前基线已迁移到20 kHz电流环、2 kHz速度/位置环、rad/s及24/48 V编译选择。本文保留旧版本实机记录和调试背景；旧参数、代码示例及接口单位不能直接用于当前版本，请先阅读[当前配置指南](h7-20k-rads-dual-bus-guide.md)。历史实机结果不代表新配置已经实机验证。
+
+
 ## 工程与数据格式
 
 遥测仅在主循环 `MotorControl_Service()` 后运行；不修改控制算法、参数、PWM、ADC 或编码器链路。主循环每隔至少 10 ms 采样一次（名义 100 Hz），UART 与 USB CDC 各自拥有独立的 36 字节发送缓冲区。异步发送期间不会覆盖缓冲区；端口忙或 USB 未就绪时丢弃当前帧，不排队、不等待。
@@ -12,8 +15,8 @@
 | 1 | `id_a` | d 轴电流反馈 | A |
 | 2 | `iq_ref_a` | q 轴电流给定 | A |
 | 3 | `iq_a` | q 轴电流反馈 | A |
-| 4 | `speed_active_target_rpm` | 速度 PI 实际使用的斜坡后给定 | rpm |
-| 5 | `speed_filtered_rpm` | 滤波速度反馈 | rpm |
+| 4 | `speed_active_target_rad_s` | 速度 PI 实际使用的斜坡后给定 | rad/s |
+| 5 | `speed_filtered_rad_s` | 滤波速度反馈 | rad/s |
 | 6 | `position_target_deg` | 位置目标 | ° |
 | 7 | `position_feedback_deg` | 单圈位置反馈 | ° |
 
@@ -37,7 +40,7 @@ USB 未枚举时安全跳过发送；主机不读数据时可能保持 busy，�
 
 ## 两端口独立启停
 
-默认两端口均开启。在 `Core/Inc/motor/motor_telemetry.h` 分别设置 `MOTOR_TELEMETRY_UART_ENABLED`、`MOTOR_TELEMETRY_USB_ENABLED` 为 `true` 或 `false`，重新编译即可改变开机默认状态。
+当前默认USB开启、UART关闭。在 `Core/Inc/motor/motor_telemetry.h` 分别设置 `MOTOR_TELEMETRY_UART_ENABLED`、`MOTOR_TELEMETRY_USB_ENABLED` 为 `true` 或 `false`，重新编译即可改变开机默认状态。
 
 运行中可在**主循环上下文**调用：
 

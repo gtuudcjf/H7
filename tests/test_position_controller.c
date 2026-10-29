@@ -20,27 +20,27 @@ static void TestShortestPathAndLimit(void)
 
     assert(PositionController_Step(&controller, 1.0f, 359.0f / 360.0f, &result));
     assert(Near(result.error_deg, 2.0f));
-    assert(Near(result.speed_target_rpm, 0.8f));
+    assert(Near(result.speed_target_rad_s, 0.8f));
     assert(!result.within_tolerance);
 
     assert(PositionController_Step(&controller, 359.0f, 1.0f / 360.0f, &result));
     assert(Near(result.error_deg, -2.0f));
-    assert(Near(result.speed_target_rpm, -0.8f));
+    assert(Near(result.speed_target_rad_s, -0.8f));
 
     assert(PositionController_Step(&controller, 180.0f, 0.0f, &result));
     assert(Near(result.error_deg, 180.0f));
-    assert(Near(result.speed_target_rpm, 20.0f));
+    assert(Near(result.speed_target_rad_s, 20.0f));
 
     assert(PositionController_Step(&controller, 0.0f, 0.5f, &result));
     assert(Near(result.error_deg, 180.0f));
-    assert(Near(result.speed_target_rpm, 20.0f));
+    assert(Near(result.speed_target_rad_s, 20.0f));
 
     assert(PositionController_Step(&controller, 100.0f, 0.0f, &result));
-    assert(Near(result.speed_target_rpm, 20.0f));
+    assert(Near(result.speed_target_rad_s, 20.0f));
 
     assert(PositionController_Step(&controller, 0.25f, 0.0f, &result));
     assert(Near(result.error_deg, 0.25f));
-    assert(Near(result.speed_target_rpm, 0.0f));
+    assert(Near(result.speed_target_rad_s, 0.0f));
     assert(result.within_tolerance);
 }
 
@@ -52,16 +52,16 @@ static void TestInvalidInputsDoNotChangeResult(void)
 
     assert(!PositionController_Init(0, &config));
     assert(!PositionController_Init(&controller, 0));
-    config.kp_rpm_per_deg = 0.0f;
+    config.kp_rad_s_per_deg = 0.0f;
     assert(!PositionController_Init(&controller, &config));
-    config.kp_rpm_per_deg = NAN;
+    config.kp_rad_s_per_deg = NAN;
     assert(!PositionController_Init(&controller, &config));
-    config.kp_rpm_per_deg = INFINITY;
+    config.kp_rad_s_per_deg = INFINITY;
     assert(!PositionController_Init(&controller, &config));
-    config.kp_rpm_per_deg = 0.4f;
-    config.max_speed_rpm = 0.0f;
+    config.kp_rad_s_per_deg = 0.4f;
+    config.max_speed_rad_s = 0.0f;
     assert(!PositionController_Init(&controller, &config));
-    config.max_speed_rpm = 20.0f;
+    config.max_speed_rad_s = 20.0f;
     config.tolerance_deg = NAN;
     assert(!PositionController_Init(&controller, &config));
     config.tolerance_deg = 0.5f;
@@ -78,7 +78,7 @@ static void TestInvalidInputsDoNotChangeResult(void)
     assert(!PositionController_Step(0, 0.0f, 0.0f, &result));
     assert(!PositionController_Step(&controller, 0.0f, 0.0f, 0));
     assert(Near(result.error_deg, 123.0f));
-    assert(Near(result.speed_target_rpm, 456.0f));
+    assert(Near(result.speed_target_rad_s, 456.0f));
     assert(result.within_tolerance);
 }
 

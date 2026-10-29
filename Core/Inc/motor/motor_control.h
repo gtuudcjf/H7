@@ -63,9 +63,9 @@ typedef struct
     volatile float id_ref_a;
     volatile float iq_ref_a;
     volatile float electrical_angle_pu;
-    volatile float speed_target_rpm;
-    volatile float speed_active_target_rpm;
-    volatile float speed_filtered_rpm;
+    volatile float speed_target_rad_s;
+    volatile float speed_active_target_rad_s;
+    volatile float speed_filtered_rad_s;
     volatile float speed_iq_command_a;
     volatile uint8_t speed_pi_saturated;
     volatile float position_target_deg;
@@ -109,8 +109,8 @@ void MotorControl_SetCurrentCommand(float id_a,
 /** 设置编码器角度电流闭环的 d/q 电流，不包含虚拟角频率。 */
 void MotorControl_SetEncoderCurrentCommand(float id_a, float iq_a);
 
-/** 设置模式4的电机轴机械转速目标，单位rpm，内部限制到安全范围。 */
-void MotorControl_SetSpeedCommand(float mechanical_speed_rpm);
+/** 设置模式4的电机轴机械角速度目标，单位rad/s，内部限制到安全范围。 */
+void MotorControl_SetSpeedCommand(float mechanical_speed_rad_s);
 
 /** 设置单圈轴侧目标角 [0, 360) 度；非法角度不更改旧目标。
  * 模式 6 启动前可预设一次目标；未预设时启动会捕获并保持当前位置。
@@ -119,7 +119,7 @@ HAL_StatusTypeDef MotorControl_SetPositionCommand(float target_deg);
 
 /**
  * 设置命令并请求切换到电压开环模式。
- * 模式切换在下一个 10 kHz 控制边界生效。
+ * 模式切换在下一个 20 kHz 控制边界生效。
  */
 HAL_StatusTypeDef MotorControl_SwitchToOpenVoltage(
     float ud_pu,
@@ -144,17 +144,17 @@ HAL_StatusTypeDef MotorControl_SwitchToEncoderAngleCurrent(float id_a,
 
 /** 设置速度目标并请求切换到编码器速度/电流双闭环模式。 */
 HAL_StatusTypeDef MotorControl_SwitchToEncoderSpeedCurrent(
-    float mechanical_speed_rpm);
+    float mechanical_speed_rad_s);
 
 /** 请求位置模式；生效时捕获当前轴侧角度作为保持目标。 */
 HAL_StatusTypeDef MotorControl_SwitchToEncoderPositionCurrent(void);
 
-/** 在线设置速度PI；参数单位依次为A/rpm、A/(rpm*s)和1/s。 */
-HAL_StatusTypeDef MotorControl_SetSpeedPiGains(float kp_a_per_rpm,
-                                               float ki_a_per_rpm_s,
+/** 在线设置速度PI；参数单位依次为A/(rad/s)、A/rad和1/s。 */
+HAL_StatusTypeDef MotorControl_SetSpeedPiGains(float kp_a_per_rad_s,
+                                               float ki_a_per_rad,
                                                float kaw_per_s);
 
-/** 在线缩小或恢复速度PI的Iq限幅，但不能突破首版0.6 A安全上限。 */
+/** 在线缩小或恢复速度PI的Iq限幅，不能突破MOTOR_SPEED_IQ_LIMIT_A。 */
 HAL_StatusTypeDef MotorControl_SetSpeedIqLimit(float iq_limit_a);
 
 /** 请求执行一次低电流编码器方向/电角度零点校准。 */
@@ -164,7 +164,7 @@ HAL_StatusTypeDef MotorControl_RequestEncoderCalibration(void);
 void MotorControl_Service(void);
 
 /**
- * 请求在下一个10 kHz控制边界切换模式。
+ * 请求在下一个20 kHz控制边界切换模式。
  * @note 本函数只发布requested_mode，不直接写PWM；实际切换由FastTick执行。
  * @note 模式3还要求电流反馈有效、编码器ready且校准记录有效。
  */
@@ -175,7 +175,8 @@ HAL_StatusTypeDef MotorControl_SetCurrentPiGains(float kp_v_per_a,
                                                  float ki_v_per_a_s,
                                                  float kaw_per_s);
 
-/** 设置电流环电压矢量上限，范围为 0～0.45 pu。 */
+/** 设置电流环电压矢量上限，接受 (0, MOTOR_POLE_VOLTAGE_LIMIT_MAX_PU]。
+ * 24 V时上限0.45 pu，48 V时上限0.225 pu，均对应10.8 V。 */
 HAL_StatusTypeDef MotorControl_SetCurrentVoltageLimit(float limit_pu);
 
 /** 启动ADC零偏校准、DRV8323和实时触发链；PWM在校准通过后才使能。 */

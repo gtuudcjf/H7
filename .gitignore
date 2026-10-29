@@ -1,6 +1,9 @@
 # Local linked worktrees created during development.
 .worktrees/
 
+# Local host test compiler; do not rely on a cleaned temporary directory.
+/.tools/
+
 # Keil build outputs and per-user UI state.
 MDK-ARM/emptytest/
 MDK-ARM/*.log

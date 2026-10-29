@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $adcSource = Get-Content -LiteralPath (Join-Path $projectRoot 'Core\Src\adc.c') -Raw
 $timSource = Get-Content -LiteralPath (Join-Path $projectRoot 'Core\Src\tim.c') -Raw
+$ioc = Get-Content -LiteralPath (Join-Path $projectRoot 'emptytest.ioc') -Raw
 
 function Assert-Contains {
     param([string]$Text, [string]$Pattern, [string]$Message)
@@ -20,6 +21,10 @@ function Assert-NotContains {
 
 Assert-Contains $adcSource 'InjectedNbrOfConversion\s*=\s*2' `
     'ADC1 injected sequence must contain exactly two conversions.'
+Assert-Contains $adcSource 'EOCSelection\s*=\s*ADC_EOC_SEQ_CONV' `
+    'ADC must interrupt once after both injected current channels complete (JEOS), not per channel (JEOC).'
+Assert-Contains $ioc 'ADC1\.EOCSelection=ADC_EOC_SEQ_CONV' `
+    'CubeMX metadata must preserve sequence-complete ADC interrupts.'
 Assert-Contains $adcSource 'InjectedChannel\s*=\s*ADC_CHANNEL_5[\s\S]*InjectedRank\s*=\s*ADC_INJECTED_RANK_1' `
     'PB1/ADC1_INP5 must be injected rank 1.'
 Assert-Contains $adcSource 'InjectedChannel\s*=\s*ADC_CHANNEL_9[\s\S]*InjectedRank\s*=\s*ADC_INJECTED_RANK_2' `
@@ -33,7 +38,9 @@ Assert-Contains $adcSource 'ExternalTrigInjecConvEdge\s*=\s*ADC_EXTERNALTRIGINJE
 
 Assert-Contains $timSource 'MasterOutputTrigger2\s*=\s*TIM_TRGO2_OC4REF' `
     'TIM8 TRGO2 must be sourced from OC4REF.'
-Assert-Contains $timSource 'OCMode\s*=\s*TIM_OCMODE_PWM2[\s\S]*Pulse\s*=\s*11399[\s\S]*TIM_CHANNEL_4' `
+Assert-Contains $timSource 'OCMode\s*=\s*TIM_OCMODE_PWM2[\s\S]*Pulse\s*=\s*5700[\s\S]*TIM_CHANNEL_4' `
     'TIM8 CH4 must generate the internal sample point at about 95 percent of ARR.'
 
+Assert-Contains $timSource 'htim8\.Init\.Period\s*=\s*6000' 'TIM8 must generate 20 kHz center-aligned PWM.'
+Assert-Contains $timSource 'htim8\.Init\.RepetitionCounter\s*=\s*1' 'TIM8 update must occur once per complete PWM period.'
 Write-Output 'H7 current-sampling configuration checks passed'

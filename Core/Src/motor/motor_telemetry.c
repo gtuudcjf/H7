@@ -61,8 +61,8 @@ void MotorTelemetry_Service(void)
         values[1] = g_motor_control_debug.id_a;
         values[2] = g_motor_control_debug.iq_ref_a;
         values[3] = g_motor_control_debug.iq_a;
-        values[4] = g_motor_control_debug.speed_active_target_rpm;
-        values[5] = g_motor_control_debug.speed_filtered_rpm;
+        values[4] = g_motor_control_debug.speed_active_target_rad_s;
+        values[5] = g_motor_control_debug.speed_filtered_rad_s;
         values[6] = g_motor_control_debug.position_target_deg;
         values[7] = g_motor_control_debug.position_feedback_deg;
         __set_PRIMASK(primask);

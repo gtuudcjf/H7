@@ -11,9 +11,10 @@
 #include "stm32h7xx_hal.h"
 
 #include "biss_frame.h"
+#include "motor_params.h"
 
 #define BISS_ENCODER_READY_FRAME_COUNT   (32U)
-#define BISS_ENCODER_DMA_TIMEOUT_TICKS   (2U)
+#define BISS_ENCODER_DMA_TIMEOUT_TICKS   MOTOR_ENCODER_DMA_TIMEOUT_TICKS
 
 typedef struct
 {
@@ -21,7 +22,7 @@ typedef struct
     uint32_t position_raw;
     /* 每发布一帧有效位置加1；控制层用它判断是否得到新样本。 */
     uint32_t sequence;
-    /* 距离最近有效帧经过的10 kHz控制周期数。 */
+    /* 距离最近有效帧经过的20 kHz控制周期数。 */
     uint32_t valid_age_ticks;
     /* 以下计数器只增不减，便于在Keil中判断通信长期稳定性。 */
     uint32_t valid_count;
@@ -39,7 +40,7 @@ typedef struct
     /* warning来自编码器状态位；ready表示已连续收到足够多的有效帧。 */
     bool warning;
     bool ready;
-    /* busy只表示一次SPI4 DMA传输尚未结束，不表示编码器故障。 */
+    /* DMA 或帧解析/发布仍占有缓冲区；不表示编码器故障。 */
     bool busy;
 } BissEncoderSnapshot;
 
@@ -48,14 +49,14 @@ HAL_StatusTypeDef BissEncoder_Init(SPI_HandleTypeDef *spi);
 
 /**
  * 启动一次6字节全双工DMA传输。TX字节只用于让SPI主机产生48个时钟，
- * 真正的数据从SPI4_MISO进入RX缓冲区；传输进行中返回HAL_BUSY。
+ * 真正的数据从SPI4_MISO进入RX缓冲区；传输或解析/发布进行中返回HAL_BUSY。
  */
 HAL_StatusTypeDef BissEncoder_StartRead(void);
 
-/** 每个10 kHz控制周期更新有效帧年龄，并处理DMA超时。 */
+/** 每个20 kHz控制周期更新有效帧年龄，并处理DMA超时。 */
 void BissEncoder_ControlTick(void);
 
-/** SPI4传输完成回调入口：检查DMA保护区、解析BiSS帧并发布有效快照。 */
+/** SPI4完成回调：持有RX所有权解析帧，以短临界区发布快照后才允许复用。 */
 void BissEncoder_OnTransferComplete(void);
 void BissEncoder_OnTransferError(uint32_t error_code);
 void BissEncoder_OnAbortComplete(void);

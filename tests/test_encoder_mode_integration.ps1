@@ -47,9 +47,9 @@ Assert-Contains $control 'MOTOR_CONTROL_ENCODER_ANGLE_CURRENT[\s\S]*encoder_angl
 Assert-Contains $control 'run_state\s*==\s*MOTOR_RUN_STATE_READY[\s\S]*MotorControl_UpdateEncoderAngle\(true\)[\s\S]*MotorControl_StartSelectedMode\(\)' `
     'Direct mode-3 startup must wait safely for the first valid encoder frame.'
 Assert-Contains $control 'BissEncoder_ControlTick\(\)' `
-    'The 10 kHz tick must maintain encoder age and DMA timeout state.'
+    'The 20 kHz tick must maintain encoder age and DMA timeout state.'
 Assert-Contains $control 'BissEncoder_StartRead\(\)' `
-    'The 10 kHz tick must schedule nonblocking encoder frames.'
+    'The 20 kHz tick must schedule nonblocking encoder frames.'
 Assert-Contains $control 'MotorConfigStore_Save[\s\S]*safe_to_write' `
     'Calibration saving must be explicitly guarded by stopped-power authorization.'
 Assert-NotContains $control 'HAL_Delay\s*\(' 'Motor control must not introduce blocking delay calls.'
@@ -68,4 +68,5 @@ Assert-Contains $project '<FileName>encoder_calibration\.c</FileName>' `
 Assert-Contains $project '<FileName>biss_dma_buffer\.c</FileName>' `
     'Keil project must compile the isolated BiSS DMA buffer module.'
 
+Assert-Contains $control 'MotorRuntimePolicy_EncoderReadDue' 'Encoder read requests must use the 10 kHz divider.'
 Write-Output 'encoder-angle current-mode integration checks passed'

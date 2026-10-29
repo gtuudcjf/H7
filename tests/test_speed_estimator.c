@@ -11,8 +11,8 @@
 #include "speed_estimator.h"
 
 #define TEST_COUNTS_PER_TURN (131072U)
-#define TEST_PERIOD_S        (0.001f)
-#define TEST_EPSILON_RPM     (0.001f)
+#define TEST_PERIOD_S        (0.0005f)
+#define TEST_EPSILON_RAD_S     (0.001f)
 
 static void AssertNear(float actual, float expected, float tolerance)
 {
@@ -40,11 +40,11 @@ static void PrimeAt(SpeedEstimator *estimator,
            SPEED_ESTIMATOR_UPDATE_PRIMED);
 }
 
-static void Test_FirstSamplePrimesAndSecondSamplePublishesRpm(void)
+static void Test_FirstSamplePrimesAndSecondSamplePublishesRadS(void)
 {
     SpeedEstimator estimator;
     const SpeedEstimatorConfig config = DefaultConfig();
-    const float one_count_per_ms_rpm = 0.457763672f;
+    const float one_count_per_tick_rad_s = 0.095873799f;
 
     assert(SpeedEstimator_Init(&estimator, &config));
     PrimeAt(&estimator, 1000U, 10U);
@@ -52,30 +52,30 @@ static void Test_FirstSamplePrimesAndSecondSamplePublishesRpm(void)
     assert(SpeedEstimator_Update(&estimator, 1001U, 11U, TEST_PERIOD_S) ==
            SPEED_ESTIMATOR_UPDATE_READY);
     assert(estimator.ready);
-    AssertNear(estimator.raw_rpm, one_count_per_ms_rpm, TEST_EPSILON_RPM);
-    assert(estimator.filtered_rpm > 0.0f);
-    assert(estimator.filtered_rpm < estimator.raw_rpm);
+    AssertNear(estimator.raw_rad_s, one_count_per_tick_rad_s, TEST_EPSILON_RAD_S);
+    assert(estimator.filtered_rad_s > 0.0f);
+    assert(estimator.filtered_rad_s < estimator.raw_rad_s);
 }
 
 static void Test_RepeatedSequenceDoesNotPublishFakeZeroSpeed(void)
 {
     SpeedEstimator estimator;
     const SpeedEstimatorConfig config = DefaultConfig();
-    float previous_raw_rpm;
+    float previous_raw_rad_s;
 
     assert(SpeedEstimator_Init(&estimator, &config));
     PrimeAt(&estimator, 1000U, 10U);
     assert(SpeedEstimator_Update(&estimator, 1001U, 11U, TEST_PERIOD_S) ==
            SPEED_ESTIMATOR_UPDATE_READY);
-    previous_raw_rpm = estimator.raw_rpm;
+    previous_raw_rad_s = estimator.raw_rad_s;
 
     assert(SpeedEstimator_Update(&estimator, 1001U, 11U, TEST_PERIOD_S) ==
            SPEED_ESTIMATOR_UPDATE_NO_NEW_SAMPLE);
-    AssertNear(estimator.raw_rpm, previous_raw_rpm, 0.0001f);
+    AssertNear(estimator.raw_rad_s, previous_raw_rad_s, 0.0001f);
 
     assert(SpeedEstimator_Update(&estimator, 1003U, 12U, TEST_PERIOD_S) ==
            SPEED_ESTIMATOR_UPDATE_READY);
-    AssertNear(estimator.raw_rpm, 0.457763672f, TEST_EPSILON_RPM);
+    AssertNear(estimator.raw_rad_s, 0.095873799f, TEST_EPSILON_RAD_S);
 }
 
 static void Test_SeventeenBitWrapUsesShortestDelta(void)
@@ -87,13 +87,13 @@ static void Test_SeventeenBitWrapUsesShortestDelta(void)
     PrimeAt(&estimator, 131071U, 20U);
     assert(SpeedEstimator_Update(&estimator, 0U, 21U, TEST_PERIOD_S) ==
            SPEED_ESTIMATOR_UPDATE_READY);
-    AssertNear(estimator.raw_rpm, 0.457763672f, TEST_EPSILON_RPM);
+    AssertNear(estimator.raw_rad_s, 0.095873799f, TEST_EPSILON_RAD_S);
 
     SpeedEstimator_Reset(&estimator);
     PrimeAt(&estimator, 0U, 30U);
     assert(SpeedEstimator_Update(&estimator, 131071U, 31U, TEST_PERIOD_S) ==
            SPEED_ESTIMATOR_UPDATE_READY);
-    AssertNear(estimator.raw_rpm, -0.457763672f, TEST_EPSILON_RPM);
+    AssertNear(estimator.raw_rad_s, -0.095873799f, TEST_EPSILON_RAD_S);
 }
 
 static void Test_CalibratedDirectionControlsSpeedSign(void)
@@ -106,7 +106,7 @@ static void Test_CalibratedDirectionControlsSpeedSign(void)
     PrimeAt(&estimator, 100U, 1U);
     assert(SpeedEstimator_Update(&estimator, 110U, 2U, TEST_PERIOD_S) ==
            SPEED_ESTIMATOR_UPDATE_READY);
-    assert(estimator.raw_rpm < 0.0f);
+    assert(estimator.raw_rad_s < 0.0f);
 }
 
 static void Test_FilterConvergesWithoutOvershoot(void)
@@ -120,7 +120,7 @@ static void Test_FilterConvergesWithoutOvershoot(void)
 
     assert(SpeedEstimator_Init(&estimator, &config));
     PrimeAt(&estimator, position, sequence);
-    for (index = 0U; index < 100U; ++index)
+    for (index = 0U; index < 200U; ++index)
     {
         position += 100U;
         ++sequence;
@@ -129,11 +129,11 @@ static void Test_FilterConvergesWithoutOvershoot(void)
                                      sequence,
                                      TEST_PERIOD_S) ==
                SPEED_ESTIMATOR_UPDATE_READY);
-        assert(estimator.filtered_rpm >= previous_filtered);
-        assert(estimator.filtered_rpm <= estimator.raw_rpm);
-        previous_filtered = estimator.filtered_rpm;
+        assert(estimator.filtered_rad_s >= previous_filtered);
+        assert(estimator.filtered_rad_s <= estimator.raw_rad_s);
+        previous_filtered = estimator.filtered_rad_s;
     }
-    AssertNear(estimator.filtered_rpm, estimator.raw_rpm, 0.01f);
+    AssertNear(estimator.filtered_rad_s, estimator.raw_rad_s, 0.01f);
 }
 
 static void Test_ResetPreservesConfigurationAndClearsDynamicState(void)
@@ -152,8 +152,8 @@ static void Test_ResetPreservesConfigurationAndClearsDynamicState(void)
     AssertNear(estimator.config.filter_cutoff_hz, 20.0f, 0.0001f);
     assert(!estimator.has_position);
     assert(!estimator.ready);
-    AssertNear(estimator.raw_rpm, 0.0f, 0.0001f);
-    AssertNear(estimator.filtered_rpm, 0.0f, 0.0001f);
+    AssertNear(estimator.raw_rad_s, 0.0f, 0.0001f);
+    AssertNear(estimator.filtered_rad_s, 0.0f, 0.0001f);
 }
 
 static void Test_InvalidConfigurationAndSamplesAreRejected(void)
@@ -194,7 +194,7 @@ static void Test_InvalidConfigurationAndSamplesAreRejected(void)
 
 int main(void)
 {
-    Test_FirstSamplePrimesAndSecondSamplePublishesRpm();
+    Test_FirstSamplePrimesAndSecondSamplePublishesRadS();
     Test_RepeatedSequenceDoesNotPublishFakeZeroSpeed();
     Test_SeventeenBitWrapUsesShortestDelta();
     Test_CalibratedDirectionControlsSpeedSign();

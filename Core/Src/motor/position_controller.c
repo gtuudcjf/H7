@@ -10,11 +10,11 @@ static bool PositionController_ConfigIsValid(
     const PositionControllerConfig *config)
 {
     return (config != 0) &&
-           isfinite(config->kp_rpm_per_deg) &&
-           isfinite(config->max_speed_rpm) &&
+           isfinite(config->kp_rad_s_per_deg) &&
+           isfinite(config->max_speed_rad_s) &&
            isfinite(config->tolerance_deg) &&
-           (config->kp_rpm_per_deg > 0.0f) &&
-           (config->max_speed_rpm > 0.0f) &&
+           (config->kp_rad_s_per_deg > 0.0f) &&
+           (config->max_speed_rad_s > 0.0f) &&
            (config->tolerance_deg >= 0.0f) &&
            (config->tolerance_deg < 180.0f);
 }
@@ -73,7 +73,7 @@ bool PositionController_Step(const PositionController *controller,
                              PositionControllerResult *result)
 {
     PositionControllerResult next;
-    float requested_speed_rpm;
+    float requested_speed_rad_s;
 
     if ((controller == 0) || (result == 0) ||
         !PositionController_ConfigIsValid(&controller->config) ||
@@ -97,21 +97,21 @@ bool PositionController_Step(const PositionController *controller,
 
     next.within_tolerance =
         fabsf(next.error_deg) <= controller->config.tolerance_deg;
-    requested_speed_rpm = next.within_tolerance ?
-        0.0f : controller->config.kp_rpm_per_deg * next.error_deg;
-    if (!isfinite(requested_speed_rpm))
+    requested_speed_rad_s = next.within_tolerance ?
+        0.0f : controller->config.kp_rad_s_per_deg * next.error_deg;
+    if (!isfinite(requested_speed_rad_s))
     {
         return false;
     }
-    if (requested_speed_rpm > controller->config.max_speed_rpm)
+    if (requested_speed_rad_s > controller->config.max_speed_rad_s)
     {
-        requested_speed_rpm = controller->config.max_speed_rpm;
+        requested_speed_rad_s = controller->config.max_speed_rad_s;
     }
-    else if (requested_speed_rpm < -controller->config.max_speed_rpm)
+    else if (requested_speed_rad_s < -controller->config.max_speed_rad_s)
     {
-        requested_speed_rpm = -controller->config.max_speed_rpm;
+        requested_speed_rad_s = -controller->config.max_speed_rad_s;
     }
-    next.speed_target_rpm = requested_speed_rpm;
+    next.speed_target_rad_s = requested_speed_rad_s;
     *result = next;
     return true;
 }

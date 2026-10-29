@@ -11,7 +11,7 @@
 #include "encoder_calibration.h"
 #include "motor_params.h"
 
-#define TEST_DT_S      (0.0001f)
+#define TEST_DT_S      (0.00005f)
 #define TEST_EPSILON   (0.002f)
 
 static EncoderCalibrationInput ValidInput(uint32_t position)
@@ -55,10 +55,10 @@ static void AdvanceToDirectionMove(EncoderCalibration *calibration,
 {
     assert(EncoderCalibration_Start(calibration));
     AdvanceUntilState(calibration, ENCODER_CAL_ALIGN_ZERO, zero_position, 4U);
-    AdvanceUntilState(calibration, ENCODER_CAL_PREALIGN_MOVE, zero_position, 5000U);
-    AdvanceUntilState(calibration, ENCODER_CAL_PREALIGN_RETURN, zero_position, 5000U);
-    AdvanceUntilState(calibration, ENCODER_CAL_SETTLE_ZERO, zero_position, 5000U);
-    AdvanceUntilState(calibration, ENCODER_CAL_DIRECTION_MOVE, zero_position, 6000U);
+    AdvanceUntilState(calibration, ENCODER_CAL_PREALIGN_MOVE, zero_position, 10000U);
+    AdvanceUntilState(calibration, ENCODER_CAL_PREALIGN_RETURN, zero_position, 10000U);
+    AdvanceUntilState(calibration, ENCODER_CAL_SETTLE_ZERO, zero_position, 10000U);
+    AdvanceUntilState(calibration, ENCODER_CAL_DIRECTION_MOVE, zero_position, 12000U);
 }
 
 static void AdvanceDirectionAndReturn(EncoderCalibration *calibration,
@@ -66,13 +66,13 @@ static void AdvanceDirectionAndReturn(EncoderCalibration *calibration,
                                       uint32_t return_position)
 {
     AdvanceUntilState(calibration, ENCODER_CAL_SETTLE_FINAL,
-                      final_position, 5000U);
+                      final_position, 10000U);
     AdvanceUntilState(calibration, ENCODER_CAL_RETURN_ZERO,
-                      final_position, 6000U);
+                      final_position, 12000U);
     AdvanceUntilState(calibration, ENCODER_CAL_SETTLE_RETURN,
-                      return_position, 5000U);
+                      return_position, 10000U);
     AdvanceUntilState(calibration, ENCODER_CAL_COMPLETE,
-                      return_position, 11000U);
+                      return_position, 22000U);
 }
 
 static void Test_AlignmentCurrentRampsAndIqRemainsZero(void)
@@ -88,7 +88,7 @@ static void Test_AlignmentCurrentRampsAndIqRemainsZero(void)
     assert(command.id_ref_a == 0.0f);
     assert(command.iq_ref_a == 0.0f);
 
-    for (index = 0U; index < 2000U; ++index)
+    for (index = 0U; index < 4000U; ++index)
     {
         command = Step(&calibration, 1000U);
     }
@@ -96,7 +96,7 @@ static void Test_AlignmentCurrentRampsAndIqRemainsZero(void)
                  (0.5f * MOTOR_ENCODER_ALIGN_CURRENT_A)) < TEST_EPSILON);
     assert(command.iq_ref_a == 0.0f);
 
-    AdvanceUntilState(&calibration, ENCODER_CAL_PREALIGN_MOVE, 1000U, 2100U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_PREALIGN_MOVE, 1000U, 4200U);
     command = Step(&calibration, 1000U);
     assert(fabsf(command.id_ref_a - MOTOR_ENCODER_ALIGN_CURRENT_A) < TEST_EPSILON);
     assert(command.forced_electrical_angle_pu >= 0.0f);
@@ -133,7 +133,7 @@ static void Test_DirectionAngleRampsBeforeFinalSettling(void)
 
     EncoderCalibration_Init(&calibration);
     AdvanceToDirectionMove(&calibration, 10000U);
-    for (index = 0U; index < 2000U; ++index)
+    for (index = 0U; index < 4000U; ++index)
     {
         command = Step(&calibration, 10655U);
     }
@@ -154,10 +154,10 @@ static void Test_CircularAverageHandlesPositionWrap(void)
 
     EncoderCalibration_Init(&calibration);
     assert(EncoderCalibration_Start(&calibration));
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_ZERO, 131071U, 13000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_ZERO, 131071U, 26000U);
 
     /* 完成500 ms等待，然后让128个样本在131071/0之间交替。 */
-    for (index = 0U; index < 5000U; ++index)
+    for (index = 0U; index < 10000U; ++index)
     {
         (void)Step(&calibration, 131071U);
     }
@@ -179,10 +179,10 @@ static void Test_ReturnMismatchRejectsNonRepeatableZero(void)
 
     EncoderCalibration_Init(&calibration);
     AdvanceToDirectionMove(&calibration, 10000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 11311U, 5000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_RETURN_ZERO, 11311U, 6000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_RETURN, 10600U, 5000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_FAILED, 10600U, 10000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 11311U, 10000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_RETURN_ZERO, 11311U, 12000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_RETURN, 10600U, 10000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_FAILED, 10600U, 20000U);
     assert(calibration.failure == ENCODER_CAL_FAILURE_RETURN_MISMATCH);
     assert(calibration.return_error_count == 600);
     assert(!calibration.result_valid);
@@ -194,16 +194,16 @@ static void Test_MovementOutsideAllowedRangeFails(void)
 
     EncoderCalibration_Init(&calibration);
     AdvanceToDirectionMove(&calibration, 10000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 10100U, 5000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_FAILED, 10100U, 10000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 10100U, 10000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_FAILED, 10100U, 20000U);
     assert(calibration.failure == ENCODER_CAL_FAILURE_MOVEMENT_RANGE);
     assert(calibration.final_average_raw == 10100U);
     assert(calibration.direction_movement_count == 100);
 
     EncoderCalibration_Init(&calibration);
     AdvanceToDirectionMove(&calibration, 10000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 15000U, 5000U);
-    AdvanceUntilState(&calibration, ENCODER_CAL_FAILED, 15000U, 10000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_FINAL, 15000U, 10000U);
+    AdvanceUntilState(&calibration, ENCODER_CAL_FAILED, 15000U, 20000U);
     assert(calibration.failure == ENCODER_CAL_FAILURE_MOVEMENT_RANGE);
 }
 
@@ -227,8 +227,8 @@ static void Test_UnstableAndMissingSamplesFailSafely(void)
 
     EncoderCalibration_Init(&calibration);
     assert(EncoderCalibration_Start(&calibration));
-    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_ZERO, 10000U, 13000U);
-    for (index = 0U; index < 5000U; ++index)
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_ZERO, 10000U, 26000U);
+    for (index = 0U; index < 10000U; ++index)
     {
         (void)Step(&calibration, 10000U);
     }
@@ -262,6 +262,25 @@ static void Test_InvalidTimingAndStateTimeoutFail(void)
     assert(command.id_ref_a == 0.0f);
 }
 
+static void Test_OnlyNew10kFramesCountAt20kControlRate(void)
+{
+    EncoderCalibration calibration;
+    EncoderCalibrationInput input = ValidInput(10000U);
+    uint32_t index;
+    EncoderCalibration_Init(&calibration);
+    assert(EncoderCalibration_Start(&calibration));
+    AdvanceUntilState(&calibration, ENCODER_CAL_SETTLE_ZERO, 10000U, 26000U);
+    calibration.state_elapsed_s = MOTOR_ENCODER_ALIGN_SETTLE_S;
+    for (index = 0U; index < 255U; ++index)
+    {
+        input.encoder_valid = (index % 2U) == 0U;
+        (void)EncoderCalibration_Step(&calibration, &input, TEST_DT_S);
+        if (index < 254U) assert(calibration.state == ENCODER_CAL_SETTLE_ZERO);
+    }
+    assert(calibration.state == ENCODER_CAL_DIRECTION_MOVE);
+    assert(calibration.sample_count == 128U);
+}
+
 int main(void)
 {
     Test_AlignmentCurrentRampsAndIqRemainsZero();
@@ -272,6 +291,7 @@ int main(void)
     Test_ReturnMismatchRejectsNonRepeatableZero();
     Test_UnstableAndMissingSamplesFailSafely();
     Test_InvalidTimingAndStateTimeoutFail();
+    Test_OnlyNew10kFramesCountAt20kControlRate();
 
     puts("encoder-calibration tests passed");
     return 0;

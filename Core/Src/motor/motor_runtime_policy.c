@@ -3,6 +3,42 @@
  * @brief 电机运行阶段的后台外设调度策略。
  */
 #include "motor_runtime_policy.h"
+#include "motor_params.h"
+
+bool MotorRuntimePolicy_SpeedTaskDue(uint32_t *phase)
+{
+    if (phase == 0)
+    {
+        return false;
+    }
+    ++*phase;
+    if (*phase < MOTOR_SPEED_CONTROL_DIVIDER)
+    {
+        return false;
+    }
+    *phase = 0U;
+    return true;
+}
+
+bool MotorRuntimePolicy_EncoderReadDue(uint32_t *phase, bool allowed)
+{
+    if (phase == 0)
+    {
+        return false;
+    }
+    if (!allowed)
+    {
+        *phase = 0U;
+        return false;
+    }
+    if (*phase == 0U)
+    {
+        *phase = MOTOR_ENCODER_CONTROL_DIVIDER - 1U;
+        return true;
+    }
+    --*phase;
+    return false;
+}
 
 bool MotorRuntimePolicy_EncoderAcquisitionAllowed(MotorRunState run_state)
 {

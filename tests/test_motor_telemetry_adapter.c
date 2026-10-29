@@ -54,8 +54,8 @@ int main(void)
     g_motor_control_debug.id_a = 2;
     g_motor_control_debug.iq_ref_a = 3;
     g_motor_control_debug.iq_a = 4;
-    g_motor_control_debug.speed_active_target_rpm = 5;
-    g_motor_control_debug.speed_filtered_rpm = 6;
+    g_motor_control_debug.speed_active_target_rad_s = 5;
+    g_motor_control_debug.speed_filtered_rad_s = 6;
     g_motor_control_debug.position_target_deg = 7;
     g_motor_control_debug.position_feedback_deg = 8;
     MotorTelemetryCore_Encode(values, expected);

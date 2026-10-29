@@ -1,6 +1,6 @@
 /**
  * @file position_controller.h
- * @brief 单圈机械位置 P 环：输出供现有速度 PI 使用的速度目标。
+ * @brief 单圈机械位置 P 环：输入为度，输出供速度 PI 使用的rad/s目标。
  */
 #ifndef POSITION_CONTROLLER_H
 #define POSITION_CONTROLLER_H
@@ -9,8 +9,8 @@
 
 typedef struct
 {
-    float kp_rpm_per_deg;
-    float max_speed_rpm;
+    float kp_rad_s_per_deg;
+    float max_speed_rad_s;
     float tolerance_deg;
 } PositionControllerConfig;
 
@@ -24,7 +24,7 @@ typedef struct
 typedef struct
 {
     float error_deg;
-    float speed_target_rpm;
+    float speed_target_rad_s;
     bool within_tolerance;
 } PositionControllerResult;
 

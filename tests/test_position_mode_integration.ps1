@@ -21,8 +21,8 @@ foreach ($field in @('position_target_deg', 'position_feedback_deg',
 {
     Assert-Contains $header ("\b" + $field + "\b") "Debug field $field is missing."
 }
-foreach ($name in @('MOTOR_POSITION_KP_RPM_PER_DEG',
-                  'MOTOR_POSITION_SPEED_LIMIT_RPM',
+foreach ($name in @('MOTOR_POSITION_KP_RAD_S_PER_DEG',
+                  'MOTOR_POSITION_SPEED_LIMIT_RAD_S',
                   'MOTOR_POSITION_TOLERANCE_DEG'))
 {
     Assert-Contains $params $name "Position parameter $name is missing."
@@ -48,14 +48,14 @@ Assert-Contains $source 'MOTOR_FAULT_ENCODER_STALE' `
 
 $task = [regex]::Match($source,
     'static bool MotorControl_RunSpeedTask\s*\(void\)[\s\S]*?\n\}')
-if (-not $task.Success) { throw 'Could not locate the 1 kHz speed task.' }
+if (-not $task.Success) { throw 'Could not locate the 2 kHz speed task.' }
 Assert-Contains $task.Value 'PositionController_Step\s*\(' `
-    'The 1 kHz task does not execute the position outer loop.'
-Assert-Contains $task.Value 'requested_speed_rpm\s*=\s*speed_target_rpm' `
+    'The 2 kHz task does not execute the position outer loop.'
+Assert-Contains $task.Value 'requested_speed_rad_s\s*=\s*speed_target_rad_s' `
     'Mode 4 must continue to use its independent speed command.'
 Assert-Contains $task.Value 'SpeedPi_Step\s*\(' `
     'Position mode must reuse the existing inner speed PI.'
-Assert-Contains $task.Value 'speed_mode_waiting_for_estimator[\s\S]*?MOTOR_CONTROL_ENCODER_POSITION_CURRENT[\s\S]*?speed_active_target_rpm\s*=\s*0\.0f' `
+Assert-Contains $task.Value 'speed_mode_waiting_for_estimator[\s\S]*?MOTOR_CONTROL_ENCODER_POSITION_CURRENT[\s\S]*?speed_active_target_rad_s\s*=\s*0\.0f' `
     'Position mode must not inherit measured speed while waiting for the estimator.'
 if ($task.Value.IndexOf('PositionController_Step') -gt
     $task.Value.IndexOf('SpeedPi_Step'))
@@ -68,10 +68,10 @@ Assert-Contains $source 'motor_mode\s*==\s*MOTOR_CONTROL_ENCODER_ANGLE_CURRENT' 
 $handoff = [regex]::Match($source,
     'static void MotorControl_ApplyModeRequest\s*\(void\)[\s\S]*?\n\}')
 if (-not $handoff.Success) { throw 'Could not locate mode handoff.' }
-Assert-Contains $handoff.Value 'speed_estimator\.ready[\s\S]*?MOTOR_CONTROL_ENCODER_POSITION_CURRENT[\s\S]*?speed_active_target_rpm\s*=\s*0\.0f' `
+Assert-Contains $handoff.Value 'speed_estimator\.ready[\s\S]*?MOTOR_CONTROL_ENCODER_POSITION_CURRENT[\s\S]*?speed_active_target_rad_s\s*=\s*0\.0f' `
     'Mode 4 to position handoff must start from zero speed reference.'
-Assert-Contains $main 'MotorControl_SetSpeedCommand\s*\(50\.0f\)' `
-    'The validated 50 rpm speed command must remain unchanged.'
+Assert-Contains $main 'MotorControl_SetSpeedCommand\s*\(5\.2359878f\)' `
+    'The validated 5.2359878 rad/s speed command must remain unchanged.'
 Assert-Contains $project '<FilePath>\.\./Core/Src/motor/position_controller\.c</FilePath>' `
     'The Keil project does not compile position_controller.c.'
 

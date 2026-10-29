@@ -33,8 +33,8 @@ Assert-Contains $motorHeader 'MotorControl_SetSpeedPiGains\s*\(' `
     'The speed PI tuning API is missing.'
 Assert-Contains $motorHeader 'MotorControl_SetSpeedIqLimit\s*\(' `
     'The speed PI current-limit API is missing.'
-Assert-Contains $motorSource 'MOTOR_SPEED_CONTROL_DIVIDER' `
-    'The 10 kHz to 1 kHz speed divider is missing.'
+Assert-Contains $motorSource 'MotorRuntimePolicy_SpeedTaskDue' `
+    'The 20 kHz to 2 kHz speed divider is missing.'
 Assert-Contains $motorSource 'SpeedEstimator_Update\s*\(' `
     'Motor control does not consume the speed estimator.'
 Assert-Contains $motorSource 'SpeedPi_Step\s*\(' `

@@ -37,7 +37,7 @@ foreach ($field in @(
     'mode', 'requested_mode', 'run_state', 'fault',
     'phase_a_raw', 'phase_b_raw', 'phase_a_offset', 'phase_b_offset',
     'id_ref_a', 'id_a', 'iq_ref_a', 'iq_a', 'electrical_angle_pu',
-    'speed_target_rpm', 'speed_active_target_rpm', 'speed_filtered_rpm',
+    'speed_target_rad_s', 'speed_active_target_rad_s', 'speed_filtered_rad_s',
     'speed_iq_command_a', 'speed_pi_saturated',
     'position_target_deg', 'position_feedback_deg', 'position_error_deg',
     'adc_age_ticks', 'overcurrent_count', 'voltage_saturated',
@@ -55,7 +55,7 @@ foreach ($removed in @(
     'ud_integrator_v', 'uq_integrator_v', 'i_alpha_a', 'i_beta_a',
     'encoder_raw', 'encoder_received_crc', 'encoder_calculated_crc',
     'startup_trace_count', 'startup_trace_stage', 'foreground_service_count',
-    'speed_control_tick_count', 'position_speed_target_rpm',
+    'speed_control_tick_count', 'position_speed_target_rad_s',
     'current_voltage_limit_pu'
 )) {
     Assert-NotContains ($header + "`n" + $control) `
@@ -65,12 +65,12 @@ foreach ($removed in @(
 Assert-NotContains ($header + "`n" + $control) 'motor_startup_trace\.h|MotorStartupTrace' `
     'Startup-only trace code must be removed from motor control.'
 
-Assert-Contains $control 'CURRENT_CALIBRATION_DISCARD_COUNT\s+\(16U\)' 'Calibration must discard 16 samples.'
-Assert-Contains $control 'CURRENT_CALIBRATION_SAMPLE_COUNT\s+\(256U\)' 'Calibration must average 256 samples.'
-Assert-Contains $control 'CURRENT_OVERCURRENT_CONFIRM_COUNT\s+\(2U\)' 'Overcurrent must require two consecutive samples.'
+Assert-Contains $params 'MOTOR_CURRENT_CALIBRATION_DISCARD_COUNT\s+\(32U\)' 'Calibration must discard 32 samples (1.6 ms).'
+Assert-Contains $params 'MOTOR_CURRENT_CALIBRATION_SAMPLE_COUNT\s+\(512U\)' 'Calibration must average 512 samples (25.6 ms).'
+Assert-Contains $params 'MOTOR_CURRENT_OVERCURRENT_CONFIRM_COUNT\s+\(4U\)' 'Overcurrent must require four samples (200 us).'
 Assert-Contains $control 'CurrentPi_PreloadOutput' 'Open-loop to current-loop switching must preload the PI.'
 Assert-Contains $control 'open_voltage_blend_active\s*=\s*true' 'Current-loop to open-loop switching must blend voltage.'
-Assert-Contains $control 'open_voltage_magnitude\s*>\s*MOTOR_POLE_VOLTAGE_LIMIT_MAX_PU' `
+Assert-Contains $control 'open_voltage_magnitude\s*>\s*MOTOR_CURRENT_SAMPLING_VOLTAGE_LIMIT_PU' `
     'High-modulation voltage open loop must not trust an invalid fixed low-side sample.'
 
 Assert-Contains $params 'MOTOR_CURRENT_PI_KP_V_PER_A\s+\(0\.05f\)' 'Conservative current Kp default is required.'
@@ -81,7 +81,7 @@ Assert-Contains $params 'MOTOR_CURRENT_TRIP_A\s+\(10\.0f\)' 'Software overcurren
 
 Assert-Contains $main '\.mode\s*=\s*MOTOR_CONTROL_(OPEN_VOLTAGE|OPEN_ANGLE_CURRENT|ENCODER_ANGLE_CURRENT|ENCODER_SPEED_CURRENT|ENCODER_POSITION_CURRENT)' `
     'The selected startup mode must be one of the implemented modes.'
-Assert-Contains $main 'MotorControl_SetOpenLoopCommand\(0\.0f,\s*0\.08f,\s*1\.0f\)' `
+Assert-Contains $main 'MotorControl_SetOpenLoopCommand\(0\.0f,\s*MOTOR_OPEN_LOOP_START_UQ_V\s*/\s*MOTOR_NOMINAL_VBUS_V,\s*1\.0f\)' `
     'The voltage-open-loop startup profile must be initialized independently of mode selection.'
 Assert-Contains $main 'MotorControl_SetCurrentCommand\(0\.0f,\s*0\.8f,\s*1\.0f\)' `
     'The open-angle current startup profile must be initialized independently of mode selection.'

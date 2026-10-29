@@ -38,15 +38,48 @@
      (MOTOR_ADC_FULL_SCALE_COUNT * MOTOR_CSA_GAIN_V_PER_V * MOTOR_SHUNT_RESISTANCE_OHM))
 
 /*
- * [换母线或PWM频率必改] 10 kHz电流环与标称母线参数。
+ * [换母线或PWM频率必改] 20 kHz电流环与标称母线参数。
  * 当前工程没有实时母线电压采样，PI输出由“伏特”除以该标称值转成pu，
- * 所以MOTOR_NOMINAL_VBUS_V必须填写实际母线电压，否则输出比例会错误。
- * PERIOD必须与TIM8更新事件严格一致，当前为100 us。
+ * 所以MOTOR_BUS_VOLTAGE_SELECT_V必须匹配实际母线，否则输出比例会错误。
+ * PERIOD必须与TIM8更新事件及ADC注入采样周期一致，当前为50 us。
  */
-#define MOTOR_CONTROL_PERIOD_S           (0.0001f)
-#define MOTOR_NOMINAL_VBUS_V             (24.0f)
-#define MOTOR_POLE_VOLTAGE_LIMIT_START_PU (0.15f)
-#define MOTOR_POLE_VOLTAGE_LIMIT_MAX_PU   (0.45f)
+#define MOTOR_CONTROL_PERIOD_S           (0.00005f)
+
+/* 编译前选择实际母线；可用编译器 -D 覆盖，禁止填写浮点数或其他电压。 */
+#ifndef MOTOR_BUS_VOLTAGE_SELECT_V
+#define MOTOR_BUS_VOLTAGE_SELECT_V        (24)
+#endif
+#if MOTOR_BUS_VOLTAGE_SELECT_V == 24
+#define MOTOR_NOMINAL_VBUS_V              (24.0f)
+#elif MOTOR_BUS_VOLTAGE_SELECT_V == 48
+#define MOTOR_NOMINAL_VBUS_V              (48.0f)
+#else
+#error "MOTOR_BUS_VOLTAGE_SELECT_V must be integer 24 or 48"
+#endif
+
+/* 切换母线后保持相同的绝对电压边界，不随母线翻倍。 */
+#define MOTOR_POLE_VOLTAGE_LIMIT_START_V  (3.6f)
+#define MOTOR_POLE_VOLTAGE_LIMIT_MAX_V    (10.8f)
+#define MOTOR_POLE_VOLTAGE_LIMIT_START_PU \
+    (MOTOR_POLE_VOLTAGE_LIMIT_START_V / MOTOR_NOMINAL_VBUS_V)
+#define MOTOR_POLE_VOLTAGE_LIMIT_MAX_PU   \
+    (((MOTOR_POLE_VOLTAGE_LIMIT_MAX_V / MOTOR_NOMINAL_VBUS_V) < \
+      MOTOR_CURRENT_SAMPLING_VOLTAGE_LIMIT_PU) ? \
+     (MOTOR_POLE_VOLTAGE_LIMIT_MAX_V / MOTOR_NOMINAL_VBUS_V) : \
+     MOTOR_CURRENT_SAMPLING_VOLTAGE_LIMIT_PU)
+/* 两电阻固定采样窗口的几何边界，独立于电流PI的绝对电压限幅。 */
+#define MOTOR_CURRENT_SAMPLING_VOLTAGE_LIMIT_PU (0.45f)
+#define MOTOR_OPEN_LOOP_START_UQ_V        (1.92f)
+#define MOTOR_OPEN_VOLTAGE_SLEW_V_PER_S    (120.0f)
+
+/* 以下年龄计数使用严格 > 比较；+1后乘50 us才是触发时间。 */
+#define MOTOR_CURRENT_ADC_TIMEOUT_TICKS         (7U)   /* 400 us */
+#define MOTOR_ENCODER_STALE_LIMIT_TICKS         (21U)  /* 1.1 ms */
+#define MOTOR_ENCODER_DMA_TIMEOUT_TICKS         (5U)   /* 300 us */
+#define MOTOR_CURRENT_OVERCURRENT_CONFIRM_COUNT (4U)   /* 200 us */
+#define MOTOR_CURRENT_CALIBRATION_DISCARD_COUNT (32U)  /* 1.6 ms */
+#define MOTOR_CURRENT_CALIBRATION_SAMPLE_COUNT  (512U) /* 25.6 ms */
+#define MOTOR_ENCODER_CONTROL_DIVIDER           (2U)   /* 10 kHz采集 */
 
 /*
  * [换电机/负载必调] 电流命令、斜坡与软件过流保护。
@@ -102,12 +135,12 @@
 #define MOTOR_ENCODER_RETURN_MAX_ERROR_COUNT    (256)
 /* 回零验证后保持 0 pu 电角度，缓慢撤掉 Id，减小减速器回弹。 */
 #define MOTOR_ENCODER_RELEASE_RAMP_S            (0.4f)
-#define MOTOR_ENCODER_CAL_INVALID_LIMIT_TICKS  (100U)
+#define MOTOR_ENCODER_CAL_INVALID_LIMIT_TICKS  (201U) /* >201: 10.1 ms */
 #define MOTOR_ENCODER_CAL_STATE_TIMEOUT_S      (2.0f)
 
 /*
  * [换电机/编码器/减速器/负载后必须复核] 速度环使用电机轴编码器的机械转速。
- * 速度任务由10 kHz快速边界每10次分频得到1 kHz；PERIOD从电流环周期推导，
+ * 速度任务由20 kHz快速边界每10次分频得到2 kHz；PERIOD从电流环周期推导，
  * 禁止再维护一份彼此可能漂移的固定周期。编码器若改装到减速器输出端，不能只
  * 修改减速比：必须重新定义速度接口的物理含义并重新整定滤波器和速度PI。
  */
@@ -115,8 +148,8 @@
 #define MOTOR_SPEED_CONTROL_DIVIDER         (10U)
 #define MOTOR_SPEED_CONTROL_PERIOD_S        \
     (MOTOR_CONTROL_PERIOD_S * (float)MOTOR_SPEED_CONTROL_DIVIDER)
-#define MOTOR_SPEED_COMMAND_LIMIT_RPM       (100.0f)
-#define MOTOR_SPEED_COMMAND_SLEW_RPM_PER_S  (20.0f)
+#define MOTOR_SPEED_COMMAND_LIMIT_RAD_S       (10.4719755f)
+#define MOTOR_SPEED_COMMAND_SLEW_RAD_S2        (2.0943951f)
 #define MOTOR_SPEED_FILTER_CUTOFF_HZ        (20.0f)
 #define MOTOR_SPEED_CURRENT_COMMAND_SLEW_A_PER_S (10.0f)
 
@@ -125,14 +158,14 @@
  * 它们没有照搬F407中依赖隐含调用频率的离散增益。当前实机试验将转矩电流上限提高到0.7 A，
  * 确认方向、速度反馈和无持续饱和后，再逐步整定Kp、Ki，最后才考虑提高限幅。
  */
-#define MOTOR_SPEED_PI_KP_A_PER_RPM         (0.03f)
-#define MOTOR_SPEED_PI_KI_A_PER_RPM_S       (0.015f)
+#define MOTOR_SPEED_PI_KP_A_PER_RAD_S         (0.2864789f)
+#define MOTOR_SPEED_PI_KI_A_PER_RAD           (0.14323945f)
 #define MOTOR_SPEED_PI_KAW_PER_S             (10.0f)
 #define MOTOR_SPEED_IQ_LIMIT_A               (0.7f)
 
-/* 单圈轴侧位置环：1 kHz P 控制输出速度目标，仍受现有速度/电流环限幅。 */
-#define MOTOR_POSITION_KP_RPM_PER_DEG        (0.4f)
-#define MOTOR_POSITION_SPEED_LIMIT_RPM       (20.0f)
+/* 单圈轴侧位置环：2 kHz P环输出rad/s；位置输入和误差仍以度表示。 */
+#define MOTOR_POSITION_KP_RAD_S_PER_DEG       (0.04188790f)
+#define MOTOR_POSITION_SPEED_LIMIT_RAD_S     (2.0943951f)
 #define MOTOR_POSITION_TOLERANCE_DEG         (0.5f)
 
 #endif /* MOTOR_PARAMS_H */

@@ -40,8 +40,8 @@ void SpeedEstimator_Reset(SpeedEstimator *estimator)
     estimator->last_position_raw = 0U;
     estimator->last_sequence = 0U;
     estimator->elapsed_s = 0.0f;
-    estimator->raw_rpm = 0.0f;
-    estimator->filtered_rpm = 0.0f;
+    estimator->raw_rad_s = 0.0f;
+    estimator->filtered_rad_s = 0.0f;
     estimator->has_position = false;
     estimator->ready = false;
 }
@@ -99,18 +99,18 @@ SpeedEstimatorUpdateStatus SpeedEstimator_Update(
     }
 
     directed_delta_count = delta_count * (int32_t)estimator->config.direction;
-    estimator->raw_rpm =
-        ((float)directed_delta_count * 60.0f) /
+    estimator->raw_rad_s =
+        ((float)directed_delta_count * SPEED_ESTIMATOR_TWO_PI) /
         ((float)estimator->config.counts_per_turn * estimator->elapsed_s);
 
     tau_s = 1.0f /
             (SPEED_ESTIMATOR_TWO_PI * estimator->config.filter_cutoff_hz);
     alpha = estimator->elapsed_s / (tau_s + estimator->elapsed_s);
-    estimator->filtered_rpm +=
-        alpha * (estimator->raw_rpm - estimator->filtered_rpm);
+    estimator->filtered_rad_s +=
+        alpha * (estimator->raw_rad_s - estimator->filtered_rad_s);
 
-    if (!isfinite(estimator->raw_rpm) ||
-        !isfinite(estimator->filtered_rpm))
+    if (!isfinite(estimator->raw_rad_s) ||
+        !isfinite(estimator->filtered_rad_s))
     {
         return SPEED_ESTIMATOR_UPDATE_INVALID;
     }

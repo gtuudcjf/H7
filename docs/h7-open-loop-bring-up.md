@@ -1,5 +1,8 @@
 # H7 开环控制上板步骤
 
+> **2026-10-28版本说明：** 当前基线已迁移到20 kHz电流环、2 kHz速度/位置环、rad/s及24/48 V编译选择。本文保留旧版本实机记录和调试背景；旧参数、代码示例及接口单位不能直接用于当前版本，请先阅读[当前配置指南](h7-20k-rads-dual-bus-guide.md)。历史实机结果不代表新配置已经实机验证。
+
+
 ## 编译前检查
 
 Keil 工程 `MDK-ARM/emptytest.uvprojx` 已增加 `Application/User/Motor` 组和 `../Core/Inc/motor` 包含路径。若 CubeMX 重新生成工程，请确认这两个改动仍保留。
